@@ -15,12 +15,21 @@ How to compile?
 
 For Windows: gcc *.c -O3 -o nhw_en/decoder.exe
 
-For Linux: gcc *.c -O3 -lm -o nhw_en/decoder.exe
+For Linux: see Makefiles in sub folders
 
-To encode an image (512x512 bitmap color image for now): nhw_encoder.exe imagename.bmp
+To encode an image (512x512 bitmap color image for now): nhw_encoder.exe imagename.png
 
 encoder options: quality settings: -h1..3 or -l1..19
 
-example: nhw_encoder.exe imagename.bmp -l3
+Windows:
+=========
+example: nhw_encoder.exe imagename.png -l3
                  
 To decode: nhw_decoder.exe imagename.nhw
+
+Linux:
+=======
+
+> nhw_enc imagename.png -l3
+
+> nhw_dec imagename.nhw
