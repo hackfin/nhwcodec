@@ -30,6 +30,6 @@ To decode: nhw_decoder.exe imagename.nhw
 Linux:
 =======
 
-> nhw_enc imagename.png -l3
+> nhwenc imagename.png -l3
 
-> nhw_dec imagename.nhw
+> nhwdec imagename.nhw
