@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <png.h>
 
 #include "codec.h"
 
@@ -53,7 +54,7 @@ char bmp_header[54];
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
-void main(int argc, char **argv) 
+int main(int argc, char **argv) 
 {	
 	image_buffer im;
 	encode_state enc;
@@ -110,6 +111,7 @@ void main(int argc, char **argv)
 
 
 	write_compressed_file(&im,&enc,argv);
+	return 0;
 }
 
 void encode_image(image_buffer *im,encode_state *enc, int ratio)
@@ -2889,11 +2891,88 @@ L_W5:			res256[count]=14000;
 
 }
 
+void abort_(const char * s, ...)
+{
+	va_list args;
+	va_start(args, s);
+	vfprintf(stderr, s, args);
+	fprintf(stderr, "\n");
+	va_end(args);
+	abort();
+}
+
+
+int read_png(FILE *fp, image_buffer *im)
+{
+	png_structp pngp;
+	png_infop infop;
+	png_bytep *row_pointers;
+	const unsigned char *p;
+	int ret = 0;
+	int n;
+	int y;
+	int height;
+	unsigned char header[8];	// 8 is the maximum size that can be checked
+
+	fread(header, 1, 8, fp);
+	if (png_sig_cmp(header, 0, 8))
+		return -2;
+
+
+	/* initialize stuff */
+	pngp = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	
+	if (!pngp)
+		abort_("[read_png_file] png_create_read_struct failed");
+
+	infop = png_create_info_struct(pngp);
+	if (!infop)
+		abort_("[read_png_file] png_create_info_struct failed");
+
+	if (setjmp(png_jmpbuf(pngp)))
+		abort_("[read_png_file] Error during init_io");
+
+	png_init_io(pngp, fp);
+	png_set_sig_bytes(pngp, 8);
+
+	png_read_info(pngp, infop);
+
+	height = infop->height;
+
+	if (infop->width != infop->height || infop->width != 512) {
+		ret = -1;
+		fprintf(stderr, "Img size %dx%d\n", infop->width, infop->height);
+	} else {
+		n = png_set_interlace_handling(pngp);
+		printf("Number of passes: %d\n", n);
+		png_read_update_info(pngp, infop);
+
+		/* read file */
+		if (setjmp(png_jmpbuf(pngp)))
+			abort_("[read_png_file] Error during read_image");
+
+		row_pointers = (png_bytep *) malloc(sizeof(png_bytep) * height);
+		p = im->im_buffer4;
+		y = height;
+		while (y--) {
+			row_pointers[y] = p;
+			p += infop->rowbytes;
+		}
+
+		png_read_image(pngp, row_pointers);
+
+		free(row_pointers);
+	}
+	return ret;
+}
+
 int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 {
 	int i;
 	FILE *im256;
 	unsigned char *im4;
+	int ret;
+ 	const char *str;
  
 	// INITS & MEMORY ALLOCATION FOR ENCODING
 	//im->setup=(codec_setup*)malloc(sizeof(codec_setup));
@@ -2911,16 +2990,26 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 		exit(-1);
 	}
 
-	// SKIP BMP HEADER 
-	fread(bmp_header,54,1,im256);
-
 	// READ IMAGE DATA
-	fread(im->im_buffer4,4*3*IM_SIZE,1,im256); 
+	ret = read_png(im256, im); 
 	fclose(im256);
 
-	downsample_YUV420(im,os,rate);
+	switch (ret) {
+		case -1:
+			str = "Bad size"; break;
+		case -2:
+			str = "Bad header"; break;
+		default:
+			str = "Unknown error";
+	}
 
-	return(0);
+	if (ret >= 0) {
+		downsample_YUV420(im,os,rate);
+	} else {
+		fprintf(stderr, "Error: %s\n", str);
+	}
+
+	return 0 ;
 }
 
 int write_compressed_file(image_buffer *im,encode_state *enc,char **argv)

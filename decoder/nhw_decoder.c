@@ -46,10 +46,83 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <png.h>
 
 #include "codec.h"
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
+
+int write_png(FILE *fp, const unsigned char *imbuffer, int isrgb)
+{
+	png_structp pngp;
+	png_infop infop;
+	png_bytep *row_pointers;
+	int i;
+	int step;
+	const unsigned char *p;
+	int retcode = -1;
+	int height = 512; // Fixed for now
+	int width = 512;
+
+	row_pointers = (png_bytep *) malloc(height * sizeof(png_bytep));
+	if (row_pointers == 0) {
+		printf("Could not malloc\n");
+		goto fail;
+	}
+
+	if (isrgb) {
+		step = 3 * width;
+	} else {
+		step = width;
+	}
+
+	p = imbuffer;
+
+	i = height;
+	while (i--) {
+		row_pointers[i] = p;
+		p += step;
+	}
+
+	pngp = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (!pngp) {
+		printf("Could not create PNG write struct\n");
+		goto fail;
+	}
+	infop = png_create_info_struct(pngp);
+	if (!infop) {
+		printf("Could not create PNG info struct\n");
+		goto fail;
+	}
+
+	if (setjmp(png_jmpbuf(pngp))) {
+		printf("Error in init_io\n");
+		goto fail;
+	}
+
+	png_init_io(pngp, fp);
+
+	if (setjmp(png_jmpbuf(pngp))) {
+		printf("Error writing PNG file\n");
+		goto fail;
+	}
+
+	png_set_IHDR(pngp, infop, width, height, 8,
+			isrgb ? PNG_COLOR_TYPE_RGB : PNG_COLOR_TYPE_GRAY,
+			PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE,
+			PNG_FILTER_TYPE_BASE);
+
+	png_write_info(pngp, infop);
+
+	png_write_image(pngp, row_pointers);
+
+	png_write_end(pngp, NULL);
+
+	free(row_pointers);
+	retcode = 0;
+fail:
+	return retcode;
+}
 
 void main(int argc, char **argv)
 {
@@ -60,12 +133,6 @@ void main(int argc, char **argv)
 	unsigned char *icolorY,*icolorU,*icolorV,*iNHW;
 	float Y_q_setting,Y_inv;
 	char OutputFile[200];
-	unsigned char bmp_header[54]={66,77,54,0,12,0,0,0,0,0,
-							  54,0,0,0,40,0,0,0,0,2,
-							  0,0,0,2,0,0,1,0,24,0,
-							  0,0,0,0,0,0,12,0,0,0,
-							  0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-
 
 
 	if (argv[1]==NULL || argv[1]==0)
@@ -82,29 +149,27 @@ void main(int argc, char **argv)
     icolorY=(unsigned char*)im.im_bufferY;
 	icolorU=(unsigned char*)im.im_bufferU;
 	icolorV=(unsigned char*)im.im_bufferV;
-	im.im_buffer4=(unsigned char*)malloc(3*IM_SIZE*sizeof(char));
+	im.im_buffer4=(unsigned char*)malloc(4 * 3*IM_SIZE*sizeof(char));
 	iNHW=(unsigned char*)im.im_buffer4;
 
 	// Create the Output Decompressed .BMP File
 	len=strlen(argv[1]);
 	memset(argv[1]+len-4,0,4);
-	sprintf(OutputFile,"%sDEC.bmp",argv[1]);
+	sprintf(OutputFile,"%sDEC.png",argv[1]);
 
 	res_image = fopen(OutputFile,"wb");
 
 	if( NULL == res_image )
 	{
-		printf("Failed to open output decompressed .bmp file %s\n",OutputFile);
+		printf("Failed to open output decompressed file %s\n",OutputFile);
+		return -1;
 	}
-
-	// WRITE DECODED DATA
-	fwrite(bmp_header,54,1,res_image);
 
 	if (im.setup->quality_setting>=NORM)
 	{
 		for (m=0;m<4;m++)
 		{
-			for (i=m*IM_SIZE,t=0;i<(m+1)*IM_SIZE;i++,t+=3)
+			for (i=m*IM_SIZE;i<(m+1)*IM_SIZE;i++)
 			{
 				//Y = icolorY[i]*298;
 				Y = icolorY[i];
@@ -120,17 +185,13 @@ void main(int argc, char **argv)
 				B = (int)(Y  +1.772*U +0.5f);
 
 				//Clip RGB Values
-				if ((R>>8)!=0) iNHW[t]=( (R<0) ? 0 : 255 );
-				else iNHW[t]=R;
+				if ((R>>8)!=0) R = ( (R<0) ? 0 : 255 );
+				if ((G>>8)!=0) G =( (G<0) ? 0 : 255 );
+				if ((B>>8)!=0) B =( (B<0) ? 0 : 255 );
 
-				if ((G>>8)!=0) iNHW[t+1]=( (G<0) ? 0 : 255 );
-				else iNHW[t+1]=G;
-
-				if ((B>>8)!=0) iNHW[t+2]=( (B<0) ? 0 : 255 );
-				else iNHW[t+2]=B;
+				*iNHW++=R; *iNHW++=G; *iNHW++=B;
 			}
 
-			fwrite(iNHW,3*IM_SIZE,1,res_image);
 		}
 	}
 	else if (im.setup->quality_setting==LOW1 || im.setup->quality_setting==LOW2)
@@ -156,17 +217,13 @@ void main(int argc, char **argv)
 				B = (int)(Y_q_setting  +1.772*U +0.5f);
 
 				//Clip RGB Values
-				if ((R>>8)!=0) iNHW[t]=( (R<0) ? 0 : 255 );
-				else iNHW[t]=R;
+				if ((R>>8)!=0) R = ( (R<0) ? 0 : 255 );
+				if ((G>>8)!=0) G =( (G<0) ? 0 : 255 );
+				if ((B>>8)!=0) B =( (B<0) ? 0 : 255 );
 
-				if ((G>>8)!=0) iNHW[t+1]=( (G<0) ? 0 : 255 );
-				else iNHW[t+1]=G;
-
-				if ((B>>8)!=0) iNHW[t+2]=( (B<0) ? 0 : 255 );
-				else iNHW[t+2]=B;
+				*iNHW++=R; *iNHW++=G; *iNHW++=B;
 			}
 
-			fwrite(iNHW,3*IM_SIZE,1,res_image);
 		}
 	}
 	else if (im.setup->quality_setting==LOW3) 
@@ -191,17 +248,13 @@ void main(int argc, char **argv)
 				B = (int)((Y +1.772*U)*Y_inv +0.5f);
 
 				//Clip RGB Values
-				if ((R>>8)!=0) iNHW[t]=( (R<0) ? 0 : 255 );
-				else iNHW[t]=R;
+				if ((R>>8)!=0) R = ( (R<0) ? 0 : 255 );
+				if ((G>>8)!=0) G =( (G<0) ? 0 : 255 );
+				if ((B>>8)!=0) B =( (B<0) ? 0 : 255 );
 
-				if ((G>>8)!=0) iNHW[t+1]=( (G<0) ? 0 : 255 );
-				else iNHW[t+1]=G;
-
-				if ((B>>8)!=0) iNHW[t+2]=( (B<0) ? 0 : 255 );
-				else iNHW[t+2]=B;
+				*iNHW++=R; *iNHW++=G; *iNHW++=B;
 			}
 
-			fwrite(iNHW,3*IM_SIZE,1,res_image);
 		}
 	}
 	else if (im.setup->quality_setting<LOW3) 
@@ -238,19 +291,17 @@ void main(int argc, char **argv)
 				B = (((int)((Y + 516*U         + B_COMP)*Y_inv +128.5f)) >>8);
 
 				//Clip RGB Values
-				if ((R>>8)!=0) iNHW[t]=( (R<0) ? 0 : 255 );
-				else iNHW[t]=R;
+				if ((R>>8)!=0) R = ( (R<0) ? 0 : 255 );
+				if ((G>>8)!=0) G =( (G<0) ? 0 : 255 );
+				if ((B>>8)!=0) B =( (B<0) ? 0 : 255 );
 
-				if ((G>>8)!=0) iNHW[t+1]=( (G<0) ? 0 : 255 );
-				else iNHW[t+1]=G;
-
-				if ((B>>8)!=0) iNHW[t+2]=( (B<0) ? 0 : 255 );
-				else iNHW[t+2]=B;
+				*iNHW++=R; *iNHW++=G; *iNHW++=B;
 			}
 
-			fwrite(iNHW,3*IM_SIZE,1,res_image);
 		}
 	}
+
+	write_png(res_image, im.im_buffer4, 1);
 
 	fclose(res_image);
 	free(im.im_bufferY);
