@@ -2,9 +2,12 @@ CSRCS = $(wildcard *.c)
 
 OBJS = $(CSRCS:%.c=%.o)
 
-CFLAGS = -O3
+CFLAGS = -g
 
 all: nhwenc
+
+clean:
+	rm -f $(OBJS) nhwenc
 
 nhwenc: $(OBJS)
 	$(CC) -o $@ $^ -lm -lpng

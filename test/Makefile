@@ -27,4 +27,7 @@ show:
 
 all: $(LOOPBACK_IMAGES)
 
+clean:
+	rm -f $(WORKDIR)/*.nhw
+
 nhw: $(NHWIMAGES)
