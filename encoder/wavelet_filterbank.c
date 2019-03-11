@@ -422,9 +422,6 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 		}
 	}
 
-	free(im->im_quality_setting);
-	free(im->im_wavelet_first_order);
-	free(im->im_wavelet_band);
 
 	if (im->setup->quality_setting>HIGH2)
 	{

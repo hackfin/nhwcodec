@@ -985,7 +985,7 @@ END_RES3:
 	enc->ch_res=(unsigned char*)malloc(j*sizeof(char));
 	enc->end_ch_res=j;
 	memcpy(enc->ch_res,ch_comp,enc->end_ch_res*sizeof(char));
-	free(enc->highres_comp);
+	// XXX NEVER! free(enc->highres_comp);
 }
 
 

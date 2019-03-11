@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <png.h>
 
-int read_png(FILE *fp, unsigned char *imagebuf)
+int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 {
 	png_structp pngp;
 	png_infop infop;
@@ -45,7 +45,7 @@ int read_png(FILE *fp, unsigned char *imagebuf)
 
 	height = infop->height;
 
-	if (infop->width != infop->height || infop->width != 512) {
+	if (infop->width != infop->height || infop->width != square_size) {
 		ret = -1;
 		fprintf(stderr, "Img size %lux%lu\n", infop->width, infop->height);
 	} else {

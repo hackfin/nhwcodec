@@ -196,42 +196,48 @@ void residual_coding_q2(short *nhw_process, short *res256, int res_uv)
 	}
 }
 
+#define CODE_16000 16000
+#define CODE_24000 24000
 
-void preprocess14(short *nhw_process, short *res256)
+
+void preprocess14(const short *nhw_process, short *result)
 {
 	int stage;
 	int i, j, count, scan;
+	int s = 2 * IM_DIM; // scan line size
+	int halfn = IM_DIM;
+	int tmp = 2 * halfn + 1;
 
-	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=(2*IM_DIM),count+=IM_DIM)
+	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=s,count+=halfn)
 	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan++) 
+		for (scan=i,j=0;j<halfn;j++,scan++) 
 		{
-			if (i>=IM_SIZE || j>=(IM_DIM>>1))
+			if (i>=IM_SIZE || j>=(halfn>>1))
 			{
 				stage=nhw_process[scan];
 
 				if (stage<-7)
 				{
-					if (((-stage)&7)==7) res256[count+j]+=16000;
-					else if (!((-stage)&7)) res256[count+j]+=16000;
+					if (((-stage)&7)==7)    result[count+j]+=16000;
+					else if (!((-stage)&7)) result[count+j]+=16000;
 				}
-				else if (stage<-4) res256[count+j]+=12000;
+				else if (stage<-4) result[count+j]+=12000;
 				else if (stage>=0)
 				{
 					if (stage>=2 && stage<5) 
 					{
-						if (scan>=(2*IM_DIM+1) && (i+j)<(2*IM_SIZE-2*IM_DIM-1))
+						if (scan>=tmp && (i+j)<(2*IM_SIZE-2*halfn-1))
 						{
-							if (abs(nhw_process[scan-(2*IM_DIM+1)])!=0 || abs(nhw_process[scan+(2*IM_DIM+1)])!=0)
+							if (abs(nhw_process[scan-tmp])!=0 || abs(nhw_process[scan+tmp])!=0)
 							{
-								res256[count+j]+=12000;
+								result[count+j]+=12000;
 							}
-							//else res256[count+j]+=8000;
+							//else result[count+j]+=8000;
 						}
 					}
-					else if (!(stage&7)) res256[count+j]+=12000;
-					else if ((stage&7)==1) res256[count+j]+=12000;
-					else if (stage>4 && stage<=7) res256[count+j]+=16000;
+					else if (!(stage&7)) result[count+j]+=12000;
+					else if ((stage&7)==1) result[count+j]+=12000;
+					else if (stage>4 && stage<=7) result[count+j]+=16000;
 				}
 			}
 		}
@@ -2183,6 +2189,8 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	
 	}
 
+	// After last call of offsetY_recons256() we can free:
+	free(enc->highres_mem);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2381,8 +2389,13 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
+		im->im_wavelet_band=(short*)calloc(IM_SIZE,sizeof(short));
+		// These two functions use .im_wavelet_band:
 		im_recons_wavelet_band(im);
 		wavelet_synthesis_high_quality_settings(im,enc);
+		free(im->im_wavelet_first_order);
+		free(im->im_wavelet_band);
+		free(im->im_quality_setting);
 	}
 }
 
@@ -2680,6 +2693,8 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	//if (im->setup->quality_setting<=LOW6) block_variance_avg(im);
 
+	// Reserve encoder state member buffers here:
+
 
 	if (im->setup->quality_setting<HIGH2) 
 	{
@@ -2712,7 +2727,10 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	free(im->im_process); // }
 
+
 	highres_compression(im, enc);
+
+	free(enc->highres_comp);
 
 	wavlts2packet(im,enc);
 
@@ -2756,7 +2774,7 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 	}
 
 	// READ IMAGE DATA
-	ret = read_png(im256, im->im_buffer4); 
+	ret = read_png(im256, im->im_buffer4, 512); 
 	fclose(im256);
 
 	switch (ret) {

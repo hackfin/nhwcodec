@@ -48,6 +48,7 @@
 #include <string.h>
 #include <png.h>
 
+#include "imgio.h"
 #include "codec.h"
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
@@ -231,7 +232,7 @@ void main(int argc, char **argv)
 		}
 	}
 
-	write_png(res_image, im.im_buffer4, 1);
+	write_png(res_image, im.im_buffer4, 2*IM_DIM, 2*IM_DIM, 1);
 
 	fclose(res_image);
 	free(im.im_bufferY);
