@@ -1,13 +1,26 @@
 CSRCS = $(wildcard *.c)
 
 OBJS = $(CSRCS:%.c=%.o)
+OBJS += png_r.o png_w.o
 
-CFLAGS = -g
+# Create this for local config:
+-include config.mk
+
+CFLAGS  += -I../include
+LDFLAGS += -lm -lpng 
+ifdef DEBUG
+	CFLAGS  += -g
+else
+	CFLAGS  += -O3
+endif
 
 all: nhwenc
 
 clean:
 	rm -f $(OBJS) nhwenc
 
+%.o: ../utils/%.c
+	$(CC) -c -o $@ $(CFLAGS) $<
+
 nhwenc: $(OBJS)
-	$(CC) -o $@ $^ -lm -lpng
+	$(CC) -o $@ $^ $(LDFLAGS)
