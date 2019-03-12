@@ -51,8 +51,6 @@
 #include "imgio.h"
 #include "codec.h"
 
-char bmp_header[54];
-
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
 // XXX This is for restructuring tests only:
@@ -61,6 +59,8 @@ char bmp_header[54];
 #else
 #define SWAPOUT_FUNCTION(f)  f
 #endif
+
+#define IS_ODD(x) (((x) & 1) == 1)
 
 void encode_y(image_buffer *im, encode_state *enc, int ratio);
 
@@ -150,56 +150,54 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan++,count++)
 		{
 			p = &pr[scan];
-			if ((p[0]-res256[count])>3 && (p[0]-res256[count])<7)
+			short *q = &p[(IM_SIZE>>1)];
+
+			short d0 = p[0]-res256[count];
+			short d1 = p[1]-res256[count+1];
+
+			if (d0 > 3 && d0 < 7)
 			{
-				if ((p[1]-res256[count+1])>2 && (p[1]-res256[count+1])<7)
+				if (d1 >2 && d1 <7)
 				{
 					if (abs(p[(IM_DIM>>1)])<8) {
-						p[(IM_DIM>>1)]=12400;
-						count++;scan++;j++;
-						continue;}
-					else if (abs(p[(IM_SIZE>>1)])<8)
-						{p[(IM_SIZE>>1)]=12400;
-						count++;scan++;j++;continue;}
-					else if (abs(p[(IM_SIZE>>1)+(IM_DIM>>1)])<8)
-						{p[(IM_SIZE>>1)+(IM_DIM>>1)]=12400;
-						count++;scan++;j++;
-						continue;}
+						p[(IM_DIM>>1)]=12400;    count++;scan++;j++; continue;}
+					else if (abs(q[0])<8)
+						{q[0]=12400;             count++;scan++;j++;continue;}
+					else if (abs(q[0+(IM_DIM>>1)])<8)
+						{q[0+(IM_DIM>>1)]=12400; count++;scan++;j++; continue;}
 				}
 			}
-			else if ((p[0]-res256[count])<-3 && (p[0]-res256[count])>-7)
+			else if (d0 < -3 && d0 >-7)
 			{
-				if ((p[1]-res256[count+1])<-2 && (p[1]-res256[count+1])>-8)
+				if (d1 < -2 && d1 > -8)
 				{
 					if (abs(p[(IM_DIM>>1)])<8) {p[(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
-					else if (abs(p[(IM_SIZE>>1)])<8) {p[(IM_SIZE>>1)]=12600;count++;scan++;j++;continue;}
-					else if (abs(p[(IM_SIZE>>1)+(IM_DIM>>1)])<8) {p[(IM_SIZE>>1)+(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
+					else if (abs(q[0])<8) {q[0]=12600;count++;scan++;j++;continue;}
+					else if (abs(q[0+(IM_DIM>>1)])<8) {q[0+(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
 				}
 			}
-			
-			if (abs(p[0]-res256[count])>res_uv) 
+			if (abs(d0) > res_uv) 
 			{
-				if ((p[0]-res256[count])>0)
-				{
+				if (d0 > 0) {
 					if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=12900;
-					else if (abs(p[(IM_SIZE>>1)])<8) p[(IM_SIZE>>1)]=12900; 
-					else if (abs(p[(IM_SIZE>>1)+(IM_DIM>>1)])<8) p[(IM_SIZE>>1)+(IM_DIM>>1)]=12900; 
-				}
-				else if ((p[0]-res256[count])==-5)
+					else if (abs(q[0])<8) q[0]=12900; 
+					else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=12900; 
+				} else
+				if (d0 == -5)
 				{
-					if ((p[1]-res256[count+1])<0)
+					if (d1 <0)
 					{
 						if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=13000;
-						else if (abs(p[(IM_SIZE>>1)])<8) p[(IM_SIZE>>1)]=13000; 
-						else if (abs(p[(IM_SIZE>>1)+(IM_DIM>>1)])<8) p[(IM_SIZE>>1)+(IM_DIM>>1)]=13000; 
+						else if (abs(q[0])<8) q[0]=13000; 
+						else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=13000; 
 					}
 					
 				}
 				else
 				{
 					if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=13000;
-					else if (abs(p[(IM_SIZE>>1)])<8) p[(IM_SIZE>>1)]=13000; 
-					else if (abs(p[(IM_SIZE>>1)+(IM_DIM>>1)])<8) p[(IM_SIZE>>1)+(IM_DIM>>1)]=13000; 
+					else if (abs(q[0])<8) q[0]=13000; 
+					else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=13000; 
 				}
 			}
 		}
@@ -454,38 +452,12 @@ void preprocess_q9(short *pr, const char *wvlt)
 		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
 		{
 			short *p = &pr[scan];
-			if (abs(p[2]-p[1])<wvlt[6] && abs(p[2]-p[0])<wvlt[6]  && abs(p[1]-p[0])<wvlt[6])
-			{
-				count=scan+1;
-					
-				if (abs(pr[(count<<1)+IM_DIM])<wvlt[5]) pr[(count<<1)+IM_DIM]=0;
-				if (abs(pr[(count<<1)+IM_DIM+1])<wvlt[5]) pr[(count<<1)+IM_DIM+1]=0;
-				if (abs(pr[(count<<1)+(3*IM_DIM)])<wvlt[5]) pr[(count<<1)+(3*IM_DIM)]=0;
-				if (abs(pr[(count<<1)+(3*IM_DIM)+1])<wvlt[5]) pr[(count<<1)+(3*IM_DIM)+1]=0;
-					
-				if (abs(pr[(count<<1)+(2*IM_SIZE)])<(wvlt[5]+6)) pr[(count<<1)+(2*IM_SIZE)]=0;
-				if (abs(pr[(count<<1)+(2*IM_SIZE)+1])<(wvlt[5]+6)) pr[(count<<1)+(2*IM_SIZE)+1]=0;
-				if (abs(pr[(count<<1)+(2*IM_SIZE)+s])<(wvlt[5]+6)) pr[(count<<1)+(2*IM_SIZE)+s]=0;
-				if (abs(pr[(count<<1)+(2*IM_SIZE)+s+1])<(wvlt[5]+6)) pr[(count<<1)+(2*IM_SIZE)+s+1]=0;
-					
-				e=(2*IM_SIZE)+IM_DIM;
-				if (abs(pr[(count<<1)+e])<34) pr[(count<<1)+e]=0;
-				if (abs(pr[(count<<1)+e+1])<34) pr[(count<<1)+e+1]=0;
-				if (abs(pr[(count<<1)+e+s])<34) pr[(count<<1)+e+s]=0;
-				if (abs(pr[(count<<1)+e+s+1])<34) pr[(count<<1)+e+s+1]=0;
-				
-				//for (e=0;e<3;e++)
-				//{
-						if (abs(pr[count+(IM_DIM>>1)])<11) pr[count+(IM_DIM>>1)]=0;
-						if (abs(pr[count+IM_SIZE])<12) pr[count+IM_SIZE]=0;
-						if (abs(pr[count+IM_SIZE+(IM_DIM>>1)])<13) pr[count+IM_SIZE+(IM_DIM>>1)]=0;
-				//}
-			}
+#include "inline/p_q9_0.c"
 		}
 	}
 }
 
-void compress1(int quality, short *nhw_process, const char *wvlt, encode_state *enc)
+void compress1(int quality, short *pr, encode_state *enc)
 {
 	int i, j, count, scan;
 	int Y, stage, res;
@@ -496,49 +468,35 @@ void compress1(int quality, short *nhw_process, const char *wvlt, encode_state *
 	{
 		for (count=i,j=0;j<(step>>2);j++,count++)
 		{
-			scan=nhw_process[count];
-
+			scan=pr[count];
+			// FIXME: Move quality check outside loop
 			if (quality>LOW3 && scan>10000) 
 			{
-				if (scan>20000) 
-				{
-					scan-=24000;enc->nhw_res4[res++]=j+1;stage++;
-				}
+				if (scan>20000) { scan-=24000;enc->nhw_res4[res++]=j+1;stage++; }
 				else scan-=16000;
-			}
-			/*else if (im->setup->quality_setting<LOW3 && j>0 && j<((IM_DIM>>1)-1) && abs(nhw_process[count-1]-nhw_process[count+1])<1 && abs(nhw_process[count-1]-scan)<=5)
-		 	{
-				scan=nhw_process[count-1];//nhw_process[count+1]=nhw_process[count-1];
-			}*/
-			else if ((scan&1)==1 && count>i && (nhw_process[count+1]&1)==1 /*&& !(nhw_process[count-1]&1)*/)
-			{
-				if (j<((IM_DIM>>1)-2) && (nhw_process[count+2]&1)==1 /*&& !(nhw_process[count+3]&1)*/) 
+			} else
+			if (IS_ODD(scan) && count>i && (pr[count+1]&1)==1 /*&& !(pr[count-1]&1)*/) {
+				if (j<((IM_DIM>>1)-2) && (pr[count+2]&1)==1 /*&& !(pr[count+3]&1)*/) 
 				{
-					if (abs(scan-nhw_process[count+2])>1 && quality>LOW3) nhw_process[count+1]++;
+					if (abs(scan-pr[count+2])>1 && quality>LOW3) pr[count+1]++;
 				}
-				/*else if (j<((IM_DIM>>1)-4) && (nhw_process[count+2]&1)==1 && (nhw_process[count+3]&1)==1
-						&& !(nhw_process[count+4]&1)) 
+				else if (i<(IM_SIZE-step-2) && (pr[count+step]&1)==1
+							&& (pr[count+(2*IM_DIM+1)]&1)==1 && !(pr[count+(2*IM_DIM+2)]&1))
 				{
-					nhw_process[count+2]++;
-				}*/
-				else if (i<(IM_SIZE-step-2) && (nhw_process[count+step]&1)==1
-							&& (nhw_process[count+(2*IM_DIM+1)]&1)==1 && !(nhw_process[count+(2*IM_DIM+2)]&1))
-				{
-					if (nhw_process[count+step]<10000 && quality>LOW3) 
+					if (pr[count+step]<10000 && quality>LOW3) 
 					{
-						nhw_process[count+step]++;
+						pr[count+step]++;
 					}
 				}
-			}
-			else if ((scan&1)==1 && i>=step && i<(IM_SIZE-(6*IM_DIM)))
-			{
-				if ((nhw_process[count+step]&1)==1 && (nhw_process[count+(2*IM_DIM+1)]&1)==1)
+			} else
+			if (IS_ODD(scan) && i>=step && i<(IM_SIZE-(6*IM_DIM))) {
+				if ((pr[count+step]&1)==1 && (pr[count+(2*IM_DIM+1)]&1)==1)
 				{
-					if ((nhw_process[count+(4*IM_DIM)]&1)==1 && !(nhw_process[count+(6*IM_DIM)]&1)) 
+					if ((pr[count+(4*IM_DIM)]&1)==1 && !(pr[count+(6*IM_DIM)]&1)) 
 					{
-						if (nhw_process[count+step]<10000 && quality>LOW3) 
+						if (pr[count+step]<10000 && quality>LOW3) 
 						{
-							nhw_process[count+step]++;
+							pr[count+step]++;
 						}
 					}
 				}
@@ -548,7 +506,7 @@ void compress1(int quality, short *nhw_process, const char *wvlt, encode_state *
 			{
 				enc->exw_Y[e++]=(i>>9);	enc->exw_Y[e++]=j+128;
 				Y=scan-255;if (Y>255) Y=255;enc->exw_Y[e++]=Y;
-				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;nhw_process[count]=0;
+				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;pr[count]=0;
 
 			}
 			else if (scan<0 && (j>0 || i>0))  
@@ -556,12 +514,12 @@ void compress1(int quality, short *nhw_process, const char *wvlt, encode_state *
 				enc->exw_Y[e++]=(i>>9);enc->exw_Y[e++]=j;
 				if (scan<-255) scan=-255;
 				enc->exw_Y[e++]=-scan;
-				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;nhw_process[count]=0;
+				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;pr[count]=0;
 			}
 			else 
 			{
 				if (scan>255) scan=255;else if (scan<0) scan=0;
-				enc->ch_res[a]=scan;enc->tree1[a++]=scan&254;nhw_process[count]=0;
+				enc->ch_res[a]=scan;enc->tree1[a++]=scan&254;pr[count]=0;
 			}
 
 		}
@@ -581,7 +539,7 @@ const char quality_special12500[7] = { 19, 31, 13, 9, 6, 0xff, 0xff };
 const char quality_special10000[7] = { 18, 30, 12, 8, 6, 0xff, 0xff };
 const char quality_special7000[7] = { 17, 29, 11, 8, 5, 0xff, 0xff };
 
-void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, encode_state *enc, int ratio)
+void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
 {
 	int i, j, e, scan, count;
 	int res = 0;
@@ -594,7 +552,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i,j=0;j<IM_DIM;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 
 				if (abs(p[0])>=ratio && abs(p[0])<9) 
 				{	
@@ -604,7 +562,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 
 			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio && abs(p[0])<=14) 
 				{	
 					 if (p[0]>0) p[0]=7;else p[0]=-7;	
@@ -623,7 +581,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
 			{		
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
 				{	
 					p[0]=0;			
@@ -632,7 +590,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 
 			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio && abs(p[0])<wvlt[1]) 
 				{	
 					if (p[0]>=14) p[0]=7;
@@ -652,7 +610,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (i=(2*IM_SIZE),count=0;i<(4*IM_SIZE);i++)
 			{
-				if (abs(nhw_process[i])>=12) count++;
+				if (abs(pr[i])>=12) count++;
 			}
 			
 			//if (count>15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
@@ -686,7 +644,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i+IM_DIM,j=IM_DIM;j<step;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[2]+2)) 
 				{	
 					if (abs(resIII[(((i>>1)+(j-IM_DIM))>>1)+(IM_DIM>>1)])<wvlt[3]) p[0]=0;
@@ -714,7 +672,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
 				{	
 					if (abs(resIII[((((i-(2*IM_SIZE))>>1)+j)>>1)+(IM_SIZE>>1)])<wvlt[3]) p[0]=0;
@@ -743,7 +701,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 
 			for (scan=i+(IM_DIM),j=(IM_DIM);j<(step-1);j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[1]+1)) 
 				{	
 					if (abs(resIII[((((i-(2*IM_SIZE))>>1)+(j-IM_DIM))>>1)+((IM_SIZE>>1)+(IM_DIM>>1))])<(wvlt[3]+1)) p[0]=0;
@@ -790,7 +748,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (p[0]>4 && p[0]<8)
 				{
 					if (p[0-1]>3 && p[0-1]<=7)
@@ -836,7 +794,7 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 		{
 			for (scan=i+1,j=1;j<(IM_DIM-1);j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (p[0]>4 && p[0]<8)
 				{
 					if (p[0-1]>3 && p[0-1]<=7)
@@ -893,7 +851,6 @@ void compress_s2(int quality, short *resIII, short *nhw_process, char *wvlt, enc
 	}
 }
 
-#define IS_ODD(x) (((x) & 1) == 1)
 
 int process_res_q3(short *pr)
 {
@@ -1122,13 +1079,24 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 	scan_run=(unsigned char*)nhw_res3I_word;
 	enc->nhw_res3_word=(unsigned char*)malloc((enc->nhw_res3_bit_len<<1)*sizeof(char));
 
+
+	unsigned char *sp = scan_run;
+
 	for (i=0,stage=0;i<((Y<<3)+8);i+=8)
 	{
-		enc->nhw_res3_word[stage++]=((scan_run[i]&3)<<6)|((scan_run[i+1]&3)<<4)|
-								   ((scan_run[i+2]&3)<<2)|(scan_run[i+3]&3);
 
-		enc->nhw_res3_word[stage++]=((scan_run[i+4]&3)<<6)|((scan_run[i+5]&3)<<4)|
-								   ((scan_run[i+6]&3)<<2)|(scan_run[i+7]&3);
+#define _SLICE_BITS_POS(val, mask, shift) (((val) & mask) << shift)
+
+		enc->nhw_res3_word[stage++]=  _SLICE_BITS_POS(*sp++, 0x3, 6) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 4) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 2) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 0);
+
+
+		enc->nhw_res3_word[stage++]=  _SLICE_BITS_POS(*sp++, 0x3, 6) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 4) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 2) |
+		                              _SLICE_BITS_POS(*sp++, 0x3, 0);
 	}
 
 	enc->nhw_res3_word_len=stage;
@@ -1225,39 +1193,19 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 
 	for (i=stage;i<stage+8;i++) scan_run[i]=0;
 
-	enc->nhw_res5_bit_len=((stage>>3)+1);
-
+	Y = stage>>3;
+	enc->nhw_res5_bit_len = Y+1;
 	enc->nhw_res5_bit=(unsigned char*)malloc(enc->nhw_res5_bit_len*sizeof(char));
-
-	Y=stage>>3;
-
-	for (i=0,stage=0;i<((Y<<3)+8);i+=8)
-	{
-		enc->nhw_res5_bit[stage++]=((scan_run[i]&1)<<7)|((scan_run[i+1]&1)<<6)|
-								   ((scan_run[i+2]&1)<<5)|((scan_run[i+3]&1)<<4)|
-								   ((scan_run[i+4]&1)<<3)|((scan_run[i+5]&1)<<2)|
-								   ((scan_run[i+6]&1)<<1)|((scan_run[i+7]&1));
-	}
-
+	process_residual1I(scan_run, Y + 1, enc->nhw_res5_bit);
 	enc->nhw_res5_len=count;
 
-	Y=enc->nhw_res5_word_len>>3;
+	Y = enc->nhw_res5_word_len>>3;
 	free(scan_run);
-	scan_run=(unsigned char*)nhw_res5I_word;
-	enc->nhw_res5_word=(unsigned char*)malloc((enc->nhw_res5_bit_len<<1)*sizeof(char));
-
-	for (i=0,stage=0;i<((Y<<3)+8);i+=8)
-	{
-		enc->nhw_res5_word[stage++]=((scan_run[i]&1)<<7)|((scan_run[i+1]&1)<<6)|
-								   ((scan_run[i+2]&1)<<5)|((scan_run[i+3]&1)<<4)|
-								   ((scan_run[i+4]&1)<<3)|((scan_run[i+5]&1)<<2)|
-								   ((scan_run[i+6]&1)<<1)|((scan_run[i+7]&1));
-	}
-
-	enc->nhw_res5_word_len=stage;
+	enc->nhw_res5_word = (unsigned char*) malloc((enc->nhw_res5_bit_len<<1)*sizeof(char));
+	process_residual1I(nhw_res5I_word, Y + 1, enc->nhw_res5_word);
+	enc->nhw_res5_word_len = Y+1;
 
 	for (i=0;i<count;i++) enc->nhw_res5[i]=highres[i];
-
 	
 	free(nhw_res5I_word);
 }
@@ -1684,7 +1632,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	enc->ch_res=(unsigned char*)malloc((IM_SIZE>>2)*sizeof(char));
 
-	compress1(quality, pr, wvlt, enc);
+	compress1(quality, pr, enc);
 
 	Y_highres_compression(im,enc);
 
@@ -1915,7 +1863,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	unsigned char *scan_run;
 	short *res256;
 	short *resIII;
-	short *nhw_process;
+	short *pr;
 	const unsigned char *buf;
 
 	if (uv) {
@@ -1925,7 +1873,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	}
 	for (i=0;i<IM_SIZE;i++) im->im_jpeg[i]=buf[i];
 
-	nhw_process=(short*)im->im_process;
+	pr=(short*)im->im_process;
 	
 	if (im->setup->quality_setting<=LOW6) pre_processing_UV(im);
 
@@ -1947,9 +1895,9 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 		{
 			for (scan=i+(IM_DIM>>1),j=(IM_DIM>>1);j<(IM_DIM);j++,scan++)
 			{
-				if (abs(nhw_process[scan])>=ratio && abs(nhw_process[scan])<24) 
+				if (abs(pr[scan])>=ratio && abs(pr[scan])<24) 
 				{	
-					 nhw_process[scan]=0;	
+					 pr[scan]=0;	
 				}
 			}
 		}	
@@ -1958,17 +1906,17 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 		{
 			for (scan=i,j=0;j<(IM_DIM>>1);j++,scan++)
 			{
-				if (abs(nhw_process[scan])>=ratio && abs(nhw_process[scan])<32) 
+				if (abs(pr[scan])>=ratio && abs(pr[scan])<32) 
 				{	
-					 nhw_process[scan]=0;	
+					 pr[scan]=0;	
 				}
 			}
 
 			for (scan=i+(IM_DIM>>1),j=(IM_DIM>>1);j<(IM_DIM);j++,scan++)
 			{
-				if (abs(nhw_process[scan])>=ratio && abs(nhw_process[scan])<48) 
+				if (abs(pr[scan])>=ratio && abs(pr[scan])<48) 
 				{	
-					 nhw_process[scan]=0;		
+					 pr[scan]=0;		
 				}
 			}
 		}
@@ -1992,18 +1940,18 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	{
 		for (e=i,j=0;j<(IM_DIM>>1);j++,count++,e++)
 		{
-			scan=nhw_process[e]-res256[count];
+			scan=pr[e]-res256[count];
 	
 			if(scan>10) {im->im_jpeg[e]=res256[count]-6;}
 			else if(scan>7) {im->im_jpeg[e]=res256[count]-3;}
 			else if(scan>4) {im->im_jpeg[e]=res256[count]-2;}
 			else if(scan>3) im->im_jpeg[e]=res256[count]-1;
-			else if(scan>2 && (nhw_process[e+1]-res256[count+1])>=t0) im->im_jpeg[e]=res256[count]-1;
+			else if(scan>2 && (pr[e+1]-res256[count+1])>=t0) im->im_jpeg[e]=res256[count]-1;
 			else if (scan<-10) {im->im_jpeg[e]=res256[count]+6;}
 			else if (scan<-7) {im->im_jpeg[e]=res256[count]+3;}
 			else if (scan<-4) {im->im_jpeg[e]=res256[count]+2;}
 			else if (scan<-3) im->im_jpeg[e]=res256[count]+1;
-			else if(scan<-2 && (nhw_process[e+1]-res256[count+1])<=t1) im->im_jpeg[e]=res256[count]+1;
+			else if(scan<-2 && (pr[e+1]-res256[count+1])<=t1) im->im_jpeg[e]=res256[count]+1;
 			else im->im_jpeg[e]=res256[count];
 		}
 	}
@@ -2014,7 +1962,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	{
 		for (scan=i,j=0;j<(IM_DIM>>1);j++)
 		{
-			resIII[count++]=nhw_process[scan++];
+			resIII[count++]=pr[scan++];
 		}
 	}
 
@@ -2024,14 +1972,14 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 
 	if (im->setup->quality_setting>=LOW2)
 	{ 
-		residual_coding_q2(nhw_process, res256, res_uv);
+		residual_coding_q2(pr, res256, res_uv);
 	}
 
 	for (i=0,count=0;i<(IM_SIZE>>1);i+=IM_DIM)
 	{
 		for (scan=i,j=0;j<(IM_DIM>>1);j++)
 		{
-			nhw_process[scan++]=resIII[count++];
+			pr[scan++]=resIII[count++];
 		}
 	}
 
@@ -2049,7 +1997,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 		{
 			for (scan=i,j=0;j<(IM_DIM>>2)-2;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0+1]-p[0+(2*IM_DIM)+1])<wvlt[2] && abs(p[0+(IM_DIM)]-p[0+(IM_DIM)+2])<wvlt[2])
 				{
 					if (abs(p[0+(IM_DIM)+1]-p[0+(IM_DIM)])<(wvlt[3]-1) && abs(p[0+1]-p[0+(IM_DIM)+1])<wvlt[3])
@@ -2064,7 +2012,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 		{
 			for (scan=i,j=0;j<(IM_DIM>>2)-2;j++,scan++)
 			{
-				short *p = &nhw_process[scan];
+				short *p = &pr[scan];
 				if (abs(p[0+2]-p[0+1])<wvlt[2] && abs(p[0+1]-p[0])<wvlt[2])
 				{
 					if (abs(p[0]-p[0+(IM_DIM)])<wvlt[2] && abs(p[0+2]-p[0+(IM_DIM)+2])<wvlt[2])
@@ -2093,26 +2041,26 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	{
 		for (j=0;j<((IM_DIM)>>2);j++)
 		{
-			scan=nhw_process[j+i];
+			scan=pr[j+i];
 
 			if (scan>255 && (j>0 || i>0)) 
 			{
 				enc->exw_Y[enc->exw_Y_end++]=(i>>8);enc->exw_Y[enc->exw_Y_end++]=j+128;
 				Y=scan-255;if (Y>255) Y=255;enc->exw_Y[enc->exw_Y_end++]=Y;
-				enc->tree1[a]=enc->tree1[a-1];a++;nhw_process[j+i]=0;
+				enc->tree1[a]=enc->tree1[a-1];a++;pr[j+i]=0;
 			}
 			else if (scan<0 && (j>0 || i>0)) 
 			{
 				enc->exw_Y[enc->exw_Y_end++]=(i>>8);enc->exw_Y[enc->exw_Y_end++]=j;
 				if (scan<-255) scan=-255;
-				enc->exw_Y[enc->exw_Y_end++]=-scan;enc->tree1[a]=enc->tree1[a-1];a++;nhw_process[j+i]=0;
+				enc->exw_Y[enc->exw_Y_end++]=-scan;enc->tree1[a]=enc->tree1[a-1];a++;pr[j+i]=0;
 			}
 			else 
 			{
 				if (scan>255) { scan=255; }
 				else if (scan<0) { scan=0; }
 				enc->tree1[a++]=scan&254;
-				nhw_process[j+i]=0;
+				pr[j+i]=0;
 			}
 		}
 	}
@@ -2136,15 +2084,17 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 
 		for (i=0,e=0;i<(16*IM_DIM);i+=8)
 		{
+#define _EXTRACT_BIT(x, n) (((x) >> n) & 1)
+			unsigned char *pc = &ch_comp[i];
 			c = code + i;
-			ch_comp[i]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+1]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+2]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+3]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+4]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+5]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+6]=((enc->tree1[c++])>>1)&1;
-			ch_comp[i+7]=((enc->tree1[c])>>1)&1;
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
+			*pc   = _EXTRACT_BIT(enc->tree1[c], 1);
 
 			scan_run[e++]=(ch_comp[i]<<7)|(ch_comp[i+1]<<6)|(ch_comp[i+2]<<5)|(ch_comp[i+3]<<4)|(ch_comp[i+4]<<3)|
 					  (ch_comp[i+5]<<2)|(ch_comp[i+6]<<1)|ch_comp[i+7];
@@ -2161,24 +2111,21 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	{
 		for (i=0;i<(IM_DIM>>1);i++)
 		{
-			im->im_nhw[count]=nhw_process[j];
-			im->im_nhw[count+2]=nhw_process[j+1];
-			im->im_nhw[count+4]=nhw_process[j+2];
-			im->im_nhw[count+6]=nhw_process[j+3];
-			im->im_nhw[count+8]=nhw_process[j+4];
-			im->im_nhw[count+10]=nhw_process[j+5];
-			im->im_nhw[count+12]=nhw_process[j+6];
-			im->im_nhw[count+14]=nhw_process[j+7];
-	
+			unsigned char *dst = &im->im_nhw[count];
+			short *src = &pr[j];
+
+			int k;
+			for (k = 0; k < 8; k++) {
+				*dst = *src++; dst += 2;
+			}
+
 			j+=(IM_DIM);
-			im->im_nhw[count+16]=nhw_process[j+7];
-			im->im_nhw[count+18]=nhw_process[j+6];
-			im->im_nhw[count+20]=nhw_process[j+5];
-			im->im_nhw[count+22]=nhw_process[j+4];
-			im->im_nhw[count+24]=nhw_process[j+3];
-			im->im_nhw[count+26]=nhw_process[j+2];
-			im->im_nhw[count+28]=nhw_process[j+1];
-			im->im_nhw[count+30]=nhw_process[j];
+
+			src = &pr[j+7];
+			// copy mirrored:
+			for (k = 0; k < 8; k++) {
+				*dst = *src--; dst += 2;
+			}
 
 			j+=(IM_DIM);
 			count+=32;
