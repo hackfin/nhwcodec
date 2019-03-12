@@ -3,6 +3,7 @@ NHWDEC = ../decoder/nhwdec
 
 SETTING = h1
 
+ALL_SETTINGS = h3 l1 l3 l6 l7 l9 l16
 TESTDIR = /tmp/nhw/src
 WORKDIR = /tmp/nhw/out
 
@@ -25,7 +26,12 @@ show:
 	@echo $(NHWIMAGES)
 	@echo $(IMAGES)
 
-all: $(LOOPBACK_IMAGES)
+loopback: $(LOOPBACK_IMAGES)
+
+all:
+	@for i in $(ALL_SETTINGS); do \
+		$(MAKE) loopback SETTING=$$i; \
+	done
 
 clean:
 	rm -f $(WORKDIR)/*.nhw
