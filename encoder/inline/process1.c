@@ -1,3 +1,4 @@
+
 				res= pr[scan]-res256[count];res256[count]=0;
 
 				if (!res || res==1)

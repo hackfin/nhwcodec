@@ -22,5 +22,7 @@ clean:
 %.o: ../utils/%.c
 	$(CC) -c -o $@ $(CFLAGS) $<
 
+nhw_encoder.o: $(wildcard inline/*.c)
+
 nhwenc: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)

@@ -19,15 +19,18 @@
 
 					scan=0;
 				}
-
 				if (abs(e)>6)
 				{
+					e=p[0];
+
 					if (e>=8 && (e&7)<2) 
 					{
 						if (p[1]>7 && p[1]<10000)
 							p[1]--;
 						//else if (pr[i+j+step]>7 && pr[i+j+step]<10000) pr[i+j+step]--;
 					}
+
+
 					else if (e==-7 && p[1]==8)
 						p[0]=-8;
 					else if (e==8 && p[1]==-7)
@@ -42,6 +45,9 @@
 						}
 					}
 				}
+		
+
 			}
 			else p[0]=0;
+
 

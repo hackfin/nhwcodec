@@ -2,10 +2,12 @@
 			short *p;
 			p = &pr[scan];
 
+
 			stage = k + IM_DIM;
 			
-			short *p1 = &p[4*IM_DIM];
-			short q = *p1;
+			short *p1 = &p[step];
+			short *p2 = &p1[step];
+			short q = *p2;
 
 			res = p[0] - res256[count];
 			a = p[step] - res256[count+IM_DIM];
@@ -20,7 +22,10 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #define _MOD_ASSIGN(x, y) \
-	{ res256[count]=12400;p[step]+= x; *p1+= x; }
+	{ res256[count]=x; *p1 += y; *p2 += y; }
+
+
+
 
 			if (res==2 && a==2 && qd>=2)
 			{
@@ -46,7 +51,7 @@
 			{
 				if (i>0) 
 				{
-					if ((p[step]-res256[count-IM_DIM])>=0) 
+					if ((p[-step]-res256[count-IM_DIM])>=0) 
 						_MOD_ASSIGN(12400, -2)
 				}
 			}
@@ -74,9 +79,9 @@
 				{
 					if ((p[1]-res256[count+1])==2 || (p[1]-res256[count+1])==3)
 					{
-						if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==2 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==3)
+						if ((p1[1]-res256[count+(IM_DIM+1)])==2 || (p1[1]-res256[count+(IM_DIM+1)])==3)
 						{
-							if ((p1[1]-res256[count+(2*IM_DIM+1)])>0)
+							if ((p2[1]-res256[count+(2*IM_DIM+1)])>0)
 							{
 								 _MOD_ASSIGN(12400, -2)
 							}
@@ -90,7 +95,7 @@
 				else _MOD_ASSIGN(12300, 2)
 			}
 			else if ((res==-3 || res==-4 || res==-5 || res<-7) &&
-				((p[step]-res256[count+IM_DIM])==-3 || (p[step]-res256[count+IM_DIM])==-4 || (p[step]-res256[count+IM_DIM])==-5))
+				(a == -3 || a == -4 || (p[step]-res256[count+IM_DIM]) == -5))
 			{
 				if (res<-7) 
 				{
@@ -118,13 +123,13 @@
 					{
 						res256[count]=14500;
 					}
-					else if (!qd)
+					else if (qd == 0)
 					{
 						if ((p[1]-res256[count+1])==-2 || (p[1]-res256[count+1])==-3)
 						{
 							if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-2 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-3)
 							{
-								if ((p1[(1)]-res256[count+(2*IM_DIM+1)])<0)
+								if ((p2[(1)]-res256[count+(2*IM_DIM+1)])<0)
 									_MOD_ASSIGN(12300, 2)
 							}
 						}
@@ -136,7 +141,7 @@
 				{
 					if (i>0) 
 					{
-						if ((p[step]-res256[count-IM_DIM])<=0) 
+						if ((p[-step]-res256[count-IM_DIM])<=0) 
 							_MOD_ASSIGN(12300, 2)
 					}
 				}
