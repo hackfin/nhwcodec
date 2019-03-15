@@ -1,3 +1,11 @@
+Preface
+============
+
+This is an experimental branch as an attempt to restructure the code
+for more understanding by non-insiders.
+It is considered highly unstable. Do not use as reference. See Docker notes
+below for testing against a working reference.
+
 NHW Image Codec
 ============
 
@@ -33,3 +41,37 @@ Linux:
 > nhwenc imagename.png -l3
 
 > nhwdec imagename.nhw
+>
+
+Docker container:
+=================
+
+Docker containers have been proved to be an optimum way for testing
+the code and checking against reference implementations.
+
+A Dockerfile is provided in docker/Dockerfile.
+
+To build this container, you may use a local installation of the
+Docker Toolbox on Windows or the corresponding package on a standard
+Linux distribution.
+
+Commands to build the container (inside docker/):
+
+> docker build -t nhw .
+
+Start the container:
+> docker run -it nhw
+
+Inside the container:
+
+> cd; . init.sh
+
+Now you should have all prerequisites installed.
+
+1) Build Codec:
+
+> cd ~/src/nhwcodec; make all
+
+2) Run tests/batch conversion of test images in ~/work:
+
+> cd ~/src/nhwcodec/test; make clean all

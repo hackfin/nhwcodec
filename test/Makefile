@@ -1,15 +1,19 @@
 NHWENC = ../encoder/nhwenc
 NHWDEC = ../decoder/nhwdec
 
-SETTING = h1
+# Default setting:
+SETTING = norm
 
 DIFFTOOL = python analysis.py
 # DIFFTOOL = meld
 
-ALL_SETTINGS = h3 norm l1 l3 l7 l9 l16
-TESTDIR = /tmp/nhw/src
-WORKDIR = /tmp/nhw/out
-REFDIR = /tmp/nhw/ref
+ALL_SETTINGS = h3 h1 norm l1 l3 l7 l9 l16
+
+WORK_ROOT = $(HOME)/work
+
+TESTDIR = $(WORK_ROOT)/nhw/src
+WORKDIR = $(WORK_ROOT)/nhw/out
+REFDIR =  $(WORK_ROOT)/nhw/ref
 
 IMAGE_FILES = $(wildcard $(TESTDIR)/*.png)
 

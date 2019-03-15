@@ -55,7 +55,7 @@
 
 
 
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	image_buffer im;
 	decode_state dec;

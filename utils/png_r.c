@@ -5,6 +5,7 @@
  */
 
 #include "imgio.h"
+#include <stdarg.h>
 #include <stdlib.h>
 #include <png.h>
 
@@ -28,7 +29,7 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 	int ret = 0;
 	int n;
 	int y;
-	int height;
+	int width, height;
 	unsigned char header[8];	// 8 is the maximum size that can be checked
 
 	ret = fread(header, 1, 8, fp);
@@ -54,11 +55,12 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 
 	png_read_info(pngp, infop);
 
-	height = infop->height;
+	width = png_get_image_height(pngp, infop);
+	height = png_get_image_height(pngp, infop);
 
-	if (infop->width != infop->height || infop->width != square_size) {
+	if (width != height || width != square_size) {
 		ret = -1;
-		fprintf(stderr, "Img size %lux%lu\n", infop->width, infop->height);
+		fprintf(stderr, "Img size %lux%lu\n", width, height);
 	} else {
 		n = png_set_interlace_handling(pngp);
 		printf("Number of passes: %d\n", n);
@@ -71,9 +73,10 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 		row_pointers = (png_bytep *) malloc(sizeof(png_bytep) * height);
 		p = imagebuf;
 		y = height;
+		int rowbytes = png_get_rowbytes(pngp, infop);
 		while (y--) {
 			row_pointers[y] = p;
-			p += infop->rowbytes;
+			p += rowbytes;
 		}
 
 		png_read_image(pngp, row_pointers);
