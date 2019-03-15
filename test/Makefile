@@ -9,7 +9,7 @@ DIFFTOOL = python analysis.py
 
 ALL_SETTINGS = h3 h1 norm l1 l3 l7 l9 l16
 
-WORK_ROOT = $(HOME)/work
+WORK_ROOT ?= $(HOME)/work
 
 TESTDIR = $(WORK_ROOT)/nhw/src
 WORKDIR = $(WORK_ROOT)/nhw/out
@@ -56,25 +56,33 @@ all-%:
 		$(MAKE) $* SETTING=$$i; \
 	done
 
-
 TESTIMAGE = will-b-272731-unsplash
+
+test: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
 
 reference:
 	cp -r $(WORKDIR)/*.nhw $(REFDIR)
 
 testdiff:
+	@echo "=================================================="
 	@for i in $(ALL_SETTINGS); do \
 		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
 		$(REFDIR)/$(TESTIMAGE)_$$i.nhw; \
 	done
 
+hexdiff: hexfiles
+		meld \
+		$(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
+		$(REFDIR)/$(TESTIMAGE)_$(SETTING).hex
 
 diff:
 	@for i in $(ALL_SETTINGS); do \
+		echo ============= Quality $$i ===============; \
 		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
 		$(REFDIR)/$(TESTIMAGE)_$$i.nhw || \
 		$(DIFFTOOL) \
-		$(WORKDIR)/$(TESTIMAGE)_$$i.nhw $(REFDIR)/$(TESTIMAGE)_$$i.nhw ; \
+		$(REFDIR)/$(TESTIMAGE)_$$i.nhw $(WORKDIR)/$(TESTIMAGE)_$$i.nhw ; \
+		echo =========================================; \
 	done
 
 %-out.txt: $(WORKDIR)/%.nhw
