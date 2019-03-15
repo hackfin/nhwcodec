@@ -3,9 +3,13 @@ NHWDEC = ../decoder/nhwdec
 
 SETTING = h1
 
-ALL_SETTINGS = h3 l1 l3 l6 l7 l9 l16
+DIFFTOOL = python analysis.py
+# DIFFTOOL = meld
+
+ALL_SETTINGS = h3 norm l1 l3 l7 l9 l16
 TESTDIR = /tmp/nhw/src
 WORKDIR = /tmp/nhw/out
+REFDIR = /tmp/nhw/ref
 
 IMAGE_FILES = $(wildcard $(TESTDIR)/*.png)
 
@@ -22,6 +26,16 @@ $(WORKDIR)/%_$(SETTING).nhw: $(TESTDIR)/%.png
 %.png: %.nhw
 	$(NHWDEC) $<
 
+nhw: $(NHWIMAGES)
+
+HEXFILES_OUT = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).hex)
+HEXFILES_REF = $(IMAGES:%=$(REFDIR)/%_$(SETTING).hex)
+
+%.hex: %.nhw
+	hexdump -C $< >$@
+
+hexfiles: $(HEXFILES_REF) $(HEXFILES_OUT)
+
 show:
 	@echo $(NHWIMAGES)
 	@echo $(IMAGES)
@@ -31,6 +45,47 @@ loopback: $(LOOPBACK_IMAGES)
 all:
 	@for i in $(ALL_SETTINGS); do \
 		$(MAKE) loopback SETTING=$$i; \
+	done
+
+all-%:
+	@for i in $(ALL_SETTINGS); do \
+		$(MAKE) $* SETTING=$$i; \
+	done
+
+
+TESTIMAGE = will-b-272731-unsplash
+
+reference:
+	cp -r $(WORKDIR)/*.nhw $(REFDIR)
+
+testdiff:
+	@for i in $(ALL_SETTINGS); do \
+		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
+		$(REFDIR)/$(TESTIMAGE)_$$i.nhw; \
+	done
+
+
+diff:
+	@for i in $(ALL_SETTINGS); do \
+		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
+		$(REFDIR)/$(TESTIMAGE)_$$i.nhw || \
+		$(DIFFTOOL) \
+		$(WORKDIR)/$(TESTIMAGE)_$$i.hex $(REFDIR)/$(TESTIMAGE)_$$i.hex ; \
+	done
+
+%-out.txt: $(WORKDIR)/%.nhw
+	python analysis.py $< >$@
+	
+%-ref.txt: $(REFDIR)/%.nhw
+	python analysis.py $< >$@
+	
+ana-%:
+	$(MAKE) $*-out.txt $*-ref.txt
+	meld $*-out.txt $*-ref.txt
+
+allhex:
+	@for i in $(ALL_SETTINGS); do \
+		$(MAKE) hexfiles SETTING=$$i; \
 	done
 
 clean:

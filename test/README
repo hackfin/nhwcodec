@@ -1,0 +1,46 @@
+This is a rudimentary begin of a test suite for NHW images
+
+* analysis.py  : Python script to get a more detailed info about image
+                 differences
+* Makefile     : Rules to batch-create and -compare images
+
+
+analysis.py
+============
+
+Usage:  python analysis.py image1.nhw image2.nhw
+
+Makefile
+=========
+
+Quick notes:
+
+* Source PNG files are in $(TESTDIR)
+* Output NHWs are in $(WORKDIR)
+* Reference ('golden') images in $(REFDIR)
+
+
+Examples:
+
+Encode all PNGs im $(TESTDIR) to NHWs:
+
+> make clean all-nhw
+
+Do a full PNG loopback on all test images:
+
+> make clean all
+
+Copy generated NHWs into reference directory:
+
+> make reference
+
+Compare a specific testimage specified by $(TESTIMAGE) to reference:
+
+> make testdiff TESTIMAGE=my_image_without_extension
+
+View test image differences in detail:
+
+> make diff TESTIMAGE=my_image_without_extension
+
+----------------------------------------------------------------------------
+Report bugs to <hackfin@section5.ch>
