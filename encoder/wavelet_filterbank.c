@@ -49,60 +49,43 @@
 
 #include "codec.h"
 
-void wavelet_analysis(image_buffer *im,int norder,int last_stage,int Y)
+
+/* The wavelet transform works in-place
+ *
+ */
+
+static
+void transpose(const short *src, short *dst, int n, int step)
+{
+	int i, j, a;
+
+	for (i=0; i<n; i++, dst+=step) {
+		for (a = i, j = 0 ;j < n; j++, a += step)
+			dst[j] = src[a];
+	}
+}
+
+static
+void wla_luma(image_buffer *im, int norder, int last_stage)
 {
 	int i,j,a;
+	int n = 2 * IM_DIM; // Line length
 	short *data,*res,*res2;
+	int offset;
 
-	for (i=0;i<(norder*IM_DIM);i+=(2*IM_DIM))
-	{
-		for (a=i,j=0;j<(norder>>1);j++,a++) im->im_process[a]=0; 
-	}
-
-	if (Y)
-	{
+	int halfno = norder >> 1;
 
 	data=im->im_jpeg;
 	res=im->im_process;
-	res2=im->im_process + norder/2;
+	res2=&im->im_process[halfno];
 
-	if (!last_stage)
-	{
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
-	}*/
-	else
-	{
-
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
+	for (i=0;i<norder;i++) {
+		downfilter53IV(data,norder,0,res); downfilter53IV(data,norder,1,res2);
+		data +=n;res +=n;res2 +=n;
 	}
 
-	//image transposition
-	/*for (i=0;i<norder;i++)
-	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(2*IM_DIM)+j]=im->im_process[i+j*(2*IM_DIM)];
-	}*/
-	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(2*IM_DIM))
-	{
-		a=i;
-		for (j=0;j<norder;j++,a+=(2*IM_DIM)) res[j]=data[a];
-	}
+	// Transposing (Y direction)
+	transpose(im->im_process, im->im_jpeg, norder, n);
 
 	if (im->setup->quality_setting>HIGH1 && !last_stage)
 	{
@@ -113,385 +96,282 @@ void wavelet_analysis(image_buffer *im,int norder,int last_stage,int Y)
 
 	data=im->im_jpeg;
 	res=im->im_process;
-	res2=im->im_process + norder/2;
+	res2=&im->im_process[halfno];
 
 	if (!im->setup->RES_HIGH)
 	{
-		for (i=0;i<norder/2;i++)
+		for (i=0;i<halfno;i++)
 		{
 			downfilter53VI(data,norder,0,res);downfilter53VI(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
+			data +=n;res +=n;res2 +=n;
 		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=0;i<norder/2;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
-	}*/
-	else
-	{
-		for (i=0;i<norder/2;i++)
+	} else {
+		for (i=0;i<halfno;i++)
 		{
 			downfilter53II(data,norder,0,res);downfilter53II(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
+			data +=n;res +=n;res2 +=n;
 		}
 	}
 
-	data=im->im_jpeg + norder*((2*IM_DIM)>>1);
-	res=im->im_process + norder*((2*IM_DIM)>>1);
-	res2=im->im_process + norder*((2*IM_DIM)>>1) + norder/2;
+	offset = norder* n >> 1;
 
-	if (!last_stage)
+	data=&im->im_jpeg[offset];
+	res=&im->im_process[offset]; res2=&im->im_process[offset + halfno];
+
+	for (i=halfno;i<norder;i++)
 	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
-	}*/
-	else 
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
-			data +=(2*IM_DIM);res +=(2*IM_DIM);res2 +=(2*IM_DIM);
-		}
+		downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
+		data +=n;res +=n;res2 +=n;
 	}
 
 	if (last_stage!=im->setup->wvlts_order-1)
-	{// image transposition
-		/*for (i=0;i<norder/2;i++)
-		{
-			for (j=0;j<norder/2;j++) im->im_jpeg[i*(2*IM_DIM)+j]=im->im_process[i+j*(2*IM_DIM)];
-		}*/
-		res=im->im_jpeg;data=im->im_process;
-		for (i=0;i<(norder>>1);i++,res+=(2*IM_DIM))
-		{
-			a=i;
-			for (j=0;j<(norder>>1);j++,a+=(2*IM_DIM)) res[j]=data[a];
-		}
-	}
-	}
-	else
 	{
-	data=im->im_jpeg;
+		transpose(im->im_process, im->im_jpeg, norder >> 1, n);
+	}
+
+}
+
+static
+void wla_chroma(image_buffer *im, int norder, int last_stage)
+{
+	// Chroma processing:
+	int i,j,a;
+	short *data,*res,*res2;
+	int n = IM_DIM; // Half the pixel line size for chroma
+	int offset;
+	int halfno = norder >> 1;
+
+	data=im->im_jpeg; // U data
 	res=im->im_process;
-	res2=im->im_process + norder/2;
+	res2=&im->im_process[halfno];
 
-	if (!last_stage)
-	{
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
-	}*/
-	else
-	{
-		for (i=0;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
+	for (i=0;i<norder;i++) {
+		downfilter53IV(data,norder,0,res);
+		downfilter53IV(data,norder,1,res2);
+		data +=n;res +=n;res2 +=n;
 	}
 
-	//image transposition
-	/*for (i=0;i<norder;i++)
-	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(IM_DIM)+j]=im->im_process[i+j*(IM_DIM)];
-	}*/
-	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(IM_DIM))
-	{
-		a=i;
-		for (j=0;j<norder;j++,a+=(IM_DIM)) res[j]=data[a];
-	}
+	// Transposing (Y direction)
+	transpose(im->im_process, im->im_jpeg, norder, n);
 
 	data=im->im_jpeg;
 	res=im->im_process;
-	res2=im->im_process + norder/2;
+	res2=&im->im_process[halfno];
 
-	if (!im->setup->RES_HIGH)
-	{
-		for (i=0;i<norder/2;i++)
-		{
+	if (!im->setup->RES_HIGH) {
+		for (i=0;i<halfno;i++) {
 			downfilter53VI(data,norder,0,res);downfilter53VI(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
+			data +=n;res +=n;res2 +=n;
 		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=0;i<norder/2;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
-	}*/
-	else
-	{
-		for (i=0;i<norder/2;i++)
-		{
+	} else {
+		for (i=0;i<halfno;i++) {
 			downfilter53II(data,norder,0,res);downfilter53II(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
+			data +=n;res +=n;res2 +=n;
 		}
 	}
 
-	data=im->im_jpeg + norder*(IM_DIM>>1);
-	res=im->im_process + norder*(IM_DIM>>1);
-	res2=im->im_process + norder*(IM_DIM>>1) + norder/2;
+	offset = norder * n >> 1;
 
-	if (!last_stage)
+	data=&im->im_jpeg[offset];
+	res=&im->im_process[offset];
+	res2=&im->im_process[offset + halfno];
+
+	for (i=halfno;i<norder;i++)
 	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
-	}
-	/*else if (last_stage>1)
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53IV(data,norder,0,res);downfilter53IV(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
-	}*/
-	else 
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
-			data +=IM_DIM;res +=IM_DIM;res2 +=IM_DIM;
-		}
+		downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
+		data +=n;res +=n;res2 +=n;
 	}
 
 	if (last_stage!=im->setup->wvlts_order-1)
-	{// image transposition
-		/*for (i=0;i<norder/2;i++)
-		{
-			for (j=0;j<norder/2;j++) im->im_jpeg[i*(IM_DIM)+j]=im->im_process[i+j*(IM_DIM)];
-		}*/
-		res=im->im_jpeg;data=im->im_process;
-		for (i=0;i<(norder>>1);i++,res+=(IM_DIM))
-		{
-			a=i;
-			for (j=0;j<(norder>>1);j++,a+=(IM_DIM)) res[j]=data[a];
-		}
-	}
-
+	{
+		transpose(im->im_process, im->im_jpeg, halfno, n);
 	}
 }
 
 
-void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
+void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
+{
+	int i,j,a;
+	short *data,*res,*res2;
+	int n = IM_DIM; // Half the pixel line size
+
+	for (i=0;i<(norder*n);i+=(2*n)) {
+		for (a=i,j=0;j<(norder>>1);j++,a++) im->im_process[a]=0; 
+	}
+
+	if (is_luma) {
+		wla_luma(im, norder, last_stage);
+	} else {
+		wla_chroma(im, norder, last_stage);
+	}
+}
+
+static
+void wls_luma(image_buffer *im, int norder, int last_stage)
 {
 	short *data,*res,*data2;
 	int i,j,IM_SYNTH=IM_DIM,a;
+	int s = 2 * IM_SYNTH;
+	int halfno = norder >> 1;
 
-	if (Y)
-	{
 	data=im->im_jpeg;
 	res=im->im_process;
-	data2=im->im_jpeg + norder/2;
+	data2=im->im_jpeg + halfno;
 
 	if (im->setup->wavelet_type==WVLTS_97)
 	{
-		for (i=0;i<norder/2;i++)
+		for (i=0;i<halfno;i++)
 		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);	
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 	else
 	{
-		for (i=0;i<norder/2;i++)
+		for (i=0;i<halfno;i++)
 		{
-			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter53I(data,halfno,res);upfilter53III(data2,halfno,res);	
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 
-	data=im->im_jpeg + norder*((2*IM_SYNTH)>>1);
-	res=im->im_process + norder*((2*IM_SYNTH)>>1);
-	data2=im->im_jpeg + norder*((2*IM_SYNTH)>>1) + norder/2;
+	int offset = halfno * s;
+	data=&im->im_jpeg[offset];
+	res=&im->im_process[offset];
+	data2=&im->im_jpeg[offset + halfno];
 
 	if (im->setup->wavelet_type==WVLTS_97)
 	{
-		for (i=norder/2;i<norder;i++)
+		for (i=halfno;i<norder;i++)
 		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 	else
 	{
-		for (i=norder/2;i<norder;i++)
+		for (i=halfno;i<norder;i++)
 		{
-			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter53I(data,halfno,res);upfilter53III(data2,halfno,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 
 	//image transposition
-	/*for (i=0;i<norder;i++)
-	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(2*IM_SYNTH)+j]=im->im_process[i+j*(2*IM_SYNTH)];
-	}*/
-	//faster version
-	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(2*IM_DIM))
-	{
-		a=i;
-		for (j=0;j<norder;j++,a+=(2*IM_DIM)) res[j]=data[a];
-	}
+	transpose(im->im_process, im->im_jpeg, norder, s);
 
 	data=im->im_jpeg;
 	res=im->im_process;
-	data2=im->im_jpeg + norder/2;
+	data2=&im->im_jpeg[halfno];
 
 	if (im->setup->wavelet_type==WVLTS_97)
 	{
 		for (i=0;i<norder;i++)
 		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 	else
 	{
 		for (i=0;i<norder;i++)
 		{
-			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			upfilter53I(data,halfno,res);upfilter53VI(data2,halfno,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 
-	if (last_stage!=im->setup->wvlts_order-1)
-	{//image transposition
-		/*for (i=0;i<norder;i++)
-		{
-			for (j=0;j<norder;j++) im->im_jpeg[i*(2*IM_SYNTH)+j]=im->im_process[i+j*(2*IM_SYNTH)];
-		}*/
-		//faster version
-		res=im->im_jpeg;data=im->im_process;
-		for (i=0;i<norder;i++,res+=(2*IM_DIM))
-		{
-			a=i;
-			for (j=0;j<norder;j++,a+=(2*IM_DIM)) res[j]=data[a];
-		}
+	if (last_stage!=im->setup->wvlts_order-1) {
+		transpose(im->im_process, im->im_jpeg, norder, s);
 	}
-	}
-	else 
-	{
-	data=im->im_jpeg;
-	res=im->im_process;
-	data2=im->im_jpeg + norder/2;
+}
 
-	if (im->setup->wavelet_type==WVLTS_97)
-	{
-		for (i=0;i<norder/2;i++)
-		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
-			data +=(IM_SYNTH);res +=(IM_SYNTH);data2 +=(IM_SYNTH);
-		}
-	}
-	else
-	{
-		for (i=0;i<norder/2;i++)
-		{
-			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
-		}
-	}
+static
+void wls_chroma(image_buffer *im, int norder, int last_stage)
+{
+	short *data,*res,*data2;
+	int i,j,IM_SYNTH=IM_DIM,a;
+	int s = IM_SYNTH; // half line size for 420 chroma buffer
 
-	data=im->im_jpeg + norder*(IM_SYNTH>>1);
-	res=im->im_process + norder*(IM_SYNTH>>1);
-	data2=im->im_jpeg + norder*(IM_SYNTH>>1) + norder/2;
-
-	if (im->setup->wavelet_type==WVLTS_97)
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
-		}
-	}
-	else
-	{
-		for (i=norder/2;i<norder;i++)
-		{
-			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
-		}
-	}
-
-	//image transposition
-	/*for (i=0;i<norder;i++)
-	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(IM_SYNTH)+j]=im->im_process[i+j*(IM_SYNTH)];
-	}*/
-	//faster version
-	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(IM_DIM))
-	{
-		a=i;
-		for (j=0;j<norder;j++,a+=(IM_DIM)) res[j]=data[a];
-	}
+	int halfno = norder >> 1;
 
 	data=im->im_jpeg;
 	res=im->im_process;
-	data2=im->im_jpeg + norder/2;
+	data2=im->im_jpeg + halfno;
+
+	if (im->setup->wavelet_type==WVLTS_97)
+	{
+		for (i=0;i<halfno;i++)
+		{
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);	
+			data +=s;res +=s;data2 +=s;
+		}
+	}
+	else
+	{
+		for (i=0;i<halfno;i++)
+		{
+			upfilter53I(data,halfno,res);upfilter53III(data2,halfno,res);	
+			data +=s;res +=s;data2 +=s;
+		}
+	}
+
+	int offset = halfno * s;
+	data  = &im->im_jpeg[offset];
+	res   = &im->im_process[offset];
+	data2 = &im->im_jpeg[offset + halfno];
+
+	if (im->setup->wavelet_type==WVLTS_97)
+	{
+		for (i=halfno;i<norder;i++)
+		{
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);
+			data +=s;res +=s;data2 +=s;
+		}
+	}
+	else
+	{
+		for (i=halfno;i<norder;i++)
+		{
+			upfilter53I(data,halfno,res);upfilter53III(data2,halfno,res);
+			data +=s;res +=s;data2 +=s;
+		}
+	}
+
+	transpose(im->im_process, im->im_jpeg, norder, s);
+
+	data=im->im_jpeg;
+	res=im->im_process;
+	data2=&im->im_jpeg[halfno];
 
 	if (im->setup->wavelet_type==WVLTS_97)
 	{
 		for (i=0;i<norder;i++)
 		{
-			upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			upfilter97(data,halfno,1,res);upfilter97(data2,halfno,0,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 	else
 	{
 		for (i=0;i<norder;i++)
 		{
-			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			upfilter53I(data,halfno,res);upfilter53VI(data2,halfno,res);
+			data +=s;res +=s;data2 +=s;
 		}
 	}
 
-	if (last_stage!=im->setup->wvlts_order-1)
-	{//image transposition
-		/*for (i=0;i<norder;i++)
-		{
-			for (j=0;j<norder;j++) im->im_jpeg[i*(IM_SYNTH)+j]=im->im_process[i+j*(IM_SYNTH)];
-		}*/
-		//faster version
-		res=im->im_jpeg;data=im->im_process;
-		for (i=0;i<norder;i++,res+=(IM_DIM))
-		{
-			a=i;
-			for (j=0;j<norder;j++,a+=(IM_DIM)) res[j]=data[a];
-		}
+	if (last_stage!=im->setup->wvlts_order-1) {
+		transpose(im->im_process, im->im_jpeg, norder, s);
 	}
+}
+
+void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int is_luma)
+{
+	if (is_luma) {
+		wls_luma(im, norder, last_stage);
+	} else {
+		wls_chroma(im, norder, last_stage);
 	}
 }
 
@@ -542,9 +422,6 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 		}
 	}
 
-	free(im->im_quality_setting);
-	free(im->im_wavelet_first_order);
-	free(im->im_wavelet_band);
 
 	if (im->setup->quality_setting>HIGH2)
 	{
