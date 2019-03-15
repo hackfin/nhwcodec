@@ -74,7 +74,7 @@ diff:
 		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
 		$(REFDIR)/$(TESTIMAGE)_$$i.nhw || \
 		$(DIFFTOOL) \
-		$(WORKDIR)/$(TESTIMAGE)_$$i.hex $(REFDIR)/$(TESTIMAGE)_$$i.hex ; \
+		$(WORKDIR)/$(TESTIMAGE)_$$i.nhw $(REFDIR)/$(TESTIMAGE)_$$i.nhw ; \
 	done
 
 %-out.txt: $(WORKDIR)/%.nhw
