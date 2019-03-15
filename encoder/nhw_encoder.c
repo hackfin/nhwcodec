@@ -67,6 +67,9 @@
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
+void reduce_q7(int quality, short *pr, const char *wvlt);
+void reduce_q9(short *pr, const char *wvlt);
+
 int main(int argc, char **argv) 
 {	
 	image_buffer im;
@@ -1602,11 +1605,11 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	if (quality<LOW7) {
 		configure_wvlt(quality, wvlt);
 			
-		pre7(quality, pr, wvlt);
+		reduce_q7(quality, pr, wvlt);
 		
 		if (im->setup->quality_setting<=LOW9)
 		{
-			pre9(pr, wvlt);
+			reduce_q9(pr, wvlt);
 		}
 	}
 	
