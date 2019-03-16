@@ -13,7 +13,7 @@ int count_cond(short *p, int scan, int step)
 #define MODULO7(x)  ((x) & 7)
 
 
-inline reduce_yterms(short *p, short e, short f, int step, int condition)
+inline void reduce_yterms(short *p, short e, short f, int step, int condition)
 {
 	if (abs(e) > 6) {
 		if ( e>= 8 && MODULO7(e) < 2) {
@@ -37,7 +37,7 @@ void ywl(int quality, short *pr, int ratio)
 {
 
 	int y_wl[2];
-	int i, j, count, scan;
+	int i, j, scan;
 	int e, f;
 	int a;
 
@@ -46,9 +46,9 @@ void ywl(int quality, short *pr, int ratio)
 	int im_size = 4*IM_SIZE;
 
 	if (quality>HIGH2) {
-		y_wl[0]=8 ;y_wl[1]=4;
+		y_wl[0]=8; y_wl[1]=4;
 	} else {
-		y_wl[0]=9 ;y_wl[1]=9;
+		y_wl[0]=9; y_wl[1]=9;
 	}
 
 	// Notation:
@@ -57,7 +57,7 @@ void ywl(int quality, short *pr, int ratio)
 	// LH HH
 
 	// Scan HL:
-	for (i=step,count=0,scan=0; i < ((im_size>>1)-step); i += step)
+	for (i=step,scan=0; i < ((im_size>>1)-step); i += step)
 	{
 		for (j=(halfs+1);j<(step-1);j++)
 		{
@@ -127,7 +127,7 @@ void ywl(int quality, short *pr, int ratio)
 	// LH HH
 
 	// Scan HH:
-	for (i = (im_size>>1), scan=0, count=0; i < (im_size-step); i += step)
+	for (i = (im_size>>1), scan=0; i < (im_size-step); i += step)
 	{
 		for (j=(halfs+1);j<(step-1);j++)
 		{

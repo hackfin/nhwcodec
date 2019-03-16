@@ -40,10 +40,10 @@ inline void reduce(short *q, int s, char w0, char w1)
 	&& abs(p[3]-p[1]) < v \
 	&& abs(p[3]-p[2]) < v
 
-void reduce_q7(int quality, short *pr, const char *wvlt)
+void reduce_q7_LL(int quality, short *pr, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
-	int a, e;
+	int e;
 	char w, v;
 
 	int s = 2 * IM_DIM;
@@ -207,11 +207,9 @@ void reduce_q7(int quality, short *pr, const char *wvlt)
 	}
 }
 
-void reduce_q9(short *pr, const char *wvlt)
+void reduce_q9_LL(short *pr, const unsigned char *wvlt, int s)
 {
 	int i, j, count, scan;
-	int e;
-	int s = 2 * IM_DIM;
 	char w;
 
 	for (i=0,scan=0;i<(IM_SIZE);i+=s)
@@ -237,6 +235,32 @@ void reduce_q9(short *pr, const char *wvlt)
 		}
 	}
 }
+
+void reduce_q9_LH(short *pr, const unsigned char *wvlt, int ratio, int s)
+{
+	int i, j, scan;
+		
+	//  LL    HL
+	// *LH*   HH
+
+	for (i=IM_SIZE;i<(2*IM_SIZE);i+=s)
+	{
+		for (scan=i,j=0;j<(s>>1);j++,scan++)
+		{
+			short *p = &pr[scan];
+			if ((abs(p[0]) >= ratio && abs(p[0]) < wvlt[0]
+				  && abs(p[-1]) < ratio
+				  && abs(p[1])<ratio)
+			   || 
+					 (abs(p[0]) == ratio
+				  && (abs(p[-1]) < ratio || abs(p[1]) < ratio))
+			   )  {
+					p[0]=0;
+			}
+		}
+	}
+}
+
 
 #if 0
 
@@ -384,8 +408,7 @@ int configure_wvlt(int quality, char *wvlt)
 
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
 {
-	int i, j, e, scan, count;
-	int res = 0;
+	int i, j, scan, count;
 
 	int step = 2 * IM_DIM;
 
@@ -575,12 +598,11 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 		//  LL   *HL*
 		//  LH    HH 
 		
-		for (i=step,count=0,res=0;i<((2*IM_SIZE)-step);i+=step)
+		for (i=step; i<((2*IM_SIZE)-step);i+=step)
 		{
 			for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
 			{
 				short *p = &pr[scan];
-				int e = p[0];
 				if (p[0]>4 && p[0]<8)
 				{
 					if (p[-1]>3 && p[-1]<=7)
