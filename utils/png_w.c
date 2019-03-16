@@ -8,7 +8,7 @@
 #include "imgio.h"
 #include <png.h>
 
-int write_png(FILE *fp, unsigned char *imagebuf, int isrgb)
+int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrgb)
 {
 	png_structp pngp;
 	png_infop infop;
@@ -17,8 +17,6 @@ int write_png(FILE *fp, unsigned char *imagebuf, int isrgb)
 	int step;
 	unsigned char *p;
 	int retcode = -1;
-	int height = 512; // Fixed for now
-	int width = 512;
 
 	row_pointers = (png_bytep *) malloc(height * sizeof(png_bytep));
 	if (row_pointers == 0) {

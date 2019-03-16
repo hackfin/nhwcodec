@@ -53,22 +53,14 @@
 
 #define IS_ODD(x) (((x) & 1) == 1)
 
-#define COPY_WVLT(dst, src) \
-	{ \
-	dst[0] = src[0]; \
-	dst[1] = src[1]; \
-	dst[2] = src[2]; \
-	dst[3] = src[3]; \
-	dst[4] = src[4]; \
-	dst[5] = src[5]; \
-	dst[6] = src[6]; \
-	}
-
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
 void reduce_q7(int quality, short *pr, const char *wvlt);
 void reduce_q9(short *pr, const char *wvlt);
+void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio);
+
+void encode_image(image_buffer *im,encode_state *enc, int ratio);
 
 int main(int argc, char **argv) 
 {	
@@ -130,6 +122,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+static
 void residual_coding_q2(short *pr, short *res256, int res_uv)
 {
 	int stage;
@@ -155,8 +148,8 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 						p[(IM_DIM>>1)]=12400;    count++;scan++;j++; continue;}
 					else if (abs(q[0])<8)
 						{q[0]=12400;             count++;scan++;j++;continue;}
-					else if (abs(q[0+(IM_DIM>>1)])<8)
-						{q[0+(IM_DIM>>1)]=12400; count++;scan++;j++; continue;}
+					else if (abs(q[(IM_DIM>>1)])<8)
+						{q[(IM_DIM>>1)]=12400; count++;scan++;j++; continue;}
 				}
 			}
 			else if (d0 < -3 && d0 >-7)
@@ -165,7 +158,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 				{
 					if (abs(p[(IM_DIM>>1)])<8) {p[(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
 					else if (abs(q[0])<8) {q[0]=12600;count++;scan++;j++;continue;}
-					else if (abs(q[0+(IM_DIM>>1)])<8) {q[0+(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
+					else if (abs(q[(IM_DIM>>1)])<8) {q[(IM_DIM>>1)]=12600;count++;scan++;j++;continue;}
 				}
 			}
 			if (abs(d0) > res_uv) 
@@ -173,7 +166,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 				if (d0 > 0) {
 					if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=12900;
 					else if (abs(q[0])<8) q[0]=12900; 
-					else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=12900; 
+					else if (abs(q[(IM_DIM>>1)])<8) q[(IM_DIM>>1)]=12900; 
 				} else
 				if (d0 == -5)
 				{
@@ -181,7 +174,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 					{
 						if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=13000;
 						else if (abs(q[0])<8) q[0]=13000; 
-						else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=13000; 
+						else if (abs(q[(IM_DIM>>1)])<8) q[(IM_DIM>>1)]=13000; 
 					}
 					
 				}
@@ -189,7 +182,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 				{
 					if (abs(p[(IM_DIM>>1)])<8) p[(IM_DIM>>1)]=13000;
 					else if (abs(q[0])<8) q[0]=13000; 
-					else if (abs(q[0+(IM_DIM>>1)])<8) q[0+(IM_DIM>>1)]=13000; 
+					else if (abs(q[(IM_DIM>>1)])<8) q[(IM_DIM>>1)]=13000; 
 				}
 			}
 		}
@@ -197,6 +190,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 }
 
 
+static
 void preprocess14(const short *pr, short *result)
 {
 	int stage;
@@ -261,6 +255,7 @@ void preprocess14(const short *pr, short *result)
 	}
 }
 
+static
 void postprocess14(short *dst, short *pr, short *res256)
 {
 	int i, j, count, scan;
@@ -402,54 +397,7 @@ void postprocess14(short *dst, short *pr, short *res256)
 	}
 }
 
-void preprocess_q7(int quality, short *pr, const char *wvlt)
-{
-	int i, j, count, scan;
-	int a, e;
-
-	int s = 2 * IM_DIM;
-
-	for (i=0,scan=0;i<(IM_SIZE);i+=s) {
-		for (scan=i,j=0;j<(IM_DIM>>1)-4;j++,scan++)
-		{
-#include "inline/p_q7_0.c"
-		}
-	}
-
-	for (i=0,scan=0;i<(IM_SIZE)-(4*IM_DIM);i+=s)
-	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
-		{
-#include "inline/p_q7_1.c"
-		}
-	}
-	
-	for (i=0,scan=0;i<(IM_SIZE)-(4*IM_DIM);i+=s)
-	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
-		{
-#include "inline/p_q7_2.c"
-		}
-	}
-}
-
-void preprocess_q9(short *pr, const char *wvlt)
-{
-
-	int i, j, count, scan;
-	int e;
-	int s = 2 * IM_DIM;
-
-	for (i=0,scan=0;i<(IM_SIZE);i+=s)
-	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
-		{
-			short *p = &pr[scan];
-#include "inline/p_q9_0.c"
-		}
-	}
-}
-
+static
 void compress1(int quality, short *pr, encode_state *enc)
 {
 	int i, j, count, scan;
@@ -527,322 +475,7 @@ void compress1(int quality, short *pr, encode_state *enc)
 	enc->exw_Y_end=e;
 }
 
-const char quality_special_default[7] = { 16, 28, 11, 8, 5, 0xff, 0xff };
-const char quality_special12500[7] = { 19, 31, 13, 9, 6, 0xff, 0xff };
-const char quality_special10000[7] = { 18, 30, 12, 8, 6, 0xff, 0xff };
-const char quality_special7000[7] = { 17, 29, 11, 8, 5, 0xff, 0xff };
 
-void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
-{
-	int i, j, e, scan, count;
-	int res = 0;
-
-	int step = 2 * IM_DIM;
-
-	if (quality<NORM && quality>LOW5)
-	{
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<IM_DIM;j++,scan++)
-			{
-				short *p = &pr[scan];
-
-				if (abs(p[0])>=ratio && abs(p[0])<9) 
-				{	
-					 if (p[0]>0) p[0]=7;else p[0]=-7;	
-				}
-			}
-
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<=14) 
-				{	
-					 if (p[0]>0) p[0]=7;else p[0]=-7;	
-				}
-			}
-		}
-	}
-	else if (quality<=LOW5 && quality>=LOW6)
-	{ 
-		wvlt[0] = 11;
-
-		if (quality==LOW5) wvlt[1]=19;
-		else if (quality==LOW6) wvlt[1]=20;
-
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
-			{		
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
-				{	
-					p[0]=0;			
-				}
-			}
-
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[1]) 
-				{	
-					if (p[0]>=14) p[0]=7;
-					else if (p[0]<=-14) p[0]=-7;	
-					else 	p[0]=0;	
-				}
-			}
-		}
-	}
-	else if (quality<LOW6)
-	{ 
-		/*
-		if (quality<=LOW7) {wvlt[0]=15;wvlt[1]=27;wvlt[2]=10;wvlt[3]=6;wvlt[4]=3;}
-
-		else */
-		if (quality<=LOW8)
-		{
-			for (i=(2*IM_SIZE),count=0;i<(4*IM_SIZE);i++)
-			{
-				if (abs(pr[i])>=12) count++;
-			}
-			
-			//if (count>15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
-			if (count>12500)      COPY_WVLT(wvlt, quality_special12500)
-			else if (count>10000) COPY_WVLT(wvlt, quality_special10000)
-			else if (count>=7000) COPY_WVLT(wvlt, quality_special7000)
-			else                  COPY_WVLT(wvlt, quality_special_default);
-			
-			if (quality==LOW9) 
-			{
-				if (count>12500) 
-				{
-					wvlt[0]++;wvlt[1]++;wvlt[2]++;wvlt[3]++;wvlt[4]++;
-				}
-				else wvlt[0]++;
-			}
-			else if (quality<=LOW10) 
-			{
-				if (count>12500) 
-				{
-					wvlt[0]+=3;wvlt[1]+=3;wvlt[2]+=2;wvlt[3]+=3;wvlt[4]+=3;
-				}
-				else 
-				{
-					wvlt[0]+=3;wvlt[1]+=2;wvlt[2]+=2;wvlt[3]+=2;wvlt[4]+=2;
-				}
-			}
-		}
-		
-		for (i=0;i<(2*IM_SIZE);i+=step)
-		{
-			for (scan=i+IM_DIM,j=IM_DIM;j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[2]+2)) 
-				{	
-					if (abs(resIII[(((i>>1)+(j-IM_DIM))>>1)+(IM_DIM>>1)])<wvlt[3]) p[0]=0;
-					else if (abs(p[0]+p[0-1])<wvlt[4] && abs(p[0+1])<wvlt[4]) 
-					{
-						p[0]=0;p[0-1]=0;
-					}
-					else if (abs(p[0]+p[0+1])<wvlt[4] && abs(p[0-1])<wvlt[4]) 
-					{
-						p[0]=0;p[0+1]=0;
-					}
-				}
-				
-				if (abs(p[0])>=ratio &&  abs(p[0])<wvlt[2]) 
-				{	
-					if (abs(p[0-1])<ratio && abs(p[0+1])<ratio) 
-					{
-						p[0]=0;
-					}
-				}
-			}
-		}
-
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
-				{	
-					if (abs(resIII[((((i-(2*IM_SIZE))>>1)+j)>>1)+(IM_SIZE>>1)])<wvlt[3]) p[0]=0;
-					else if (abs(p[0]+p[0-1])<wvlt[4] && abs(p[0+1])<wvlt[4]) 
-					{
-						p[0]=0;p[0-1]=0;
-					}
-					else if (abs(p[0]+p[0+1])<wvlt[4] && abs(p[0-1])<wvlt[4]) 
-					{
-						p[0]=0;p[0+1]=0;
-					}
-				}
-				
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
-				{	
-					if (abs(p[0-1])<(ratio) && abs(p[0+1])<(ratio)) 
-					{
-						p[0]=0;		
-					}	
-					else if (abs(p[0])<(wvlt[0]-4)) 
-					{
-						p[0]=0;
-					}
-				}
-			}
-
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<(step-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[1]+1)) 
-				{	
-					if (abs(resIII[((((i-(2*IM_SIZE))>>1)+(j-IM_DIM))>>1)+((IM_SIZE>>1)+(IM_DIM>>1))])<(wvlt[3]+1)) p[0]=0;
-					else if (abs(p[0]+p[0-1])<wvlt[4] && abs(p[0+1])<wvlt[4]) 
-					{
-						p[0]=0;p[0-1]=0;
-					}
-					else if (abs(p[0]+p[0+1])<wvlt[4] && abs(p[0-1])<wvlt[4]) 
-					{
-						p[0]=0;p[0+1]=0;
-					}
-				}
-				
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[1]) 
-				{	
-					if (abs(p[0-1])<ratio && abs(p[0+1])<ratio) 
-					{
-						if (quality>LOW10)
-						{
-							if (p[0]>=16) p[0]=7;
-							else if (p[0]<=-16) p[0]=-7;	
-							else p[0]=0;
-						}
-						else p[0]=0;
-					}
-					else if (abs(p[0])<(wvlt[1]-5))
-					{
-						if (quality>LOW10)
-						{
-							if (p[0]>=16) p[0]=7;
-							else if (p[0]<=-16) p[0]=-7;
-							else p[0]=0;							
-						}
-						else p[0]=0;
-					}
-				}
-			}
-		}
-	}
-
-	if (quality>LOW4)
-	{ 
-		for (i=step,count=0,res=0;i<((2*IM_SIZE)-step);i+=step)
-		{
-			for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (p[0]>4 && p[0]<8)
-				{
-					if (p[0-1]>3 && p[0-1]<=7)
-					{
-						if (p[0+1]>3 && p[0+1]<=7)
-						{
-							p[0]=12700;p[0-1]=10100;p[0+1]=10100;
-						}
-					}
-				}
-				else if (p[0]<-4 && p[0]>-8)
-				{
-					if (p[0-1]<-3 && p[0-1]>=-7)
-					{
-						if (p[0+1]<-3 && p[0+1]>=-7)
-						{
-							p[0]=12900;p[0-1]=10100;p[0+1]=10100;	 
-						}
-					}
-				}
-				else if ((p[0]==-7) && (p[0+1]==-6 || p[0+1]==-7))
-				{
-					p[0]=10204;p[0+1]=10100;
-				}
-				else if (p[0]==7 && p[0+1]==7)
-				{
-					p[0]=10300;p[0+1]=10100;
-				}
-				else if (p[0]==8)
-				{
-					if ((p[0-1]&65534)==6 || (p[0+1]&65534)==6) p[0]=10;
-					else if (p[0+1]==8) {p[0]=9;p[0+1]=9;}
-				}
-				else if (p[0]==-8)
-				{
-					if (((-p[0-1])&65534)==6 || ((-p[0+1])&65534)==6) p[0]=-9;
-					else if (p[0+1]==-8) {p[0]=-9;p[0+1]=-9;}
-				}
-			}
-		}
-
-		for (i=((2*IM_SIZE)+step);i<((4*IM_SIZE)-step);i+=step)
-		{
-			for (scan=i+1,j=1;j<(IM_DIM-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (p[0]>4 && p[0]<8)
-				{
-					if (p[0-1]>3 && p[0-1]<=7)
-					{
-						if (p[0+1]>3 && p[0+1]<=7)
-						{
-							p[0]=12700;p[0-1]=10100;p[0+1]=10100;
-						}
-					}
-				}
-				else if (p[0]<-4 && p[0]>-8)
-				{
-					if (p[0-1]<-3 && p[0-1]>=-7)
-					{
-						if (p[0+1]<-3 && p[0+1]>=-7)
-						{
-							p[0]=12900;p[0-1]=10100;p[0+1]=10100;
-						}
-					}
-				}
-				else if (p[0]==-6 || p[0]==-7)
-				{
-					if (p[0+1]==-7)
-					{
-						p[0]=10204;p[0+1]=10100;
-					}
-					else if (p[0-step]==-7)
-					{
-						if (abs(p[0+IM_DIM])<8) p[0+IM_DIM]=10204;p[0]=10100;
-					}
-					
-				}
-				else if (p[0]==7)
-				{
-					if (p[0+1]==7)
-					{
-						p[0]=10300;p[0+1]=10100;
-					}
-					else if (p[0-step]==7)
-					{
-						if (abs(p[0+IM_DIM])<8) p[0+IM_DIM]=10300;p[0]=10100;
-					}
-				}
-				else if (p[0]==8)
-				{
-					if ((p[0-1]&65534)==6 || (p[0+1]&65534)==6) p[0]=10;
-				}
-				else if (p[0]==-8)
-				{
-					if (((-p[0-1])&65534)==6 || ((-p[0+1])&65534)==6) p[0]=-9;
-				}
-			}
-		}
-	}
-}
 
 
 int process_res_q3(short *pr)
@@ -876,6 +509,7 @@ int process_res_q3(short *pr)
 	return res;
 }
 
+static
 void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 {
 	int i, j, count, res, stage, e, scan, Y, a;
@@ -962,6 +596,7 @@ void process_residual1I(unsigned char *sp, int n, unsigned char *res)
 }
 
 
+static
 void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 {
 	int i, j, scan, e, Y, stage, count;
@@ -1101,6 +736,7 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 }
 
 
+static
 void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 {
 	int i, j, scan, e, Y, stage, count;
@@ -1203,6 +839,7 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 	free(nhw_res5I_word);
 }
 
+static
 void process_res_hq(int quality, short *wl_first_order, short *res256)
 {
 	int i, j, count, scan;
@@ -1277,39 +914,8 @@ void process_res_hq(int quality, short *wl_first_order, short *res256)
 	}
 }
 
-const char quality_table[][7] = {
-	{ 11, 15, 10, 15, 36, 20, 21  },  // LOW20
-	{ 11, 15, 10, 15, 36, 20, 21  },
-	{ 11, 15, 10, 15, 36, 19, 20  },
-	{ 11, 15, 10, 15, 36, 18, 18  },
-	{ 11, 15, 10, 15, 36, 17, 17 },
-	{ 11, 15, 10, 15, 36, 17, 17 },
-	{ 11, 15, 10, 15, 36, 17, 17 },
-	{ 10, 15, 9, 14, 36, 17, 17   },
-	{  8, 13, 6, 11, 34, 15, 15   },
-	{  8, 13, 6, 11, 34, 15, 15   },
-	{  8, 13, 6, 11, 34, 15, 15   },
-	{  8, 13, 6, 11, 34, 15, 15   },
-	{  8, 13, 6, 11, 34, 14, 0xff }, // LOW8
-	{ 15, 27, 10, 6, 3, 0xff, 0xff }, // LOW7
-	{ 16, 28, 11, 8, 5, 0xff, 0xff }, // LOW6
-	
-};
 
-
-
-int configure_wvlt(int quality, char *wvlt)
-{
-	const char *w;
-
-	if (quality < 0) quality = 0;
-	else if (quality > LOW6) quality = LOW6;
-
-	w = quality_table[quality];
-	COPY_WVLT(wvlt, w)
-	return 0;
-}
-
+static
 void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 {
 	int i, j, e, count, stage;
@@ -1460,6 +1066,7 @@ void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 	}
 }
 
+static
 void do_y_wavelet(int quality, short *pr, int ratio)
 {
 	int y_wavelet, y_wavelet2;
@@ -1514,6 +1121,7 @@ void do_y_wavelet(int quality, short *pr, int ratio)
 	}
 }
 
+static
 void copy_work_ll(int16_t *work, const int16_t *src, int step, int n)
 {
  	int s, i, j;
@@ -1528,6 +1136,7 @@ void copy_work_ll(int16_t *work, const int16_t *src, int step, int n)
 
 
 
+static
 void encode_y(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
@@ -1572,42 +1181,34 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		
 	}
 	
-	if (quality<=LOW9) // Worse than LOW9?
+	if (quality <= LOW9) // Worse than LOW9?
 	{
-		if (quality>LOW14) wvlt[0]=10;else wvlt[0]=11;
+		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
 			
 		for (i=IM_SIZE;i<(2*IM_SIZE);i+=n)
 		{
 			for (scan=i,j=0;j<(n>>1);j++,scan++)
 			{
 				short *p = &pr[scan];
-				if (abs(p[0])>=ratio &&  abs(p[0])<wvlt[0]) 
-				{	
-					if (abs(p[0-1])<ratio && abs(p[0+1])<ratio) 
-					{
-						p[0]=0;
-					}
-					else if (abs(p[0])==ratio)
-					{
-						if (abs(p[0-1])<ratio || abs(p[0+1])<ratio) 
-						{
+				if ((abs(p[0]) >= ratio && abs(p[0]) < wvlt[0]
+					  && abs(p[-1])<ratio
+					  && abs(p[1])<ratio)
+				   || 
+					     (abs(p[0])==ratio
+					  && (abs(p[-1])<ratio || abs(p[1])<ratio))
+				   )  {
 							p[0]=0;
 						}
-					}
-				}
 			}
 		}
 	}
 
-
-
-
-	if (quality<LOW7) {
+	if (quality < LOW7) {
 		configure_wvlt(quality, wvlt);
 			
 		reduce_q7(quality, pr, wvlt);
 		
-		if (im->setup->quality_setting<=LOW9)
+		if (quality <= LOW9)
 		{
 			reduce_q9(pr, wvlt);
 		}
@@ -1676,8 +1277,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 ////////////////////////////////////////////////////////////////////////////
 
-	compress_s2(quality, resIII, pr, wvlt, enc, ratio);
-
+	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
 	
 	if (quality > LOW8) {
 		process_res_q8(quality, pr, res256, enc);
@@ -1701,7 +1301,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 				if (j==(IM_DIM-2))
 				{
 					p[0]=0;
-					p[0+1]=0;
+					p[1]=0;
 					highres[count++]=(IM_DIM-2);j++; 
 				} else {
 					switch (p[0]) {
@@ -1752,9 +1352,9 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		highres[res++]=ch_comp[count-1];
 		free(ch_comp);
 
-	enc->nhw_res1_len=res;
-	enc->nhw_res1_word_len=e;
-	enc->nhw_res1=(unsigned char*)calloc((enc->nhw_res1_len),sizeof(char));
+		enc->nhw_res1_len=res;
+		enc->nhw_res1_word_len=e;
+		enc->nhw_res1=(unsigned char*)calloc((enc->nhw_res1_len),sizeof(char));
 
 		for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
 
@@ -1852,6 +1452,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 }
 
 
+static
 void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv)
 {
 	int i, j, a, e, Y, scan, count;
@@ -1997,11 +1598,11 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 			for (scan=i,j=0;j<(IM_DIM>>2)-2;j++,scan++)
 			{
 				short *p = &pr[scan];
-				if (abs(p[0+1]-p[0+(2*IM_DIM)+1])<wvlt[2] && abs(p[0+(IM_DIM)]-p[0+(IM_DIM)+2])<wvlt[2])
+				if (abs(p[1]-p[(2*IM_DIM)+1])<wvlt[2] && abs(p[(IM_DIM)]-p[(IM_DIM)+2])<wvlt[2])
 				{
-					if (abs(p[0+(IM_DIM)+1]-p[0+(IM_DIM)])<(wvlt[3]-1) && abs(p[0+1]-p[0+(IM_DIM)+1])<wvlt[3])
+					if (abs(p[(IM_DIM)+1]-p[(IM_DIM)])<(wvlt[3]-1) && abs(p[1]-p[(IM_DIM)+1])<wvlt[3])
 					{
-						p[0+(IM_DIM)+1]=(p[0+1]+p[0+(2*IM_DIM)+1]+p[0+(IM_DIM)]+p[0+(IM_DIM)+2]+2)>>2;
+						p[(IM_DIM)+1]=(p[1]+p[(2*IM_DIM)+1]+p[(IM_DIM)]+p[(IM_DIM)+2]+2)>>2;
 					}
 				}
 			}
@@ -2012,13 +1613,13 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 			for (scan=i,j=0;j<(IM_DIM>>2)-2;j++,scan++)
 			{
 				short *p = &pr[scan];
-				if (abs(p[0+2]-p[0+1])<wvlt[2] && abs(p[0+1]-p[0])<wvlt[2])
+				if (abs(p[2]-p[1])<wvlt[2] && abs(p[1]-p[0])<wvlt[2])
 				{
-					if (abs(p[0]-p[0+(IM_DIM)])<wvlt[2] && abs(p[0+2]-p[0+(IM_DIM)+2])<wvlt[2])
+					if (abs(p[0]-p[(IM_DIM)])<wvlt[2] && abs(p[2]-p[(IM_DIM)+2])<wvlt[2])
 					{
-						if (abs(p[0+(2*IM_DIM)+1]-p[0+(IM_DIM)])<wvlt[2] && abs(p[0+(IM_DIM)]-p[0+(IM_DIM)+1])<wvlt[3]) 
+						if (abs(p[(2*IM_DIM)+1]-p[(IM_DIM)])<wvlt[2] && abs(p[(IM_DIM)]-p[(IM_DIM)+1])<wvlt[3]) 
 						{
-							p[0+(IM_DIM)+1]=(p[0+1]+p[0+(2*IM_DIM)+1]+p[0+(IM_DIM)]+p[0+(IM_DIM)+2]+1)>>2;
+							p[(IM_DIM)+1]=(p[1]+p[(2*IM_DIM)+1]+p[(IM_DIM)]+p[(IM_DIM)+2]+1)>>2;
 						}
 					}
 				}
@@ -2137,6 +1738,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 	free(resIII);
 
 }
+
 void encode_image(image_buffer *im,encode_state *enc, int ratio)
 {
 	int stage,wavelet_order,end_transform,i,j,e=0,a=0,Y,count,scan,res,res_setting,res_uv,y_wavelet,y_wavelet2;
@@ -2193,17 +1795,6 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 }
 
-void abort_(const char * s, ...)
-{
-	va_list args;
-	va_start(args, s);
-	vfprintf(stderr, s, args);
-	fprintf(stderr, "\n");
-	va_end(args);
-	abort();
-}
-
-
 int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 {
 	int i;
@@ -2229,7 +1820,7 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 	}
 
 	// READ IMAGE DATA
-	ret = read_png(im256, im->im_buffer4); 
+	ret = read_png(im256, im->im_buffer4, 512); 
 	fclose(im256);
 
 	switch (ret) {

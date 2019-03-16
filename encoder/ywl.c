@@ -1,200 +1,151 @@
 #include "codec.h"
 
+static inline
+int count_cond(short *p, int scan, int step)
+{
+	if (((abs(p[-1])))    >= 6) scan++;
+	if (((abs(p[1])))     >= 6) scan++;
+	if (((abs(p[-step]))) >= 6) scan++;
+	if (((abs(p[step])))  >= 6) scan++;
+	return scan;
+}
+
+#define MODULO7(x)  ((x) & 7)
+
+
+inline reduce_yterms(short *p, short e, short f, int step, int condition)
+{
+	if (abs(e) > 6) {
+		if ( e>= 8 && MODULO7(e) < 2) {
+			if (f > 7 && f < 10000) f--;
+			//if (p[step]>8) p[step]--;
+		}
+		else if (e == -7 && f ==8)  e = -8;
+		else if (e == 8  && f ==-7) f = -8;
+		else if (e < -7  && (MODULO7(-e)) < 2) {
+			if (f < -14 && f < 10000) {
+				if (MODULO7(-f) == 7
+				|| ((MODULO7(-f) < 2
+				 && condition && p[2] <= 0))) f++;
+			}
+		}
+	}
+	p[0] = e; p[1] = f;
+}
+
 void ywl(int quality, short *pr, int ratio)
 {
 
-	int a;
-	int y_wavelet, y_wavelet2;
+	int y_wl[2];
 	int i, j, count, scan;
-	int e;
-
-	short *p;
+	int e, f;
+	int a;
 
 	int step = 2 * IM_DIM;
+	int halfs = IM_DIM;
+	int im_size = 4*IM_SIZE;
 
-	if (quality>HIGH2) 
-	{
-		y_wavelet=8;y_wavelet2=4;
-	}
-	else
-	{
-		y_wavelet=9;y_wavelet2=9;
+	if (quality>HIGH2) {
+		y_wl[0]=8 ;y_wl[1]=4;
+	} else {
+		y_wl[0]=9 ;y_wl[1]=9;
 	}
 
-	for (i=(2*IM_DIM),count=0,scan=0;i<((4*IM_SIZE>>1)-(2*IM_DIM));i+=(2*IM_DIM))
+	// Notation:
+	//
+	// LL HL
+	// LH HH
+
+	// Scan HL:
+	for (i=step,count=0,scan=0; i < ((im_size>>1)-step); i += step)
 	{
-		for (j=(IM_DIM+1);j<(2*IM_DIM-1);j++)
+		for (j=(halfs+1);j<(step-1);j++)
 		{
-			if (abs(pr[i+j])>=(ratio-2)) 
-			{
-				a=i+j;
+			short *p = &pr[i+j];
+			e = p[0]; f = p[1];
+			a = abs(p[0]);
+// Possible conditions for a:
+// We have  6 < y_wl[0], select = 8
 
-				if (abs(pr[a])<y_wavelet2)
-				{
-					if (((abs(pr[a-1]))+2)>=8) scan++;
-					if (((abs(pr[a+1]))+2)>=8) scan++;
-					if (((abs(pr[a-(2*IM_DIM)]))+2)>=8) scan++;
-					if (((abs(pr[a+(2*IM_DIM)]))+2)>=8) scan++;
-
-					if (scan<3 && pr[a]<y_wavelet && pr[a]>-y_wavelet) 
-					{
-						//printf("%d %d %d\n",pr[a-1],pr[a],pr[a+1]);
-						if (pr[a]<-6) pr[a]=-7;
-						else if (pr[a]>6) pr[a]=7;
+// If 'a' in [(ratio-2)..ywl2]:
+			if (a >= (ratio-2)) {
+				if (a < y_wl[1]) {
+					scan = count_cond(p, scan, step);
+					if (scan < 3) {
+						//printf("%d %d %d\n",p[-1],p[0],p[1]);
+						if      (e < -6) e = -7;
+						else if (e >  6) e =  7;
 					}
-					/*else if (!scan && abs(pr[a])<9) 
-					{
-						if (pr[a]<-6) pr[a]=-7;
-						else if (pr[a]>6) pr[a]=7;
-					}*/
-
 					scan=0;
 				}
+				reduce_yterms(p, e, f, step, j<(step-2));
 			}
-			else pr[i+j]=0;
-
-			//if (abs(pr[i+j])<9) pr[i+j]=0;
-			if (abs(pr[i+j])>6)
-			{
-			e=pr[i+j];
-
-			if (e>=8 && (e&7)<2) 
-			{
-				if (pr[i+j+1]>7 && pr[i+j+1]<10000) pr[i+j+1]--;
-				//if (pr[i+j+(2*IM_DIM)]>8) pr[i+j+(2*IM_DIM)]--;
-			}
-			else if (e==-7 && pr[i+j+1]==8) pr[i+j]=-8;
-			else if (e==8 && pr[i+j+1]==-7) pr[i+j+1]=-8;
-			else if (e<-7 && ((-e)&7)<2)
-			{
-				if (pr[i+j+1]<-14 && pr[i+j+1]<10000)
-				{
-					if (((-pr[i+j+1])&7)==7) pr[i+j+1]++;
-					else if (((-pr[i+j+1])&7)<2 && j<((2*IM_DIM)-2) && pr[i+j+2]<=0) pr[i+j+1]++;
-				}
-			}
-			}
+			else p[0]=0;
 		}
 	}
 
-	if (quality>HIGH2) 
-	{
-		y_wavelet=8;y_wavelet2=4;
-	}
-	else if (quality>LOW3)
-	{
-		y_wavelet=8;y_wavelet2=9;
-	}
-	else 
-	{
-		y_wavelet=9;y_wavelet2=9;
-	}
+	if (quality>HIGH2)     { y_wl[0] = 8 ; y_wl[1] = 4; }
+	else if (quality>LOW3) { y_wl[0] = 8 ; y_wl[1] = 9; }
+	else                   { y_wl[0] = 9 ; y_wl[1] = 9; }
 
-	for (i=((4*IM_SIZE)>>1),scan=0;i<(4*IM_SIZE-(2*IM_DIM));i+=(2*IM_DIM))
+	// Notation:
+	//
+	// LL HL
+	// LH HH
+
+	// Scan LH:
+	for (i=(im_size>>1),scan=0;i<(im_size-step);i+=step)
 	{
-		for (j=1;j<(IM_DIM);j++)
+		for (j=1;j<(halfs);j++)
 		{
-			if (abs(pr[i+j])>=(ratio-2)) 
-			{	
-				a=i+j;
+			short *p = &pr[i+j];
 
-				if (abs(pr[a])<y_wavelet2)
-				{
-					if (((abs(pr[a-1]))+2)>=8) scan++;
-					if (((abs(pr[a+1]))+2)>=8) scan++;
-					if (((abs(pr[a-(2*IM_DIM)]))+2)>=8) scan++;
-					if (((abs(pr[a+(2*IM_DIM)]))+2)>=8) scan++;
+			e = p[0]; f = p[1];
+			a = abs(e);
 
-					if (scan<3 && pr[a]<y_wavelet && pr[a]>(-y_wavelet))
-					{
-						if (pr[a]<0) pr[a]=-7;else pr[a]=7;
+			if (a >= (ratio-2)) {	
+				if (a < y_wl[1]) {
+					scan = count_cond(p, scan, step);
+					if ((scan <  3 && a < y_wl[0])
+					 || (scan == 0)) {
+						if (e < 0) e = -7 ; else e =7;
 					}
-					else if (!scan && abs(pr[a])<y_wavelet2)
-					{
-						if (pr[a]<0) pr[a]=-7;else pr[a]=7;
-					}
-
 					scan=0;
 				}
+				reduce_yterms(p, e, f, step, j<(step-2));
 			}
-			else pr[i+j]=0;
-
-			if (abs(pr[i+j])>6)
-			{
-
-			e=pr[i+j];
-
-			if (e>=8 && (e&7)<2) 
-			{
-				if (pr[i+j+1]>7 && pr[i+j+1]<10000) pr[i+j+1]--;
-				//else if (pr[i+j+(2*IM_DIM)]>8 && pr[i+j+(2*IM_DIM)]<10000) pr[i+j+(2*IM_DIM)]--;
-			}
-			else if (e==-7 && pr[i+j+1]==8) pr[i+j]=-8;
-			else if (e==8 && pr[i+j+1]==-7) pr[i+j+1]=-8;
-			else if (e<-7 && ((-e)&7)<2)
-			{
-				if (pr[i+j+1]<-14 && pr[i+j+1]<10000)
-				{
-					if (((-pr[i+j+1])&7)==7) pr[i+j+1]++;
-					else if (((-pr[i+j+1])&7)<2 && j<(IM_DIM-2) && pr[i+j+2]<=0) pr[i+j+1]++;
-				}
-			}
-			}
+			else p[0] = 0;
 		}
 	}
 
-	if (quality>HIGH2) y_wavelet=8;
-	else y_wavelet=11;
+	if (quality > HIGH2) y_wl[0] = 8;
+	else                 y_wl[0] = 11;
 
-	for (i=((4*IM_SIZE)>>1),scan=0,count=0;i<(4*IM_SIZE-(2*IM_DIM));i+=(2*IM_DIM))
+	// Notation:
+	//
+	// LL HL
+	// LH HH
+
+	// Scan HH:
+	for (i = (im_size>>1), scan=0, count=0; i < (im_size-step); i += step)
 	{
-		for (j=(IM_DIM+1);j<(2*IM_DIM-1);j++)
+		for (j=(halfs+1);j<(step-1);j++)
 		{
-			if (abs(pr[i+j])>=(ratio-1)) 
-			{	
-				a=i+j;
+			short *p = &pr[i+j];
+			e = p[0]; f = p[1];
+			a = abs(e);
 
-				if (abs(pr[a])<y_wavelet)
-				{
-					if (((abs(pr[a-1]))+2)>=8) scan++;
-					if (((abs(pr[a+1]))+2)>=8) scan++;
-					if (((abs(pr[a-(2*IM_DIM)]))+2)>=8) scan++;
-					if (((abs(pr[a+(2*IM_DIM)]))+2)>=8) scan++;
-
-					if (scan<3 && pr[a]<y_wavelet && pr[a]>-y_wavelet)
-					{
-						if (pr[a]<0) pr[a]=-7;else pr[a]=7;
+			if (a >= (ratio-1)) {	
+				if (a < y_wl[0]) {
+					scan = count_cond(p, scan, step);
+					if (scan < 3) {
+						if (e < 0) e = -7;else e = 7;
 					}
-					/*else if (!scan && abs(pr[a])<11) 
-					{
-						if (pr[a]<0) pr[a]=-7;else pr[a]=7;
-					}*/
-
-					scan=0;
+					scan = 0;
 				}
+				reduce_yterms(p, e, f, step, j<(step-2));
 			}
-			else pr[i+j]=0;
-
-			if (abs(pr[i+j])>6)
-			{
-			e=pr[i+j];
-
-			if (e>=8 && (e&7)<2) 
-			{
-				if (pr[i+j+1]>7 && pr[i+j+1]<10000) pr[i+j+1]--;
-				//else if (pr[i+j+(2*IM_DIM)]>7 && pr[i+j+(2*IM_DIM)]<10000) pr[i+j+(2*IM_DIM)]--;
-			}
-			else if (e==-7 && pr[i+j+1]==8) pr[i+j]=-8;
-			else if (e==8 && pr[i+j+1]==-7) pr[i+j+1]=-8;
-			else if (e<-7 && ((-e)&7)<2)
-			{
-				if (pr[i+j+1]<-14 && pr[i+j+1]<10000)
-				{
-					if (((-pr[i+j+1])&7)==7) pr[i+j+1]++;
-					else if (((-pr[i+j+1])&7)<2 && j<((2*IM_DIM)-2) && pr[i+j+2]<=0) pr[i+j+1]++;
-				}
-			}
-			}
+			else p[0]=0;
 		}
 	}
 
