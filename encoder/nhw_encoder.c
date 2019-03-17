@@ -51,6 +51,10 @@
 #include "imgio.h"
 #include "codec.h"
 
+#ifndef MAYBE_STATIC
+#define MAYBE_STATIC
+#endif
+
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
 // XXX This is for restructuring tests only:
@@ -64,6 +68,7 @@
 
 void encode_y(image_buffer *im, encode_state *enc, int ratio);
 
+void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);
 
 void copy_from_quadrant(short *dst, const short *src, int x, int y);
 void copy_to_quadrant(short *dst, const short *src, int x, int y);
@@ -142,7 +147,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-static
+MAYBE_STATIC
 void residual_coding_q2(short *pr, short *res256, int res_uv)
 {
 	int i, j, count, scan;
@@ -159,7 +164,13 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 			short *q1 = &q[step];
 
 			short d0 = p[0]-res256[count];
-			short d1 = p[1]-res256[count+1];
+			short d1;
+#warning "OUT_OF_BOUNDS Fix"
+			if (count < (IM_SIZE >>2) - 1) {
+				d0 = p[1]-res256[count+1];
+			} else {
+				d0 = 0; // Assumption ok?
+			}
 
 			p += IM_DIM >> 1;
 
@@ -214,7 +225,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 }
 
 
-static
+MAYBE_STATIC
 void preprocess14(const short *pr, short *result)
 {
 	int stage;
@@ -279,7 +290,7 @@ void preprocess14(const short *pr, short *result)
 	}
 }
 
-static
+MAYBE_STATIC
 void postprocess14(short *dst, short *pr, short *res256)
 {
 	int i, j, count, scan;
@@ -368,9 +379,9 @@ void postprocess14(short *dst, short *pr, short *res256)
 			scan=pr[e]-res256[count];
 
 			if(scan>11)        _MOD(-7)
-			else if(scan>7)    _MOD(-4)
-			else if(scan>5)    _MOD(-2)
-			else if(scan>4)    _MOD(-1)
+			else if (scan>7)   _MOD(-4)
+			else if (scan>5)   _MOD(-2)
+			else if (scan>4)   _MOD(-1)
 			else if (scan<-11) _MOD(7)
 			else if (scan<-7)  _MOD(4)
 			else if (scan<-5)  _MOD(2)
@@ -396,8 +407,10 @@ void postprocess14(short *dst, short *pr, short *res256)
 					}
 				}
 
-				a+=(pr[e-1]-res256[count-1]);
-
+#warning "OUT_OF_BOUNDS FIX"
+				if (e > 0 && count > 0) {
+					a+=(pr[e-1]-res256[count-1]);
+				}
 
 				if (scan>=4 && a>=1)         _MOD(-1)
 				else if (scan<=-4 && a<=-1)  _MOD(1)
@@ -421,7 +434,7 @@ void postprocess14(short *dst, short *pr, short *res256)
 	}
 }
 
-static
+MAYBE_STATIC
 void compress1(int quality, short *pr, encode_state *enc)
 {
 	int i, j, count, scan;
@@ -546,20 +559,6 @@ int process_res_q3(short *pr)
 
 
 
-static
-void process_residual1I(unsigned char *sp, int n, unsigned char *res)
-{
-	while (n--) {
-		*res++ = ((sp[0] & 1) <<7) | ((sp[1] & 1) <<6) |
-				 ((sp[2] & 1) <<5) | ((sp[3] & 1) <<4) |
-				 ((sp[4] & 1) <<3) | ((sp[5] & 1) <<2) |
-				 ((sp[6] & 1) <<1) | ((sp[7] & 1));
-
-		sp += 8;
-
-	}
-}
-
 
 void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 {
@@ -572,6 +571,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 	int count, e;
 
 
+#warning "Possibly not completely initalized"
 	nhw_res1I_word=(unsigned char*)malloc(enc->nhw_res1_word_len*sizeof(char));
 	
 	for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
@@ -671,13 +671,13 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 	Y= (stage>>3) + 1;
 	enc->nhw_res1_bit_len=Y;
 	enc->nhw_res1_bit = (unsigned char*)malloc(Y*sizeof(char));
-	process_residual1I(scan_run, Y, enc->nhw_res1_bit);
+	copy_bitplane0(scan_run, Y, enc->nhw_res1_bit);
 	enc->nhw_res1_len=count;
 
 	Y= (enc->nhw_res1_word_len >> 3) + 1;
 	free(scan_run);
 	enc->nhw_res1_word=(unsigned char*)malloc((Y)*sizeof(char));
-	process_residual1I(nhw_res1I_word, Y, enc->nhw_res1_word);
+	copy_bitplane0(nhw_res1I_word, Y, enc->nhw_res1_word);
 	enc->nhw_res1_word_len=Y;
 
 	for (i=0;i<count;i++) enc->nhw_res1[i]=highres[i];
@@ -686,7 +686,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 }
 
 
-static
+MAYBE_STATIC
 void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 {
 	int i, j, scan, e, Y, stage, count;
@@ -787,7 +787,7 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 
 	Y=stage>>3;
 
-	process_residual1I(scan_run, Y+1, enc->nhw_res3_bit);
+	copy_bitplane0(scan_run, Y+1, enc->nhw_res3_bit);
 
 	enc->nhw_res3_len=count;
 
@@ -800,26 +800,27 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 
 	unsigned char *sp = scan_run;
 
-	for (i=0,stage=0;i<((Y<<3)+8);i+=8)
+#warning "OUT_OF_BOUNDS Fix"
+	for (i=0,stage=0; i < 2*Y;i++)
 	{
 
 #define _SLICE_BITS_POS(val, mask, shift) (((val) & mask) << shift)
 
-		enc->nhw_res3_word[stage++]=  _SLICE_BITS_POS(sp[0], 0x3, 6) |
-		                              _SLICE_BITS_POS(sp[1], 0x3, 4) |
-		                              _SLICE_BITS_POS(sp[2], 0x3, 2) |
-		                              _SLICE_BITS_POS(sp[3], 0x3, 0);
+		enc->nhw_res3_word[i]=  _SLICE_BITS_POS(sp[0], 0x3, 6) |
+		                        _SLICE_BITS_POS(sp[1], 0x3, 4) |
+		                        _SLICE_BITS_POS(sp[2], 0x3, 2) |
+		                        _SLICE_BITS_POS(sp[3], 0x3, 0);
 
 		sp += 4;
 
-		enc->nhw_res3_word[stage++]=  _SLICE_BITS_POS(sp[0], 0x3, 6) |
-		                              _SLICE_BITS_POS(sp[1], 0x3, 4) |
-		                              _SLICE_BITS_POS(sp[2], 0x3, 2) |
-		                              _SLICE_BITS_POS(sp[3], 0x3, 0);
-		sp += 4;
 	}
 
-	enc->nhw_res3_word_len=stage;
+	// Set to null. If not done, decoded picture show funny artefacts
+	// FIXME
+	enc->nhw_res3_word[i++]= 0;
+	enc->nhw_res3_word[i]= 0;
+
+	enc->nhw_res3_word_len = 2 * Y + 2;
 
 	for (i=0;i<count;i++) enc->nhw_res3[i]=highres[i];
 
@@ -828,7 +829,7 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 }
 
 
-static
+MAYBE_STATIC
 void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 {
 	int i, j, scan, e, Y, stage, count;
@@ -917,13 +918,13 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 	Y = stage>>3;
 	enc->nhw_res5_bit_len = Y+1;
 	enc->nhw_res5_bit=(unsigned char*)calloc(enc->nhw_res5_bit_len,sizeof(char));
-	process_residual1I(scan_run, Y + 1, enc->nhw_res5_bit);
+	copy_bitplane0(scan_run, Y + 1, enc->nhw_res5_bit);
 	enc->nhw_res5_len=count;
 
 	Y = enc->nhw_res5_word_len>>3;
 	free(scan_run);
 	enc->nhw_res5_word = (unsigned char*) calloc((enc->nhw_res5_bit_len<<1),sizeof(char));
-	process_residual1I(nhw_res5I_word, Y + 1, enc->nhw_res5_word);
+	copy_bitplane0(nhw_res5I_word, Y + 1, enc->nhw_res5_word);
 	enc->nhw_res5_word_len = Y+1;
 
 	for (i=0;i<count;i++) enc->nhw_res5[i]=highres[i];
@@ -931,7 +932,7 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 	free(nhw_res5I_word);
 }
 
-static
+MAYBE_STATIC
 void process_res_hq(int quality, short *wl_first_order, short *res256)
 {
 	int i, j, count, scan;
@@ -1049,7 +1050,9 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	wavelet_analysis(im, n,end_transform++,1);
 
-	res256 = (short*) malloc(IM_SIZE*sizeof(short));
+#warning "OUT_OF_BOUNDS Fix"
+	// Add some head room for padding:
+	res256 = (short*) malloc((IM_SIZE + n) * sizeof(short));
 	resIII = (short*) malloc(IM_SIZE*sizeof(short));
 
 	// copy upper left LL1 tile into res256 array
@@ -1087,6 +1090,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	
 	copy_from_quadrant(resIII, pr, n, n);
 	
+	// Must look at this, might not be completely initialized:
 	enc->tree1=(unsigned char*)malloc(((96*IM_DIM)+1)*sizeof(char));
 	enc->exw_Y=(unsigned char*)malloc(32*IM_DIM*sizeof(short));
 	
@@ -1174,7 +1178,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 }
 
 
-static
+MAYBE_STATIC
 void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv)
 {
 	int i, j, a, e, Y, scan, count;

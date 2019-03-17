@@ -12,9 +12,7 @@
 			short *p2 = &p1[step];
 
 			res = p[0] - res256[count];
-			int r0 = res256[count+IM_DIM];
 			a = p[step] - r0;
-			int rcs = res256[count+step];
 
 			short qd = *p2 - rcs;
 

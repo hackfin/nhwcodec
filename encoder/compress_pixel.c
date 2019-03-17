@@ -50,6 +50,8 @@
 #include "codec.h"
 #include "tree.h"
 
+void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);
+
 int wavlts2packet(image_buffer *im,encode_state *enc)
 {
 	int i,j,k,e,a,b,c,select,tag,thresh,pos,pack,match,part,p1,p2;
@@ -80,9 +82,11 @@ L1:	if (part==0) select=4; else select=3;
 	{
 L_RUN1:	if (nhw_comp[i]==128)   
 		{
+#warning "OUT_OF_BOUNDS access possible"
 			while (nhw_comp[i+1]==128)
 			{
 				e++;c=1;
+				// FIXME: Modifying i inside loop can be dangerous, see warning above
 				if (e>255) {e=254;rle_128[254]++;i--;e=0;c=0;goto L_RUN1;}
 				else i++;
 			}
@@ -280,9 +284,11 @@ L_RATIO:
 
 		if (pixel==128)   
 		{
+#warning "OUT_OF_BOUNDS access possible"
 			while (nhw_comp[i+1]==128)
 			{
 				e++;
+				// FIXME: Modifying i inside loop can be dangerous, see warning above
 				if (e>255) {e=254;i--;goto L_JUMP;}
 				else i++;
 			}
@@ -337,35 +343,23 @@ L_TAG:	e=1;
 	if (select>4 || b==0) im->setup->wavelet_type=4;
 	else im->setup->wavelet_type=0;
 
-	b=(c>>3)+1;e=0;
+	b=(c>>3);e=0;
 	enc->nhw_select_word1=(unsigned char*)calloc((b<<3),sizeof(char));
 
-	for (i=0;i<(b<<3);i+=8)
-	{
-		enc->nhw_select_word1[e++]=((nhw_s1[i]&1)<<7)|((nhw_s1[i+1]&1)<<6)|
-								   ((nhw_s1[i+2]&1)<<5)|((nhw_s1[i+3]&1)<<4)|
-								   ((nhw_s1[i+4]&1)<<3)|((nhw_s1[i+5]&1)<<2)|
-								   ((nhw_s1[i+6]&1)<<1)|((nhw_s1[i+7]&1));	
-	}
+	copy_bitplane0(nhw_s1, b, enc->nhw_select_word1);
 
 	free(nhw_s1);
 
-	enc->nhw_select1=e;
+	enc->nhw_select1=b;
 
-	b=(j>>3)+1;e=0;
+	b=(j>>3);e=0;
 	enc->nhw_select_word2=(unsigned char*)calloc((b<<3),sizeof(char));
 
-	for (i=0;i<(b<<3);i+=8)
-	{
-		enc->nhw_select_word2[e++]=((nhw_s2[i]&1)<<7)|((nhw_s2[i+1]&1)<<6)|
-								   ((nhw_s2[i+2]&1)<<5)|((nhw_s2[i+3]&1)<<4)|
-								   ((nhw_s2[i+4]&1)<<3)|((nhw_s2[i+5]&1)<<2)|
-								   ((nhw_s2[i+6]&1)<<1)|((nhw_s2[i+7]&1));	
-	}
+	copy_bitplane0(nhw_s2, b, enc->nhw_select_word2);
 
 	free(nhw_s2);
 
-	enc->nhw_select2=e;
+	enc->nhw_select2=b;
 
 	e=0;b=0;c=0;
 	for (i=0;i<k;i++)

@@ -761,10 +761,14 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 	// *LL*  HL
 	//  LH   HH
 
+	// TODO: Pad last 2 lines with something sensible
+
 	for (j=0,count=0,res=0,stage=0;j<IM_DIM;j++)
 	{
 		for (scan=j,count=j,i=0;i<((2*IM_SIZE)-step);i+=step,scan+=step,count+=IM_DIM)
 		{
+			int r0 = res256[count+IM_DIM];
+			int rcs = res256[count+step]; // This is stepping out of image bounds on the last line
 #include "inline/process0.c"
 		}	
 	}
