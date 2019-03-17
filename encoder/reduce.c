@@ -549,10 +549,6 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 	}
 	else if (quality<LOW6)
 	{ 
-		/*
-		if (quality<=LOW7) {wvlt[0]=15;wvlt[1]=27;wvlt[2]=10;wvlt[3]=6;wvlt[4]=3;}
-
-		else */
 		if (quality<=LOW8)
 		{
 			for (i=(2*IM_SIZE),count=0;i<(4*IM_SIZE);i++)
