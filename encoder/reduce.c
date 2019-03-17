@@ -4,6 +4,9 @@
 
 #define FLOOR2(x) ( (x) & ~1)
 
+#define RESIII_GETXY(x, y, off)  \
+					(((((y) >> 1) + (x)) >> 1) + (off))
+
 inline void reduce(short *q, int s, char w0, char w1)
 {
 
@@ -406,6 +409,77 @@ int configure_wvlt(int quality, char *wvlt)
 	return 0;
 }
 
+void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *wvlt, int thr)
+{
+	int i, scan, j;
+	//  LL    HL 
+	// *LH*   HH
+
+	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	{
+		for (scan=i,j=0;j<(IM_DIM);j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
+			{	
+				short tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
+				if (abs(tmp) < wvlt[3]) p[0]=0;
+				else if (abs(p[0]+p[-1])<wvlt[4] && abs(p[1])<wvlt[4]) {
+					p[0]=0;p[-1]=0;
+				} else if (abs(p[0]+p[1])<wvlt[4] && abs(p[-1])<wvlt[4]) {
+					p[0]=0;p[1]=0;
+				}
+			}
+			
+			if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
+			{	
+				if ((abs(p[-1]) < (ratio) && abs(p[1])<(ratio))
+				 || (abs(p[0]) < (wvlt[0]-4)) ) {
+					p[0]=0;
+				}
+			}
+		}
+	
+	//  LL    HL 
+	//  LH   *HH*
+
+		for (scan=i+(IM_DIM),j=(IM_DIM);j<(step-1);j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (abs(p[0])>=ratio) {
+
+				short tmp = resIII[RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1))];
+				if (abs(p[0])<(wvlt[1]+1)) 
+				{	
+					if (abs(tmp)<(wvlt[3]+1)) p[0]=0;
+					else if (abs(p[0]+p[-1]) < wvlt[4]
+						  && abs(p[1])       < wvlt[4]) 
+					{
+						p[0]=0;p[-1]=0;
+					}
+					else if (abs(p[0]+p[1]) < wvlt[4]
+						  && abs(p[-1])     < wvlt[4]) 
+					{
+						p[0]=0;p[1]=0;
+					}
+				}
+				
+				if (abs(p[0])<wvlt[1]
+				 && (abs(p[-1])<ratio
+					 && abs(p[1])<ratio
+					 || abs(p[0])<(wvlt[1]-5))) {
+						if      (p[0] >=  thr) p[0] = 7;
+						else if (p[0] <= -thr) p[0] = -7;
+						else     p[0]=0;							
+				}
+			}
+		}
+	}
+
+
+}
+
+
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
 {
 	int i, j, scan, count;
@@ -524,9 +598,6 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 				if (abs(p[0]) >= ratio) {
 					if (abs(p[0]) < (wvlt[2]+2)) 
 					{	
-#define RESIII_GETXY(x, y, off)  \
-					(((((y) >> 1) + (x)) >> 1) + (off))
-
 						short tmp = resIII[RESIII_GETXY(j-IM_DIM, i, IM_DIM >> 1)];
 
 						if (abs(tmp) < wvlt[3])
@@ -550,46 +621,14 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 				}
 			}
 		}
-	
-		//  LL    HL 
-		// *LH*   HH
 
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
-				{	
-					short tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
-					if (abs(tmp) < wvlt[3]) p[0]=0;
-					else if (abs(p[0]+p[-1])<wvlt[4] && abs(p[1])<wvlt[4]) {
-						p[0]=0;p[-1]=0;
-					} else if (abs(p[0]+p[1])<wvlt[4] && abs(p[-1])<wvlt[4]) {
-						p[0]=0;p[1]=0;
-					}
-				}
-				
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
-				{	
-					if ((abs(p[-1]) < (ratio) && abs(p[1])<(ratio))
-					 || (abs(p[0]) < (wvlt[0]-4)) ) {
-						p[0]=0;
-					}
-				}
-			}
-		
-			//  LL    HL 
-			//  LH   *HH*
 
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<(step-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio) {
-#include "inline/reduce_hh.c"
-				}
-			}
+		if (quality > 10) {
+			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 16);
+		} else {
+			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 0xffff);
 		}
+
 	}
 
 	if (quality>LOW4)
@@ -703,6 +742,84 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 				{
 					if (FLOOR2(-p[-1])==6 || FLOOR2(-p[1])==6) p[0]=-9;
 				}
+			}
+		}
+	}
+}
+
+void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
+{
+	int i, j, count, res, stage, scan;
+	int res_setting;
+	int step = 2 * IM_DIM;
+
+	if (quality>=NORM) res_setting=3;
+	else if (quality>=LOW2) res_setting=4;
+	else if (quality>=LOW5) res_setting=6;
+	else if (quality>=LOW7) res_setting=8;
+
+	// *LL*  HL
+	//  LH   HH
+
+	for (j=0,count=0,res=0,stage=0;j<IM_DIM;j++)
+	{
+		for (scan=j,count=j,i=0;i<((2*IM_SIZE)-step);i+=step,scan+=step,count+=IM_DIM)
+		{
+#include "inline/process0.c"
+		}	
+	}
+
+	enc->nhw_res1_word_len=0;enc->nhw_res3_word_len=0;enc->nhw_res5_word_len=0;
+
+	for (i=0,count=0,stage=0,res=0;i<((4*IM_SIZE)>>1);i+=step)
+	{
+		for (scan=i,j=0;j<IM_DIM;j++,scan++,count++)
+		{
+			if (res256[count]<12000)
+			{
+				// Transposed check pointer:
+				short *p = &pr[(j<<9)+(i>>9)+(IM_DIM)];
+#include "inline/process1.c"
+			}
+			else 
+			{
+				short r = res256[count];
+				switch (r) {
+					case 14000:
+						r=140; enc->nhw_res1_word_len++; 
+						break;
+					case 14500:
+						r=145; enc->nhw_res5_word_len++;
+						break;
+					case 12200:
+						r=122; enc->nhw_res3_word_len++; 
+						break;
+					case 12100:
+						r=121; enc->nhw_res3_word_len++;
+						break;
+					case 12300:
+						r=123; enc->nhw_res3_word_len++; 
+						break;
+					case 12400:
+						r=124; enc->nhw_res3_word_len++;
+						break;
+					case 14100:
+						r=141; enc->nhw_res1_word_len++; 
+						break;
+					case 12500:
+						r=125; enc->nhw_res3_word_len++;
+						enc->nhw_res1_word_len++;
+						break;
+					case 12600:
+						r=126;enc->nhw_res3_word_len++;
+						enc->nhw_res1_word_len++;
+						break;
+					case 14900:
+						r=149;enc->nhw_res5_word_len++;
+						enc->nhw_res1_word_len++;
+						break;
+				}	
+				res256[count] = r;
 			}
 		}
 	}

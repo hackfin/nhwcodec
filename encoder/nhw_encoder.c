@@ -60,9 +60,15 @@ void copy_from_quadrant(short *dst, const short *src, int x, int y);
 void copy_to_quadrant(short *dst, const short *src, int x, int y);
 void copy_buffer(short *dst, const short *src, int x, int y);
 
-void reduce_q7_LL(int quality, short *pr, const unsigned char *wvlt);
-void reduce_q9_LL(short *pr, const unsigned char *wvlt, int s);
-void reduce_q9_LH(short *pr, const unsigned char *wvlt, int ratio, int s);
+void reduce_q7_LL(int quality, short *pr, const char *wvlt);
+void reduce_q9_LL(short *pr, const char *wvlt, int s);
+void reduce_q9_LH(short *pr, const char *wvlt, int ratio, int s);
+void reduce_generic(int quality, short *resIII, short *pr, char *wvlt,
+	encode_state *enc, int ratio);
+int configure_wvlt(int quality, char *wvlt);
+void ywl(int quality, short *pr, int ratio);
+void process_res_q8(int quality, short *pr, short *res256, encode_state *enc);
+
 void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio);
 void scan_run_code(unsigned char *s, const short *pr, encode_state *enc);
 
@@ -529,79 +535,7 @@ int process_res_q3(short *pr)
 	return res;
 }
 
-static
-void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
-{
-	int i, j, count, res, stage, scan;
-	int res_setting;
-	int step = 2 * IM_DIM;
 
-	if (quality>=NORM) res_setting=3;
-	else if (quality>=LOW2) res_setting=4;
-	else if (quality>=LOW5) res_setting=6;
-	else if (quality>=LOW7) res_setting=8;
-
-	for (j=0,count=0,res=0,stage=0;j<IM_DIM;j++)
-	{
-		for (scan=j,count=j,i=0;i<((2*IM_SIZE)-step);i+=step,scan+=step,count+=IM_DIM)
-		{
-#include "inline/process0.c"
-		}	
-	}
-
-	enc->nhw_res1_word_len=0;enc->nhw_res3_word_len=0;enc->nhw_res5_word_len=0;
-
-	for (i=0,count=0,stage=0,res=0;i<((4*IM_SIZE)>>1);i+=step)
-	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan++,count++)
-		{
-			if (res256[count]<12000)
-			{
-#include "inline/process1.c"
-			}
-			else 
-			{
-				short r = res256[count];
-				switch (r) {
-					case 14000:
-						r=140; enc->nhw_res1_word_len++; 
-						break;
-					case 14500:
-						r=145; enc->nhw_res5_word_len++;
-						break;
-					case 12200:
-						r=122; enc->nhw_res3_word_len++; 
-						break;
-					case 12100:
-						r=121; enc->nhw_res3_word_len++;
-						break;
-					case 12300:
-						r=123; enc->nhw_res3_word_len++; 
-						break;
-					case 12400:
-						r=124; enc->nhw_res3_word_len++;
-						break;
-					case 14100:
-						r=141; enc->nhw_res1_word_len++; 
-						break;
-					case 12500:
-						r=125; enc->nhw_res3_word_len++;
-						enc->nhw_res1_word_len++;
-						break;
-					case 12600:
-						r=126;enc->nhw_res3_word_len++;
-						enc->nhw_res1_word_len++;
-						break;
-					case 14900:
-						r=149;enc->nhw_res5_word_len++;
-						enc->nhw_res1_word_len++;
-						break;
-				}	
-				res256[count] = r;
-			}
-		}
-	}
-}
 
 static
 void process_residual1I(unsigned char *sp, int n, unsigned char *res)
@@ -615,6 +549,131 @@ void process_residual1I(unsigned char *sp, int n, unsigned char *res)
 		sp += 8;
 
 	}
+}
+
+
+void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
+{
+	int i, j, stage, scan;
+	int Y;
+	unsigned char *ch_comp;
+	unsigned char *scan_run;
+	unsigned char *nhw_res1I_word;
+	int res;
+	int count, e;
+
+
+	nhw_res1I_word=(unsigned char*)malloc(enc->nhw_res1_word_len*sizeof(char));
+	
+	for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
+	{
+		for (scan=i,j=0;j<IM_DIM;j++,scan++)
+		{
+			short *p = &res256[scan];
+			if (j==(IM_DIM-2))
+			{
+				p[0]=0;
+				p[1]=0;
+				highres[count++]=(IM_DIM-2);j++; 
+			} else {
+				switch (p[0]) {
+					case 141:
+						highres[count++]=j;
+						p[0]=0; nhw_res1I_word[e++]=1;
+						break;
+					case 140: 
+						highres[count++]=j;
+						p[0]=0; nhw_res1I_word[e++]=0;
+						break;
+					case 126: 
+						highres[count++]=j;
+						p[0]=122; nhw_res1I_word[e++]=0;
+						break;
+					case 125: 
+						highres[count++]=j;
+						p[0]=121; nhw_res1I_word[e++]=1;
+						break;
+					case 148: 
+						highres[count++]=j;
+						p[0]=144; nhw_res1I_word[e++]=1;
+						break;
+					case 149: 
+						highres[count++]=j;
+						p[0]=145; nhw_res1I_word[e++]=0;
+				}
+			}
+		}
+	}
+
+	ch_comp=(unsigned char*)malloc(count*sizeof(char));
+	memcpy(ch_comp,highres,count*sizeof(char));
+
+	for (i=1,res=1;i<count-1;i++)
+	{
+		if (ch_comp[i]==(IM_DIM-2))
+		{
+			if (ch_comp[i-1]!=(IM_DIM-2) && ch_comp[i+1]!=(IM_DIM-2))
+			{
+				if (ch_comp[i-1]<=ch_comp[i+1]) highres[res++]=ch_comp[i];
+			}
+			else highres[res++]=ch_comp[i];
+		}
+		else highres[res++]=ch_comp[i];
+	}
+
+	highres[res++]=ch_comp[count-1];
+	free(ch_comp);
+
+	enc->nhw_res1_len=res;
+	enc->nhw_res1_word_len=e;
+	enc->nhw_res1=(unsigned char*)calloc((enc->nhw_res1_len),sizeof(char));
+
+	for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
+
+	scan_run=(unsigned char*)malloc((enc->nhw_res1_len+8)*sizeof(char));
+
+	for (i=0;i<enc->nhw_res1_len;i++) scan_run[i]=enc->nhw_res1[i]>>1;
+
+	highres[0]=scan_run[0];
+
+	for (i=1,count=1;i<enc->nhw_res1_len-1;i++)
+	{
+		int d = scan_run[i]-scan_run[i-1];
+		if (d>=0 && d<8)
+		{
+			int d1 = scan_run[i+1]-scan_run[i];
+			if (d1 >=0 && d1 < 16) {
+				highres[count++]=128+(d<<4)+d1;
+				i++;
+			}
+			else highres[count++]=scan_run[i];
+		}
+		else highres[count++]=scan_run[i];
+	}
+
+	for (i=0,stage=0;i<enc->nhw_res1_len;i++) 
+	{
+		if (enc->nhw_res1[i]!=254) scan_run[stage++]=enc->nhw_res1[i];
+	}
+
+	for (i=stage;i<stage+8;i++) scan_run[i]=0;
+
+
+	Y= (stage>>3) + 1;
+	enc->nhw_res1_bit_len=Y;
+	enc->nhw_res1_bit = (unsigned char*)malloc(Y*sizeof(char));
+	process_residual1I(scan_run, Y, enc->nhw_res1_bit);
+	enc->nhw_res1_len=count;
+
+	Y= (enc->nhw_res1_word_len >> 3) + 1;
+	free(scan_run);
+	enc->nhw_res1_word=(unsigned char*)malloc((Y)*sizeof(char));
+	process_residual1I(nhw_res1I_word, Y, enc->nhw_res1_word);
+	enc->nhw_res1_word_len=Y;
+
+	for (i=0;i<count;i++) enc->nhw_res1[i]=highres[i];
+
+	free(nhw_res1I_word);
 }
 
 
@@ -938,18 +997,39 @@ void process_res_hq(int quality, short *wl_first_order, short *res256)
 	}
 }
 
+void copy_thresholds(short *process, const short *resIII, int n)
+{
+	int i, j, count;
+
+	for (i=0, count=0; i < (2*IM_SIZE); i += n)
+	{
+		short *p = &process[i];
+
+		for (j=0;j<IM_DIM;j++)
+		{ 
+			// FIXME: eliminate
+			if (j<(IM_DIM>>1) && i<IM_SIZE) {
+				if (resIII[count]>8000) {
+					*p++ = resIII[count++];
+				} else {
+					*p++ = 0;count++;
+				}
+			}
+			else *p++ = resIII[count++];
+		}
+	}
+}
 
 static
 void encode_y(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
 	int res;
-	int i, j, scan, count, stage, Y, e;
 	int end_transform;
 	short *res256, *resIII;
-	unsigned char *nhw_res1I_word, *highres, *ch_comp, *scan_run;
+	unsigned char *highres;
 	short *pr;
-	unsigned char wvlt[7];
+	char wvlt[7];
 	pr=(short*)im->im_process;
 
 	int n = 2 * IM_DIM; // line size Y
@@ -1002,7 +1082,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	enc->tree1=(unsigned char*)malloc(((96*IM_DIM)+1)*sizeof(char));
 	enc->exw_Y=(unsigned char*)malloc(32*IM_DIM*sizeof(short));
 	
-	if (quality>LOW3)
+	if (quality > LOW3)
 	{
 		res = process_res_q3(pr);
 		enc->nhw_res4_len=res;
@@ -1017,14 +1097,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	free(enc->ch_res);
 
-	for (i=0,count=0;i<(2*IM_SIZE);i+=n)
-	{
-		short *p = &im->im_process[i];
-		for (j=0;j<IM_DIM;j++)
-		{ 
-			*p++=resIII[count++];
-		}
-	}
+	copy_to_quadrant(pr, resIII, n, n);
 
 	//free(resIII);
 	
@@ -1059,118 +1132,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	
 	if (quality > LOW8)
 	{
-		nhw_res1I_word=(unsigned char*)malloc(enc->nhw_res1_word_len*sizeof(char));
-		
-		for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
-		{
-			for (scan=i,j=0;j<IM_DIM;j++,scan++)
-			{
-				short *p = &res256[scan];
-				if (j==(IM_DIM-2))
-				{
-					p[0]=0;
-					p[1]=0;
-					highres[count++]=(IM_DIM-2);j++; 
-				} else {
-					switch (p[0]) {
-						case 141:
-							highres[count++]=j;
-							p[0]=0; nhw_res1I_word[e++]=1;
-							break;
-						case 140: 
-							highres[count++]=j;
-							p[0]=0; nhw_res1I_word[e++]=0;
-							break;
-						case 126: 
-							highres[count++]=j;
-							p[0]=122; nhw_res1I_word[e++]=0;
-							break;
-						case 125: 
-							highres[count++]=j;
-							p[0]=121; nhw_res1I_word[e++]=1;
-							break;
-						case 148: 
-							highres[count++]=j;
-							p[0]=144; nhw_res1I_word[e++]=1;
-							break;
-						case 149: 
-							highres[count++]=j;
-							p[0]=145; nhw_res1I_word[e++]=0;
-					}
-				}
-			}
-		}
-
-		ch_comp=(unsigned char*)malloc(count*sizeof(char));
-		memcpy(ch_comp,highres,count*sizeof(char));
-
-		for (i=1,res=1;i<count-1;i++)
-		{
-			if (ch_comp[i]==(IM_DIM-2))
-			{
-				if (ch_comp[i-1]!=(IM_DIM-2) && ch_comp[i+1]!=(IM_DIM-2))
-				{
-					if (ch_comp[i-1]<=ch_comp[i+1]) highres[res++]=ch_comp[i];
-				}
-				else highres[res++]=ch_comp[i];
-			}
-			else highres[res++]=ch_comp[i];
-		}
-
-		highres[res++]=ch_comp[count-1];
-		free(ch_comp);
-
-		enc->nhw_res1_len=res;
-		enc->nhw_res1_word_len=e;
-		enc->nhw_res1=(unsigned char*)calloc((enc->nhw_res1_len),sizeof(char));
-
-		for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
-
-		scan_run=(unsigned char*)malloc((enc->nhw_res1_len+8)*sizeof(char));
-
-		for (i=0;i<enc->nhw_res1_len;i++) scan_run[i]=enc->nhw_res1[i]>>1;
-
-		highres[0]=scan_run[0];
-
-		for (i=1,count=1;i<enc->nhw_res1_len-1;i++)
-		{
-			int d = scan_run[i]-scan_run[i-1];
-			if (d>=0 && d<8)
-			{
-				int d1 = scan_run[i+1]-scan_run[i];
-				if (d1 >=0 && d1 < 16) {
-					highres[count++]=128+(d<<4)+d1;
-					i++;
-				}
-				else highres[count++]=scan_run[i];
-			}
-			else highres[count++]=scan_run[i];
-		}
-
-		for (i=0,stage=0;i<enc->nhw_res1_len;i++) 
-		{
-			if (enc->nhw_res1[i]!=254) scan_run[stage++]=enc->nhw_res1[i];
-		}
-
-		for (i=stage;i<stage+8;i++) scan_run[i]=0;
-
-
-		Y= (stage>>3) + 1;
-		enc->nhw_res1_bit_len=Y;
-		enc->nhw_res1_bit = (unsigned char*)malloc(Y*sizeof(char));
-		process_residual1I(scan_run, Y, enc->nhw_res1_bit);
-		enc->nhw_res1_len=count;
-
-		Y= (enc->nhw_res1_word_len >> 3) + 1;
-		free(scan_run);
-		enc->nhw_res1_word=(unsigned char*)malloc((Y)*sizeof(char));
-		process_residual1I(nhw_res1I_word, Y, enc->nhw_res1_word);
-		enc->nhw_res1_word_len=Y;
-
-		for (i=0;i<count;i++) enc->nhw_res1[i]=highres[i];
-
-		free(nhw_res1I_word);
-		
+		process_hires_q8(highres, res256, enc);
 	}
 
 	// Further residual processing:
@@ -1186,23 +1148,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	free(highres);
 	free(res256);
 
-	for (i=0,count=0,stage=0;i<(2*IM_SIZE);i+=n)
-	{
-		short *p = &im->im_process[i];
-
-		for (scan=i,j=0;j<IM_DIM;j++)
-		{ 
-			// FIXME: eliminate
-			if (j<(IM_DIM>>1) && i<IM_SIZE) {
-				if (resIII[count]>8000) {
-					*p++ = resIII[count++];
-				} else {
-					*p++ = 0;count++;
-				}
-			}
-			else *p++ = resIII[count++];
-		}
-	}
+	copy_thresholds(pr, resIII, n);
 
 	free(resIII);
 	ywl(quality, pr, ratio);
@@ -1614,7 +1560,7 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 int write_compressed_file(image_buffer *im,encode_state *enc,char **argv)
 {
 	FILE *compressed;
-	int len,i;
+	int len;
 	char OutputFile[200];
 
 	len=strlen(argv[1]);

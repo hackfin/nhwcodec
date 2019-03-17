@@ -780,7 +780,7 @@ void block_variance_avg(image_buffer *im)
 static
 void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 {
-	int i,j,a,e;
+	int i,j,a;
 
 #define Q3_CONDITION(n, a) \
 	IS_ODD(n[a]) && IS_ODD(n[a+1]) && IS_ODD(n[a+2]) && IS_ODD(n[a+3]) && (abs(n[a]-n[a+3]) > 1)
