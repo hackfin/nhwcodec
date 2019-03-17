@@ -86,7 +86,7 @@ def parse_nhwhdr(r):
 
 def matching_headers(h0, h1):
 	variables0 = vars(h0)
-	variables1 = vars(h0)
+	variables1 = vars(h1)
 
 
 	attr0 = variables0.keys()
@@ -98,6 +98,8 @@ def matching_headers(h0, h1):
 	for e, item in enumerate(attr0):
 		v0, v1 = variables0[item], variables1[attr1[e]]
 		if v0 != v1:
+			print "Mismatch in header for '%s'" % (item)
+			print "Wants: %s, is: %s" % (v0, v1)
 			return False
 
 	return True

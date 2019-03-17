@@ -70,20 +70,18 @@ testdiff:
 		$(REFDIR)/$(TESTIMAGE)_$$i.nhw; \
 	done
 
-hexdiff: hexfiles
-		meld \
-		$(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
+hexdiff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
 		$(REFDIR)/$(TESTIMAGE)_$(SETTING).hex
+		meld $^
 
 diff:
-	@for i in $(ALL_SETTINGS); do \
-		echo ============= Quality $$i ===============; \
-		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
-		$(REFDIR)/$(TESTIMAGE)_$$i.nhw || \
-		$(DIFFTOOL) \
-		$(REFDIR)/$(TESTIMAGE)_$$i.nhw $(WORKDIR)/$(TESTIMAGE)_$$i.nhw ; \
-		echo =========================================; \
-	done
+	@echo ============= Quality '$(SETTING)' ===============
+	@diff $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw \
+		$(REFDIR)/$(TESTIMAGE)_$(SETTING).nhw || \
+	$(DIFFTOOL) \
+		$(REFDIR)/$(TESTIMAGE)_$(SETTING).nhw \
+		$(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
+	@echo ===============  DONE  ==================
 
 %-out.txt: $(WORKDIR)/%.nhw
 	python analysis.py $< >$@
