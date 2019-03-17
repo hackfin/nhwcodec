@@ -68,7 +68,7 @@ void transpose(const short *src, short *dst, int n, int step)
 static
 void wla_luma(image_buffer *im, int norder, int last_stage)
 {
-	int i,j,a;
+	int i;
 	int n = 2 * IM_DIM; // Line length
 	short *data,*res,*res2;
 	int offset;
@@ -135,7 +135,7 @@ static
 void wla_chroma(image_buffer *im, int norder, int last_stage)
 {
 	// Chroma processing:
-	int i,j,a;
+	int i;
 	short *data,*res,*res2;
 	int n = IM_DIM; // Half the pixel line size for chroma
 	int offset;
@@ -210,7 +210,7 @@ static
 void wls_luma(image_buffer *im, int norder, int last_stage)
 {
 	short *data,*res,*data2;
-	int i,j,IM_SYNTH=IM_DIM,a;
+	int i, IM_SYNTH=IM_DIM;
 	int s = 2 * IM_SYNTH;
 	int halfno = norder >> 1;
 
@@ -290,7 +290,7 @@ static
 void wls_chroma(image_buffer *im, int norder, int last_stage)
 {
 	short *data,*res,*data2;
-	int i,j,IM_SYNTH=IM_DIM,a;
+	int i, IM_SYNTH=IM_DIM;
 	int s = IM_SYNTH; // half line size for 420 chroma buffer
 
 	int halfno = norder >> 1;

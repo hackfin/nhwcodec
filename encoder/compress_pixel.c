@@ -243,8 +243,8 @@ L_RATIO:
 	if (select==4 && b==1) zone_entrance=1;else zone_entrance=0;
 	if (part==1) zone_entrance=0;
 
-	nhw_s1=(unsigned char*)malloc(enc->nhw_select1*sizeof(char));
-	nhw_s2=(unsigned char*)malloc(enc->nhw_select2*sizeof(char));
+	nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
+	nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
 
 	e=1;match=0;pack=0;tag=0;c=0,j=0;
 	for (i=p1;i<p2-1;i++)   
@@ -338,7 +338,7 @@ L_TAG:	e=1;
 	else im->setup->wavelet_type=0;
 
 	b=(c>>3)+1;e=0;
-	enc->nhw_select_word1=(unsigned char*)malloc((b<<3)*sizeof(char));
+	enc->nhw_select_word1=(unsigned char*)calloc((b<<3),sizeof(char));
 
 	for (i=0;i<(b<<3);i+=8)
 	{
@@ -353,7 +353,7 @@ L_TAG:	e=1;
 	enc->nhw_select1=e;
 
 	b=(j>>3)+1;e=0;
-	enc->nhw_select_word2=(unsigned char*)malloc((b<<3)*sizeof(char));
+	enc->nhw_select_word2=(unsigned char*)calloc((b<<3),sizeof(char));
 
 	for (i=0;i<(b<<3);i+=8)
 	{
@@ -442,7 +442,7 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 
 	highres=(unsigned char*)enc->tree1;
 
-	enc->highres_word=(unsigned char*)malloc((IM_SIZE>>2)*sizeof(char));
+	enc->highres_word=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
 
 	//for (i=0;i<300;i++) printf("%d %d\n",i,highres[i]);
 
@@ -465,7 +465,7 @@ L15:	e=0;
 
 	enc->highres_mem_len=0;
 	enc->highres_comp=(unsigned char*)calloc((IM_SIZE>>1),sizeof(char));
-	enc->highres_mem=(unsigned short*)malloc((IM_SIZE>>2)*sizeof(short));
+	enc->highres_mem=(unsigned short*)calloc((IM_SIZE>>2),sizeof(short));
 	ch_comp=(unsigned char*)enc->highres_comp;
 
 	ch_comp[0]=highres[0];
@@ -798,7 +798,7 @@ END_RES5:
 	}
 
 L3: 
-	comp_tmp=(unsigned char*)malloc(j*sizeof(char));
+	comp_tmp=(unsigned char*)calloc(j,sizeof(char));
 
 	memcpy(comp_tmp,ch_comp,j*sizeof(char));
 
@@ -982,7 +982,7 @@ END_RES3:
 
 	free(enc->tree1);
 
-	enc->ch_res=(unsigned char*)malloc(j*sizeof(char));
+	enc->ch_res=(unsigned char*)calloc(j,sizeof(char));
 	enc->end_ch_res=j;
 	memcpy(enc->ch_res,ch_comp,enc->end_ch_res*sizeof(char));
 	// XXX NEVER! free(enc->highres_comp);

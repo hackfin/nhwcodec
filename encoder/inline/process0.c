@@ -2,18 +2,21 @@
 			short *p;
 			p = &pr[scan];
 
+			int a;
 
 			stage = k + IM_DIM;
+
+			short *q = &pr[stage];
 			
 			short *p1 = &p[step];
 			short *p2 = &p1[step];
-			short q = *p2;
 
 			res = p[0] - res256[count];
-			a = p[step] - res256[count+IM_DIM];
+			int r0 = res256[count+IM_DIM];
+			a = p[step] - r0;
 			int rcs = res256[count+step];
 
-			short qd = q - rcs;
+			short qd = *p2 - rcs;
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -39,16 +42,17 @@
 					 _MOD_ASSIGN(12400, -2)
 				else if (quality>=LOW1)
 				{
-					res256[count]=12100;p[step]=res256[count+IM_DIM];
+					res256[count]=12100;p[step]=r0;
 				}
 			}
 			else if (a==-4 && (res==2 || res==3) && (qd==2 || qd==3))
 			{
 				if (res==2 && qd==2) p[step]++;
 				else _MOD_ASSIGN(12400, -2)
-			}
-			else if (res==1 && a==3 && qd==2)
+			} // DONE
+			else if (res==1 && a==3 && qd==2) // DONE
 			{
+				// FIXME: No compare of loop variable inside loop
 				if (i>0) 
 				{
 					if ((p[-step]-res256[count-IM_DIM])>=0) 
@@ -56,21 +60,21 @@
 				}
 			}
 			else if ((res==3 || res==4 || res==5 || res>6) &&
-				((p[step]-res256[count+IM_DIM])==3 ||
-				((p[step]-res256[count+IM_DIM])&65534)==4))
+				(a==3 ||
+				(a&65534)==4))
 			{
-				if ((res)>6) {res256[count]=12500;p[step]=res256[count+IM_DIM];}
-				else if (quality>=LOW1)
+				if ((res)>6) {res256[count]=12500;p[step]=r0;}
+				else if (quality>=LOW1) // REDUNDANT
 				{
-					res256[count]=12100;p[step]=res256[count+IM_DIM];
+					res256[count]=12100;p[step]=r0;
 				}
-				else if (quality==LOW2)
+				else if (quality==LOW2) // DONE
 				{
-					if (res<5 && a==5) res256[count+IM_DIM]=14100;
+					if (res<5 && a==5) p[step] =14100;
 					else if (res>=5) res256[count]=14100;
-					else if (res==3 && a>=4) res256[count+IM_DIM]=14100;
+					else if (res==3 && a>=4) p[step] =14100;
 					
-					p[step]=res256[count+IM_DIM];
+					res256[count+IM_DIM] = p[step];
 				}
 			}
 			else if ((res==2 || res==3) && (a==2 || a==3))
@@ -89,29 +93,29 @@
 					}
 				}
 			}
-			else if (a==4 && (res==-2 || res==-3) && (qd==-2 || qd==-3))
+			else if (a==4 && (res==-2 || res==-3) && (qd==-2 || qd==-3)) // DONE
 			{
 				if (res==-2 && qd==-2) p[step]--;
 				else _MOD_ASSIGN(12300, 2)
 			}
 			else if ((res==-3 || res==-4 || res==-5 || res<-7) &&
-				(a == -3 || a == -4 || (p[step]-res256[count+IM_DIM]) == -5))
+				(a == -3 || a == -4 || a == -5))
 			{
 				if (res<-7) 
 				{
-					res256[count]=12600;p[step]=res256[count+IM_DIM];
+					res256[count]=12600;p[step]=r0;
 				}
 				else if (quality>=LOW1)
 				{
-					res256[count]=12200;p[step]=res256[count+IM_DIM];
+					res256[count]=12200;p[step]=r0;
 				}
 				else if (quality==LOW2)
 				{
-					if (res>-5 && a==-5) res256[count+IM_DIM]=14000;
+					if (res>-5 && a==-5)       p[step]=14000;
 					else if (res<=-5) res256[count]=14000;
-					else if (res==-3 && a<=-4) res256[count+IM_DIM]=14000;
+					else if (res==-3 && a<=-4) p[step]=14000;
 					
-					p[step]=res256[count+IM_DIM];
+					res256[count+IM_DIM]=p[step];
 				}
 			}
 			else if (a==-2 || a==-3)
@@ -127,7 +131,8 @@
 					{
 						if ((p[1]-res256[count+1])==-2 || (p[1]-res256[count+1])==-3)
 						{
-							if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-2 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-3)
+							if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-2
+							 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-3)
 							{
 								if ((p2[(1)]-res256[count+(2*IM_DIM+1)])<0)
 									_MOD_ASSIGN(12300, 2)
@@ -139,6 +144,7 @@
 				}
 				else if (res==-1 && a==-3 && qd==-2)
 				{
+					// FIXME: No compare of loop variable inside loop
 					if (i>0) 
 					{
 						if ((p[-step]-res256[count-IM_DIM])<=0) 
@@ -166,45 +172,45 @@
 			else if (!res || res==-1)
 			{
 L_W1:
-				if (pr[stage]==7)
+				if (q[0]==7)
 				{
-					if (pr[stage-1]>=0 && pr[stage-1]<8) pr[stage]+=2;
+					if (q[0-1]>=0 && q[0-1]<8) q[0]+=2;
 				}
-				else if (pr[stage]==8)
+				else if (q[0]==8)
 				{
-					if (pr[stage-1]>=-2 && pr[stage-1]<8) pr[stage]+=2;
+					if (q[0-1]>=-2 && q[0-1]<8) q[0]+=2;
 				}
 			}
 			else if (res==-2)
 			{
 L_W2:
 
-				if (pr[stage]<-14)
+				if (q[0]<-14)
 				{
-					if (!((-pr[stage])&7) || ((-pr[stage])&7)==7) pr[stage]++;
+					if (!((-q[0])&7) || ((-q[0])&7)==7) q[0]++;
 				}
-				else if (pr[stage]==7 || (pr[stage]&65534)==8)
+				else if (q[0]==7 || (q[0]&65534)==8)
 				{
-					if (pr[stage-1]>=-2) pr[stage]+=3;
+					if (q[0-1]>=-2) q[0]+=3;
 				}
 			}
 			else if (res==-3) 
 			{
-L_W3:			if (quality>=HIGH1) {res256[count]=14500;}
-				else if (pr[stage]<-14)
+L_W3:			if (quality>=HIGH1) {res256[count]=14500;} // Redundant
+				else if (q[0]<-14)
 				{
-					if (!((-pr[stage])&7) || ((-pr[stage])&7)==7)
+					if (!((-q[0])&7) || ((-q[0])&7)==7)
 					{
-						pr[stage]++;
+						q[0]++;
 					}
 				}
-				else if (pr[stage]>=0 && ((pr[stage]+2)&65532)==8)
+				else if (q[0]>=0 && ((q[0]+2)&65532)==8)
 				{
-					if (pr[stage-1]>=-2) pr[stage]=10;
+					if (q[0-1]>=-2) q[0]=10;
 				}
-				else if (pr[stage]>14 && (pr[stage]&7)==7)
+				else if (q[0]>14 && (q[0]&7)==7)
 				{
-					pr[stage]++;
+					q[0]++;
 				}
 			}
 			else if (res<(-res_setting))
@@ -214,9 +220,9 @@ L_W5:			res256[count]=14000;
 				if (res==-4)
 				{
 
-					if (pr[stage]==-7 || pr[stage]==-8) 
+					if (q[0]==-7 || q[0]==-8) 
 					{
-						if (pr[stage-1]<2 && pr[stage-1]>-8) pr[stage]=-9;
+						if (q[0-1]<2 && q[0-1]>-8) q[0]=-9;
 					}
 				}
 				else if (res<-6)
@@ -224,13 +230,13 @@ L_W5:			res256[count]=14000;
 					if (res<-7 && quality>=HIGH1) {res256[count]=14900;}
 					else
 					{
-						if (pr[stage]<-14)
+						if (q[0]<-14)
 						{
-							if (!((-pr[stage])&7) || ((-pr[stage])&7)==7) pr[stage]++;
+							if (!((-q[0])&7) || ((-q[0])&7)==7) q[0]++;
 						}
-						else if (pr[stage]==7 || pr[stage]==8)
+						else if (q[0]==7 || q[0]==8)
 						{
-							if (pr[stage-1]>=-1 && pr[stage-1]<8) pr[stage]+=3;
+							if (q[0-1]>=-1 && q[0-1]<8) q[0]+=3;
 						}
 					}
 				}

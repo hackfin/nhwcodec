@@ -107,7 +107,7 @@ void quantizationY(image_buffer *im)
 
 void offsetUV(image_buffer *im,encode_state *enc,int m2)
 {
-	int i,j,wavelet_order,exw,a;
+	int i,exw,a;
 
 	for (i=0;i<IM_SIZE;i++)
 	{
@@ -184,12 +184,11 @@ L_OVER4N:	a = -a;
 
 void offsetY(image_buffer *im,encode_state *enc, int m1)
 {
-	int i,j,wavelet_order,exw,a,r,scan,t1=0;
+	int i,j,exw,a;
 	short *nhw_process;
 
 	nhw_process=(short*)im->im_process;
 
-	wavelet_order=im->setup->wvlts_order;
 
 	for (i=0;i<(4*IM_SIZE);i++)
 	{
@@ -376,7 +375,7 @@ void offsetY(image_buffer *im,encode_state *enc, int m1)
 
 void im_recons_wavelet_band(image_buffer *im)
 {
-	int i,j,a,r,scan,count;
+	int i,j,a,r,scan;
 
 	for (i=0,r=0;i<(2*IM_SIZE);i+=(2*IM_DIM))
 	{ 
@@ -781,13 +780,13 @@ void block_variance_avg(image_buffer *im)
 static
 void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 {
-	int i,j,a,e;
+	int i,j,a;
 
 #define Q3_CONDITION(n, a) \
 	IS_ODD(n[a]) && IS_ODD(n[a+1]) && IS_ODD(n[a+2]) && IS_ODD(n[a+3]) && (abs(n[a]-n[a+3]) > 1)
 
 	if (!part) {
-		for (i=0,a=0,e=0;i<(IM_SIZE);i+=(2*IM_DIM)) {
+		for (i=0,a=0;i<(IM_SIZE);i+=(2*IM_DIM)) {
 			for (a=i,j=0;j<((IM_DIM>>1)-3);j++,a++) {
 				if (Q3_CONDITION(nhw1, a)) {
 					nhw1[a]  +=16000; nhw1[a+1]+=16000;
@@ -797,7 +796,7 @@ void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 			}
 		}
 	} else {
-		for (i=0,a=0,e=0;i<(IM_SIZE);i+=(2*IM_DIM)) {
+		for (i=0,a=0;i<(IM_SIZE);i+=(2*IM_DIM)) {
 			for (a=i,j=0;j<((IM_DIM>>1)-3);j++,a++) {
 				if (Q3_CONDITION(nhw1, a)) {
 					nhw1[a]+=16000; nhw1[a+2]+=16000;
@@ -817,11 +816,10 @@ void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 //
 void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 {
-	int i,j,wavelet_order,a,e,t;
+	int i,j,a,e,t;
 	short *nhw1,*highres_tmp;
 
 	nhw1=(short*)im->im_process;
-	wavelet_order=im->setup->wvlts_order;
 
 	if (im->setup->quality_setting>LOW3) {
 		offsetY_recons256_q3(im, nhw1, part);
@@ -1242,9 +1240,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 
 void offsetUV_recons256(image_buffer *im, int m1, int comp)
 {
-	int i,j,wavelet_order,a,e=0;
-
-	wavelet_order=im->setup->wvlts_order;
+	int i,j,a;
 
 	if (comp)
 	{	
