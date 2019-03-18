@@ -51,6 +51,7 @@ all:
 		$(MAKE) loopback SETTING=$$i; \
 	done
 
+
 all-%:
 	@for i in $(ALL_SETTINGS); do \
 		$(MAKE) $* SETTING=$$i; \
@@ -62,6 +63,23 @@ test: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
 
 reference:
 	cp -r $(WORKDIR)/*.nhw $(REFDIR)
+	cp -r $(WORKDIR)/*.png $(REFDIR)
+
+
+REFIMAGES = $(IMAGES:%=$(REFDIR)/%_$(SETTING)DEC.png)
+CURIMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING)DEC.png)
+
+EXTENSION = _$(SETTING)DEC
+
+pngdiff: $(CURIMAGES)
+	@echo ============= Quality '$(SETTING)' ===============
+	@for i in $(IMAGES); do \
+		diff $(WORKDIR)/$${i}$(EXTENSION).png \
+	$(REFDIR)/$${i}$(EXTENSION).png || ERR=1 ;\
+	done; \
+	echo "==================================================" ; \
+	if [ "$$ERR" == "1" ]; then echo "FAIL"; else true; fi
+
 
 testdiff:
 	@echo "=================================================="
