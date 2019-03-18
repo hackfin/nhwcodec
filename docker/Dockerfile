@@ -11,5 +11,6 @@ COPY init.sh /home/nhw
 
 RUN chown -R nhw /home/nhw
 
-
 USER nhw
+WORKDIR /home/nhw
+
