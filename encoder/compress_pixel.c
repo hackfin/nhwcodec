@@ -242,6 +242,9 @@ L_RATIO:
 
 	if (select==4 && b==1) zone_entrance=1;else zone_entrance=0;
 	if (part==1) zone_entrance=0;
+	
+	enc->nhw_select1 = (enc->nhw_select1 + 7) & ~7; // Round up to next multiple of 8 for padding
+	enc->nhw_select2 = (enc->nhw_select2 + 7) & ~7; // Round up to next multiple of 8 for padding
 
 	nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
 	nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
@@ -336,8 +339,10 @@ L_TAG:	e=1;
 	enc->size_data1=a+1;
 	if (select>4 || b==0) im->setup->wavelet_type=4;
 	else im->setup->wavelet_type=0;
+	
+	c= (c + 7) & ~7; // Round up to next multiple of 8 for padding
 
-	b=(c>>3)+1;e=0;
+	b=(c>>3);e=0;
 	enc->nhw_select_word1=(unsigned char*)calloc((b<<3),sizeof(char));
 
 	for (i=0;i<(b<<3);i+=8)
@@ -351,8 +356,10 @@ L_TAG:	e=1;
 	free(nhw_s1);
 
 	enc->nhw_select1=e;
+	
+	j= (j + 7) & ~7; // Round up to next multiple of 8 for padding
 
-	b=(j>>3)+1;e=0;
+	b=(j>>3);e=0;
 	enc->nhw_select_word2=(unsigned char*)calloc((b<<3),sizeof(char));
 
 	for (i=0;i<(b<<3);i+=8)
