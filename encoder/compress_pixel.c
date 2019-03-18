@@ -78,9 +78,9 @@ L1:	if (part==0) select=4; else select=3;
 
 	for (i=p1;i<p2-1;i++)   
 	{
-L_RUN1:	if (nhw_comp[i]==128)   
+L_RUN1:	if (i<p2 && nhw_comp[i]==128)   
 		{
-			while (nhw_comp[i+1]==128)
+			while (i<(p2-1) && nhw_comp[i+1]==128)
 			{
 				e++;c=1;
 				if (e>255) {e=254;rle_128[254]++;i--;e=0;c=0;goto L_RUN1;}
