@@ -5,7 +5,7 @@ GIT_REPO=https://github.com/hackfin/nhwcodec.git
 cd src && \
 [ -e nhw_reference ] || \
 	git clone $GIT_REPO nhw_reference
-cd src/nhw_reference
+cd nhw_reference
 git checkout restruct
 git checkout $GOLDEN_REFERENCE
 # Pick TEST suite from latest:

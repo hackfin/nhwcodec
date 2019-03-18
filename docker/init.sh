@@ -18,9 +18,9 @@ WORKDIR=$HOME/work
 
 # Get images
 [ -e $WORKDIR ] || mkdir $WORKDIR
-[ -e $WORKDIR/nhw_testimages.tgz ] || \
-wget -o $WORKDIR/imgs.tgz https://section5.ch/downloads/nhw_testimages.tgz && \
-	cd $WORKDIR && tar xvfz nhw_testimages.tgz
+[ -e $WORKDIR/imgs.tgz ] || \
+wget -O $WORKDIR/imgs.tgz https://section5.ch/downloads/nhw_testimages.tgz && \
+	cd $WORKDIR && tar xvfz imgs.tgz
 
 [ -e $WORKDIR/nhw/out ] || mkdir $WORKDIR/nhw/out
 [ -e $WORKDIR/nhw/ref ] || mkdir $WORKDIR/nhw/ref
