@@ -151,7 +151,7 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 		{
 L_OVER4N:	a = -a;
 
-			if (im->im_process[i+1]<0 && im->im_process[i+1]>-8)
+			if (i<(IM_SIZE-1) && im->im_process[i+1]<0 && im->im_process[i+1]>-8)
 			{
 				if ((a&7)<6)
 				{
