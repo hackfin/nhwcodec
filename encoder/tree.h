@@ -50,6 +50,7 @@
 #include <string.h>
 
 #define DEPTH 290
+#define UNZONE1 64
 
 static unsigned char extra_words1[19]={10,12,14,18,20,22,26,28,30,34,36,38,42,44,46,50,52,54,58};
 static unsigned char extra_words2[19]={60,62,66,68,70,74,76,78,82,84,86,90,92,94,98,100,102,106,108};

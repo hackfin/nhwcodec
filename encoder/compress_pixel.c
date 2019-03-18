@@ -62,13 +62,14 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 	nhw_comp=(unsigned char*)im->im_nhw;
 
 	enc->encode=(unsigned int*)calloc(80000,sizeof(int));
-	enc->tree1=(unsigned char*)calloc(291*2,sizeof(char));
-	enc->tree2=(unsigned char*)calloc(291*2,sizeof(char));
+	enc->tree1=(unsigned char*)calloc((DEPTH+UNZONE1+1)*2,sizeof(char));
+	enc->tree2=(unsigned char*)calloc((DEPTH+1)*2,sizeof(char));
 
 	part=0;p1=0;p2=(4*IM_SIZE);a=0;color=im->im_nhw[4*IM_SIZE];im->im_nhw[4*IM_SIZE]=3;
+	
+	thresh=DEPTH+UNZONE1;
 
-L1:	if (part==0) select=4; else select=3;
-	thresh=354;
+L1:	if (part==0) select=4; else {select=3;thresh=DEPTH;}
 	memset(rle_buf,0,256*sizeof(int));
 	memset(rle_128,0,256*sizeof(int));
 	
@@ -317,7 +318,7 @@ L_ZE:		if (pos>=110 && pos<174 && zone_entrance)
 		}
 		else
 		{
-			if (pos>=174) if (zone_entrance) pos -=64;
+			if (pos>=174) if (zone_entrance) pos -=UNZONE1;
 			pack += len[pos];
 
 			if (pack<=32) enc->encode[a] |= huffman_tree[pos]<<(32-pack); 
