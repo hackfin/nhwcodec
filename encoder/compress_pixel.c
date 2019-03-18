@@ -243,11 +243,14 @@ L_RATIO:
 	if (select==4 && b==1) zone_entrance=1;else zone_entrance=0;
 	if (part==1) zone_entrance=0;
 	
-	enc->nhw_select1 = (enc->nhw_select1 + 7) & ~7; // Round up to next multiple of 8 for padding
-	enc->nhw_select2 = (enc->nhw_select2 + 7) & ~7; // Round up to next multiple of 8 for padding
-
-	nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
-	nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
+	if (!part)
+	{
+		enc->nhw_select1 = (enc->nhw_select1 + 7) & ~7; // Round up to next multiple of 8 for padding
+		enc->nhw_select2 = (enc->nhw_select2 + 7) & ~7; // Round up to next multiple of 8 for padding
+	
+		nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
+		nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
+	}
 
 	e=1;match=0;pack=0;tag=0;c=0,j=0;
 	for (i=p1;i<p2-1;i++)   
