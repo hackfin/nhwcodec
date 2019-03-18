@@ -14,4 +14,4 @@ RUN chown -R nhw /home/nhw
 
 USER nhw
 WORKDIR /home/nhw
-
+RUN bash /home/nhw/init.sh
