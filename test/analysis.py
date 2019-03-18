@@ -22,6 +22,7 @@ class NHWReader:
 
 	def read(self, nbytes):
 		q = self.p
+		# print "Reading %d bytes from offset %0x" % (nbytes, q)
 		self.p += nbytes
 		return self.data[q:self.p]
 
@@ -46,6 +47,44 @@ class NHWHeader:
 					print "%s: %s" % (a, QUALITY_LEVELS[v])
 				else:
 					print "%s: %s" % (a, v)
+
+def compare_block(data0, data1, off, desc):
+	if data0 != data1:
+		print
+		print "Block '%s' not matching" % desc
+		i = find_mismatch(data0, data1)
+		off += i
+		print "Block offset: %d    File offset: %d / 0x%04x" % (i, off , off)
+		dumpbuf(data0[i:i+16])
+		dumpbuf(data1[i:i+16])
+		return 1
+	else:
+		return 0
+
+
+class NHWDiff:
+	def __init__(self, r0, r1, h0, h1):
+		self.r0 = r0
+		self.r1 = r1
+		self.h0 = h0
+		self.h1 = h1
+
+	def diff_block(self, varname, desc):
+		off = self.r1.get_offset()
+		len0, len1 = eval_sizes(self.h0, self.h1, varname)
+		# print len0, len1
+		data0 = self.r0.read(len0)
+		data1 = self.r1.read(len1)
+
+		return compare_block(data0, data1, off, desc)
+
+	def diff_block_fixed(self, size, desc):
+		off = self.r1.get_offset()
+		len0, len1 = size, size
+		data0 = self.r0.read(len0)
+		data1 = self.r1.read(len1)
+
+		return compare_block(data0, data1, off, desc)
 
 def parse_nhwhdr(r):
 	hdr = NHWHeader()
@@ -100,71 +139,57 @@ def matching_headers(h0, h1):
 		if v0 != v1:
 			print "Mismatch in header for '%s'" % (item)
 			print "Wants: %s, is: %s" % (v0, v1)
-			return False
-
-	return True
 
 
-def diff_block(r0, r1, size, desc):
-	off = r0.get_offset()
-	data0 = r0.read(size)
-	data1 = r1.read(size)
+def eval_sizes(h0, h1, name):
+	return (eval("h0." + name), eval("h1." + name))
 
-	if data0 != data1:
-		print
-		print "Block '%s' not matching" % desc
-		i = find_mismatch(data0, data1)
-		off += i
-		print "Block offset: %d    File offset: %d / 0x%04x" % (i, off , off)
-		dumpbuf(data0[i:i+16])
-		dumpbuf(data1[i:i+16])
-		return 1
-	else:
-		return 0
 
-def diff_data(h, r0, r1):
+def diff_data(quality, diff):
 	ret = 0
-	ret += diff_block(r0, r1, h.size_tree[0], "TREE1")
-	ret += diff_block(r0, r1, h.size_tree[1], "TREE2")
 
-	ret += diff_block(r0, r1, h.exw_Y_end, "EXW_Y_END")
 
-	if h.QUALITY > LOW8:
-		ret += diff_block(r0, r1, h.res1_len, "RES1")
+	ret += diff.diff_block("size_tree[0]", "TREE1")
+	ret += diff.diff_block("size_tree[1]", "TREE2")
+
+	ret += diff.diff_block("exw_Y_end", "EXW_Y_END")
+
+	if quality > LOW8:
+		ret += diff.diff_block("res1_len", "RES1")
 		# two times?
-		ret += diff_block(r0, r1, h.res1_bit_len, "RES1_BIT")
-		ret += diff_block(r0, r1, h.res1_bit_len, "RES1_WORD")
+		ret += diff.diff_block("res1_bit_len", "RES1_BIT")
+		ret += diff.diff_block("res1_bit_len", "RES1_WORD")
 
-		if h.QUALITY > LOW3:
-			ret += diff_block(r0, r1, h.res4_len, "RES4")
-			if h.QUALITY >= LOW1:
-				ret += diff_block(r0, r1, h.res3_len[0], "RES3")
-				ret += diff_block(r0, r1, h.res3_len[1], "RES3_BIT")
-				ret += diff_block(r0, r1, h.res3_len[1], "RES3_WORD")
-				if h.QUALITY > HIGH1:
-					if h.QUALITY == HIGH1:
-						ret += diff_block(r0, r1, h.res5_len[0], "RES5")
-						ret += diff_block(r0, r1, h.res5_len[1], "RES5_BIT")
-						ret += diff_block(r0, r1, h.res5_len[1], "RES5_WORD")
+		if quality > LOW3:
+			ret += diff.diff_block("res4_len", "RES4")
+			if quality >= LOW1:
+				ret += diff.diff_block("res3_len[0]", "RES3")
+				ret += diff.diff_block("res3_len[1]", "RES3_BIT")
+				ret += diff.diff_block("res3_len[1]", "RES3_WORD")
+				if quality > HIGH1:
+					if quality == HIGH1:
+						ret += diff.diff_block("res5_len[0]", "RES5")
+						ret += diff.diff_block("res5_len[1]", "RES5_BIT")
+						ret += diff.diff_block("res5_len[1]", "RES5_WORD")
 
-					ret += diff_block(r0, r1, h.res6_len[0], "RES6")
-					ret += diff_block(r0, r1, h.res6_len[1], "RES6_BIT")
-					ret += diff_block(r0, r1, h.res6_len[1], "RES6_WORD")
-					ret += diff_block(r0, r1, h.char_res1_len, "CHAR_RES1")
+					ret += diff.diff_block("res6_len[0]", "RES6")
+					ret += diff.diff_block("res6_len[1]", "RES6_BIT")
+					ret += diff.diff_block("res6_len[1]", "RES6_WORD")
+					ret += diff.diff_block("char_res1_len", "CHAR_RES1")
 
-					if h.QUALITY > HIGH2:
-						ret += diff_block(r0, r1, h.qset3_len, "QSET3")
+					if quality > HIGH2:
+						ret += diff.diff_block("qset3_len", "QSET3")
 
-	ret += diff_block(r0, r1, h.nhw_sel[0], "NHWSEL1")
-	ret += diff_block(r0, r1, h.nhw_sel[1], "NHWSEL2")
+	ret += diff.diff_block("nhw_sel[0]", "NHWSEL1")
+	ret += diff.diff_block("nhw_sel[1]", "NHWSEL2")
 
-	if h.QUALITY > LOW5:
-		ret += diff_block(r0, r1, IM_DIM * 2, "U64")
-		ret += diff_block(r0, r1, IM_DIM * 2, "V64")
-		ret += diff_block(r0, r1, h.highres_comp_len, "HIGHRES_COMP")
+	if quality > LOW5:
+		ret += diff.diff_block_fixed(IM_DIM * 2, "U64")
+		ret += diff.diff_block_fixed(IM_DIM * 2, "V64")
+		ret += diff.diff_block("highres_comp_len", "HIGHRES_COMP")
 
-	ret += diff_block(r0, r1, h.end_ch_res, "CH_RES")
-	ret += diff_block(r0, r1, h.size_data[1], "DATA")
+	ret += diff.diff_block("end_ch_res", "CH_RES")
+	ret += diff.diff_block("size_data[1]", "DATA")
 	
 
 	return ret
@@ -183,18 +208,20 @@ elif l > 2:
 	f1 = open(sys.argv[2], "rb")
 	data0 = f0.read()
 	data1 = f1.read()
-	r0 = NHWReader(data0)
-	r1 = NHWReader(data1)
+	rd0 = NHWReader(data0)
+	rd1 = NHWReader(data1)
 
 	f0.close()
 	f1.close()
-	h0 = parse_nhwhdr(r0)
-	h1 = parse_nhwhdr(r1)
+	hdr0 = parse_nhwhdr(rd0)
+	hdr1 = parse_nhwhdr(rd1)
 
-	if matching_headers(h0, h1):
-		ret = diff_data(h0, r0, r1)
-	else:
-		print "Headers don't match"
+	matching_headers(hdr0, hdr1)
+	if hdr0.QUALITY != hdr1.QUALITY:
+		print "Different quality settings, not comparing"
 		ret = 1
+	else:
+		diff = NHWDiff(rd0, rd1, hdr0, hdr1)
+		ret = diff_data(hdr0.QUALITY, diff)
 
 	sys.exit(ret)

@@ -18,7 +18,11 @@ def dumpbuf(buf):
 	print
 
 def find_mismatch(b0, b1):
-	for i in range(len(b0)):
+	c = min(len(b0), len(b1))
+	if c == 0:
+		print "Zero length buffer"
+		return 0
+	for i in range(c):
 		if b0[i] != b1[i]:
 			print "Mismatch from %d" % i,
 			print "should be: %02x, is: %02x" % (ord(b0[i]), ord(b1[i]))

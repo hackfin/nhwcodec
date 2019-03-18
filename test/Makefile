@@ -7,7 +7,7 @@ SETTING = norm
 DIFFTOOL = python analysis.py
 # DIFFTOOL = meld
 
-ALL_SETTINGS = h3 h1 norm l1 l3 l7 l9 l16
+ALL_SETTINGS = h3 h2 h1 norm l1 l3 l5 l6 l7 l9 l8 l12  l16
 
 WORK_ROOT ?= $(HOME)/work
 
@@ -99,6 +99,6 @@ allhex:
 	done
 
 clean:
-	rm -f $(WORKDIR)/*.nhw
+	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 
 nhw: $(NHWIMAGES)
