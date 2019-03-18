@@ -283,7 +283,7 @@ L_RATIO:
 
 		if (pixel==128)   
 		{
-			while (nhw_comp[i+1]==128)
+			while (i<(p2-1) && nhw_comp[i+1]==128)
 			{
 				e++;
 				if (e>255) {e=254;i--;goto L_JUMP;}
