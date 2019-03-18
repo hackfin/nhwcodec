@@ -43,6 +43,7 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -164,13 +165,9 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 			short *q1 = &q[step];
 
 			short d0 = p[0]-res256[count];
-			short d1;
-#warning "OUT_OF_BOUNDS Fix"
-			if (count < (IM_SIZE >>2) - 1) {
-				d0 = p[1]-res256[count+1];
-			} else {
-				d0 = 0; // Assumption ok?
-			}
+	// FIXME: p[1] outside buffer bounds for last scan/count pixel.
+	// Currently added one 'residual' value pad.
+			short d1 = p[1]-res256[count+1];
 
 			p += IM_DIM >> 1;
 
@@ -635,7 +632,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 
 	enc->nhw_res1_len=res;
 	enc->nhw_res1_word_len=e;
-	enc->nhw_res1=(unsigned char*)calloc((enc->nhw_res1_len),sizeof(char));
+	enc->nhw_res1=(unsigned char*) calloc((enc->nhw_res1_len),sizeof(char));
 
 	for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
 
@@ -694,12 +691,22 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 	unsigned char *ch_comp;
 	unsigned char *scan_run;
 	unsigned char *nhw_res3I_word;
-	nhw_res3I_word = (unsigned char*) calloc(enc->nhw_res3_word_len,sizeof(char));
+	int res3I_word_len;
+	unsigned char *sp;
 
-	for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
+	e = enc->nhw_res3_word_len;
+	e = (e + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	nhw_res3I_word = (unsigned char*) calloc(e, sizeof(char));
+	enc->nhw_res3_word_len = e;
+
+	e = 0;
+
+	for (i=0,count=0;i<IM_SIZE;i+=IM_DIM)
 	{
 		for (scan=i,j=0;j<IM_DIM;j++,scan++)
 		{
+			// FIXME: comparison with loop variable, move outside
 			if (j==(IM_DIM-2))
 			{
 				res256[scan]=0;
@@ -729,6 +736,13 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 		}
 	}
 
+	printf("nhw_res3I_word alloc length: %d, effective: %d\n",
+		enc->nhw_res3_word_len, e);
+	
+	// e = (e + 7) & ~7; // Round up to next multiple of 8
+	// Store effective length:
+	res3I_word_len = e;
+
 	ch_comp=(unsigned char*)malloc(count*sizeof(char));
 	memcpy(ch_comp,highres,count*sizeof(char));
 
@@ -749,12 +763,12 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 	free(ch_comp);
 
 	enc->nhw_res3_len=res;
-	enc->nhw_res3_word_len=e;
+
 	enc->nhw_res3=(unsigned char*)calloc((enc->nhw_res3_len),sizeof(char));
 
 	for (i=0;i<enc->nhw_res3_len;i++) enc->nhw_res3[i]=highres[i];
 
-	scan_run=(unsigned char*)malloc((enc->nhw_res3_len+8)*sizeof(char));
+	scan_run= (unsigned char*) malloc((enc->nhw_res3_len+8) * sizeof(char));
 
 	for (i=0;i<enc->nhw_res3_len;i++) scan_run[i]=enc->nhw_res3[i]>>1;
 
@@ -774,39 +788,48 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 		else highres[count++]=scan_run[i];
 	}
 
-	for (i=0,stage=0;i<enc->nhw_res3_len;i++) 
-	{
-		if (enc->nhw_res3[i]!=254) scan_run[stage++]=enc->nhw_res3[i];
+	int c = 0; // Count all != 245:
+
+	sp = scan_run;
+
+	for (i=0; i<enc->nhw_res3_len; i++) {
+		if (enc->nhw_res3[i] != 254) { *sp++ = enc->nhw_res3[i]; c++; }
 	}
 
-	for (i=stage;i<stage+8;i++) scan_run[i]=0;
+	// Pad remaining:
+	for (i = c % 8; i < 8; i++) *sp++ = 0;
 
-	enc->nhw_res3_bit_len=((stage>>3)+1);
+	c = (c + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	Y = (c >> 3); // Number of bytes
+
+	enc->nhw_res3_bit_len = Y;
 
 	enc->nhw_res3_bit=(unsigned char*)calloc(enc->nhw_res3_bit_len,sizeof(char));
 
-	Y=stage>>3;
-
-	copy_bitplane0(scan_run, Y+1, enc->nhw_res3_bit);
+	copy_bitplane0(scan_run, Y, enc->nhw_res3_bit);
 
 	enc->nhw_res3_len=count;
 
-	Y=enc->nhw_res3_word_len>>3;
 	free(scan_run);
 
-	scan_run=(unsigned char*)nhw_res3I_word;
-	enc->nhw_res3_word=(unsigned char*)malloc((enc->nhw_res3_bit_len<<1)*sizeof(char));
+	// Target word residuals, bitplane-encoded:
+	enc->nhw_res3_word=(unsigned char*) malloc((enc->nhw_res3_bit_len * 2) * sizeof(char));
 
+	sp = nhw_res3I_word;
 
-	unsigned char *sp = scan_run;
+	Y = res3I_word_len;
+	Y = (Y + 7) & ~7; // Round up to next multiple of 8 for padding
+	Y >>= 2;
 
-#warning "OUT_OF_BOUNDS Fix"
-	for (i=0,stage=0; i < 2*Y;i++)
+	// assert((2*Y + 2) * 4 <= enc->nhw_res3_word_len );
+		
+	for (i=0; i < Y;i++)
 	{
 
 #define _SLICE_BITS_POS(val, mask, shift) (((val) & mask) << shift)
 
-		enc->nhw_res3_word[i]=  _SLICE_BITS_POS(sp[0], 0x3, 6) |
+		enc->nhw_res3_word[i] = _SLICE_BITS_POS(sp[0], 0x3, 6) |
 		                        _SLICE_BITS_POS(sp[1], 0x3, 4) |
 		                        _SLICE_BITS_POS(sp[2], 0x3, 2) |
 		                        _SLICE_BITS_POS(sp[3], 0x3, 0);
@@ -815,16 +838,10 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 
 	}
 
-	// Set to null. If not done, decoded picture show funny artefacts
-	// FIXME
-	enc->nhw_res3_word[i++]= 0;
-	enc->nhw_res3_word[i]= 0;
+	enc->nhw_res3_word_len = Y;
 
-	enc->nhw_res3_word_len = 2 * Y + 2;
+	for (i=0; i<enc->nhw_res3_len; i++) enc->nhw_res3[i] = highres[i];
 
-	for (i=0;i<count;i++) enc->nhw_res3[i]=highres[i];
-
-	
 	free(nhw_res3I_word);
 }
 
@@ -1051,8 +1068,8 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	wavelet_analysis(im, n,end_transform++,1);
 
 #warning "OUT_OF_BOUNDS Fix"
-	// Add some head room for padding:
-	res256 = (short*) malloc((IM_SIZE + n) * sizeof(short));
+	// Add some head room for padding (PAD is initialized to 0!)
+	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
 	resIII = (short*) malloc(IM_SIZE*sizeof(short));
 
 	// copy upper left LL1 tile into res256 array
@@ -1215,7 +1232,8 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 
 	wavelet_analysis(im, s2,end_transform++,0);
 
-	res256 = (short*) malloc(imquart*sizeof(short));
+	// Add one pad unit, see residual_coding_q2()::FIXME
+	res256 = (short*) malloc((imquart + 1)*sizeof(short));
 	resIII = (short*) malloc(imquart*sizeof(short));
 
 	copy_from_quadrant(res256, im->im_jpeg, s2, s2);
