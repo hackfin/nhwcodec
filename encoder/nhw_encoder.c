@@ -1087,14 +1087,14 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 		postprocess14(im->im_jpeg, pr, res256);
 		wavelet_analysis(im, n>>1,end_transform,1);
 	}
-
-	configure_wvlt(quality, wvlt);
 	
 	if (quality <= LOW9) // Worse than LOW9?
 	{
 		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
 		reduce_q9_LH(pr, wvlt, ratio, n);
 	}
+	
+	configure_wvlt(quality, wvlt);
 
 	if (quality < LOW7) {
 			
