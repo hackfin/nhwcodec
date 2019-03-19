@@ -449,10 +449,10 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
 				int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
-				if (index < 0 || index >= IM_DIM)
-				fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
+				if (index < 0 || index >= IM_SIZE)
+					fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
 
-				assert(index >= 0 && index < IM_DIM);
+				assert(index >= 0 && index < IM_SIZE);
 				short tmp = resIII[index];
 				if (abs(p[0])<(wvlt[1]+1)) 
 				{	
