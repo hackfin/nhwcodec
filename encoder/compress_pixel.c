@@ -875,7 +875,7 @@ void highres_compression(image_buffer *im,encode_state *enc)
 
 		if (scan==0 && count==0)
 		{
-RES_COMPR3:	if (highres[i+a+2]==highres[i+a+1])
+RES_COMPR3:	if ((i+a+2)<((IM_SIZE>>2)+(IM_SIZE>>3)) && highres[i+a+2]==highres[i+a+1])
 			{
 				a++;
 				if (a<7) goto RES_COMPR3;

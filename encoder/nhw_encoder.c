@@ -1109,7 +1109,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);
 	
 	// Must look at this, might not be completely initialized:
-	enc->tree1=(unsigned char*)malloc(((96*IM_DIM)+1)*sizeof(char));
+	enc->tree1=(unsigned char*)calloc(((96*IM_DIM)+4),sizeof(char));
 	enc->exw_Y=(unsigned char*)malloc(32*IM_DIM*sizeof(short));
 	
 	if (quality > LOW3)
