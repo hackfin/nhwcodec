@@ -459,7 +459,7 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 
 	for (i=1,e=0,Y=0,a=0;i<(IM_SIZE>>2);i++)
 	{
-L11:	if (highres[i]==highres[i-1])
+L11:	if (i<(IM_SIZE>>2) && highres[i]==highres[i-1])
 		{
 			e++;
 			if (e<16) 
