@@ -1,4 +1,5 @@
 #include "codec.h"
+#include <assert.h>
 
 #define REDUCE(x, w)    if (abs(x) < w)  x = 0
 
@@ -447,8 +448,12 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
+				int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+				if (index < 0 || index >= IM_DIM)
+				fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
 
-				short tmp = resIII[RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1))];
+				assert(index >= 0 && index < IM_DIM);
+				short tmp = resIII[index];
 				if (abs(p[0])<(wvlt[1]+1)) 
 				{	
 					if (abs(tmp)<(wvlt[3]+1)) p[0]=0;
@@ -619,7 +624,7 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 		}
 
 
-		if (quality > 10) {
+		if (quality > LOW10) {
 			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 16);
 		} else {
 			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 0xffff);
