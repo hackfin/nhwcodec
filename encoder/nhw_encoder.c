@@ -58,6 +58,9 @@
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
+#define ARRAY_SIZE(a)  (sizeof(a) / sizeof(a[0]))
+#define LAST_ELEMENT(a)  (ARRAY_SIZE(a)-1)
+
 // XXX This is for restructuring tests only:
 #ifdef SWAPOUT
 #define SWAPOUT_FUNCTION(f)  __CONCAT(orig,f)
@@ -225,7 +228,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 MAYBE_STATIC
 void preprocess14(const short *pr, short *result)
 {
-	int stage;
+	int cur;
 	int i, j, count, scan;
 	int s = 2 * IM_DIM; // scan line size
 	int halfn = IM_DIM;
@@ -246,43 +249,49 @@ void preprocess14(const short *pr, short *result)
 
 // ^.......^      <-  j = 0..halfn
 
+	int offset_code;
+	int m;
+
 	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=s,count+=halfn)
 	{
 		for (scan=i,j=0;j<halfn;j++,scan++) 
 		{
-			int k = count+j;
 			// FIXME: eliminate
 			const short *p = &pr[scan];
 			if (i>=IM_SIZE || j>=(halfn>>1))
 			{
 				// CUR
-				stage=pr[scan];
+				cur = pr[scan];
 
-				if (stage<-7)
-				{
-					// MAR
-					if (((-stage)&7)==7)    result[k]+=16000;
-					else if (!((-stage)&7)) result[k]+=16000;
-				}
-				else if (stage<-4) result[k]+=12000;
-				else if (stage>=0)
-				{
-					if (stage>=2 && stage<5) 
-					{
-						if (scan>=tmp && (i+j)<(2*IM_SIZE-2*halfn-1))
-						{
-							if (abs(p[-tmp])!=0 || abs(p[tmp])!=0)
-							{
-								result[k]+=12000;
-							}
-							//else result[k]+=8000;
+				switch (cur) {
+					case -7: case -6: case -5:
+						*result += 12000;
+						break;
+					case -4: case -3: case -2: case -1:
+						break;
+					case 2: case 3: case 4:
+						if (scan>=tmp && (i+j)<(2*IM_SIZE-2*halfn-1)
+						 && (abs(p[-tmp])!=0 || abs(p[tmp])!=0))
+								*result+=12000;
+						break;
+					case 5: case 6: case 7:
+						*result += 16000;
+						break;
+					default:
+						if (cur < -7) {
+							offset_code = 16000;
+							cur = -cur; m = 7;
+						} else {
+							offset_code = 12000; m = 1;
 						}
-					}
-					else if (!(stage&7)) result[k]+=12000;
-					else if ((stage&7)==1) result[k]+=12000;
-					else if (stage>4 && stage<=7) result[k]+=16000;
+						if    (((cur) & 7) == m
+						 ||    ((cur) & 7) == 0 )   *result += offset_code;
+
+
 				}
+
 			}
+			result++;
 		}
 	}
 }
@@ -290,7 +299,7 @@ void preprocess14(const short *pr, short *result)
 MAYBE_STATIC
 void postprocess14(short *dst, short *pr, short *res256)
 {
-	int i, j, count, scan;
+	int i, j, line, scan;
 	int a, e;
 
 	int s = 2 * IM_DIM;
@@ -313,38 +322,52 @@ void postprocess14(short *dst, short *pr, short *res256)
 // ^.......^      <-  j = 0..IM_DIM
 // ^...^      (halfn)
 
-
-	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=s,count+=IM_DIM)
+	// Upper half:
+	line = 0;
+	for (i = 0; i < IM_SIZE; i +=s)
 	{
-		for (j=0;j<IM_DIM;j++) 
-		{
-			int k = count + j;
-			if (res256[k]>14000) 
-			{
-				res256[k]-=16000;
-				// FIXME: eliminate ifs
-				if (i < IM_SIZE) {
-					// SQ0
-					if (j>=halfn)
-						pr[(i>>8)+((j-halfn)<<10)+s]++;
-				} else {
-					if (j<halfn) // SQ1
-						pr[((i-IM_SIZE)>>8)+(j<<10)+1]++; 
-					else // SQ3
-						pr[((i-IM_SIZE)>>8)+((j-halfn)<<10)+(s+1)]++; 
-				}
+		short *p = &res256[line];
+		short *q = &pr[(i >> 8) + s];
+		int k;
+		line += IM_DIM;
+
+		// Left half:
+		for (j = 0;j < halfn; j++, p++) {
+			if        (*p > 14000) *p -= 16000;
+			else if   (*p > 10000) *p -= 12000;
+		}
+		// Right half:
+		for (j = halfn, k = 0; j < IM_DIM; j++, p++, k += (1 << 10)) {
+			if        (*p > 14000) {
+				*p -= 16000; q[k]++;
+			} else if (*p > 10000) {
+				*p -= 12000; q[k]--;
 			}
-			else if (res256[k]>10000) 
-			{
-				res256[k]-=12000;
-				if (i < IM_SIZE) {
-					if (j>=halfn) pr[(i>>8)+((j-halfn)<<10)+s]--;
-				} else {
-					if (j<halfn)
-						pr[((i-IM_SIZE)>>8)+(j<<10)+1]--; 
-					else 
-						pr[((i-IM_SIZE)>>8)+((j-halfn)<<10)+(s+1)]--;
-				}
+		}
+	}
+
+	// Lower half:
+	for (i = IM_SIZE; i < (2*IM_SIZE); i += s) {
+		// Left half:
+		int k;
+		short *p = &res256[line];
+		short *q = &pr[((i-IM_SIZE)>>8) + 1];
+		line += IM_DIM;
+		for (j = 0, k = 0; j < halfn; j++, p++, k+= (1 << 10)) {
+			if (*p > 14000) {
+				*p -= 16000; q[k]++; 
+			} else if (*p > 10000) {
+				*p -= 12000; q[k]--; 
+			}
+		}
+		// Right half:
+
+		q += s;
+		for (j = halfn, k = 0; j < IM_DIM; j++, p++, k+= (1 << 10)) {
+			if (*p > 14000) {
+				*p -= 16000; q[k]++; 
+			} else if (*p > 10000) {
+				*p -= 12000; q[k]--;
 			}
 		}
 	}
@@ -365,68 +388,91 @@ void postprocess14(short *dst, short *pr, short *res256)
 
 	//                   (END) 
 
-#define _MOD(c) \
-					{ dst[e] = res256[count]+c;pr[e] += c; }
+	int count = 0;
 
-	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=s)
+	int l;
+
+	// Upper half:
+	for (i=0; i < (2*IM_SIZE); i += s)
 	{
-		for (e=i,j=0;j<IM_DIM;j++,count++,e++)
+		short *p = &res256[count];
+		count += IM_DIM;
+
+		for (e=i,j=0;j<IM_DIM;j++,p++,e++)
 		{
 			// SE0        SC0
-			scan=pr[e]-res256[count];
+			scan = pr[e] - p[0];
+			short comp;
 
-			if(scan>11)        _MOD(-7)
-			else if (scan>7)   _MOD(-4)
-			else if (scan>5)   _MOD(-2)
-			else if (scan>4)   _MOD(-1)
-			else if (scan<-11) _MOD(7)
-			else if (scan<-7)  _MOD(4)
-			else if (scan<-5)  _MOD(2)
-			else if (scan<-4)  _MOD(1)
-			else if (abs(scan)>1)
+#define _MOD(x) comp = x;
+
+			short tmp = scan;
+			int sgn;
+			if (tmp < 0) { tmp = -tmp; sgn = -1; }
+			else          {  sgn = 1; }
+
+			const short lookup[13] = {
+				0, 0, -1, -1, -1,
+				1, 2,  2,  4,  4,
+				4, 4, 7
+			};
+
+			const short lookup_a[] = {
+				-1, -1, -1, 0, 1, 2
+			};
+
+			l = (tmp > LAST_ELEMENT(lookup)) ? LAST_ELEMENT(lookup) : tmp;
+			comp = lookup[l];
+
+			if (comp >= 0) {
+				comp *= -sgn;
+			} else 
 			{
-				a=(pr[e+1]-res256[count+1]);
-				if (abs(a)>4)
-				{
-					if (a>0)
-					{
-						if (a>11) a-=7;
-						else if (a>7) a-=4;
-						else if (a>5) a-=2;
-						else a--;
-					}
-					else
-					{
-						if (a<-11) a+=7;
-						else if (a<-7) a+=4;
-						else if (a<-5) a+=2;
-						else a++;
+				comp = 0;
+				a = (pr[e+1]-p[1]);
+
+				if (abs(a) > 4) {
+					if (a > 0) {
+						if      (a>11)  a-=7;
+						else if (a>7)   a-=4;
+						else if (a>5)   a-=2;
+						else            a--;
+					} else {
+						if      (a<-11) a+=7;
+						else if (a<-7)  a+=4;
+						else if (a<-5)  a+=2;
+						else            a++;
 					}
 				}
 
 #warning "OUT_OF_BOUNDS FIX"
 				if (e > 0 && count > 0) {
-					a+=(pr[e-1]-res256[count-1]);
+					a+=(pr[e-1]-p[-1]);
 				}
 
-				if (scan>=4 && a>=1)         _MOD(-1)
-				else if (scan<=-4 && a<=-1)  _MOD(1)
-				else if (scan==3 && a>=0)    _MOD(-1)
-				else if (scan==-3 && a<=0)   _MOD(1)
-				else if (abs(a)>=3) 
+				short sgn_a = 1;
+				l = a;
+				a *= sgn;
+
+				if      (tmp == 4 && a >=1)    {  _MOD(1); comp *= sgn; }
+				else if (tmp == 3 && a >=0)    {  _MOD(1); comp *= sgn; }
+				else if (abs(a)>=3)  // case
 				{
-					if (scan>0 && a>0)       _MOD(-1)
-					else if (scan<0 && a<0)  _MOD(1)
-					else if (a>=5)           _MOD(-2)
-					else if (a<=-5)          _MOD(2)
-					else if (a>=4)           _MOD(-1)
-					else if (a<=-4)          _MOD(1)
-					else
-						dst[e] = res256[count];
+					if (tmp == 2 && a >= 1)     {  _MOD(1); comp *= sgn; }
+					else {
+						if (l < 0) { l = -l; sgn_a = -1; }
+
+						l = l > LAST_ELEMENT(lookup_a) ? LAST_ELEMENT(lookup_a) : l;
+
+						comp = lookup_a[l];
+						comp *= sgn_a;
+					}
 				}
-				else dst[e]=res256[count];
+				else _MOD(0)
+
+				comp = -comp;
 			}
-			else dst[e] = res256[count];
+			dst[e] = p[0] + comp; pr[e] += comp;
 		}
 	}
 }
@@ -568,7 +614,6 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 	int count, e;
 
 
-#warning "Possibly not completely initalized"
 	nhw_res1I_word=(unsigned char*)malloc(enc->nhw_res1_word_len*sizeof(char));
 	
 	for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
@@ -664,7 +709,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 
 	for (i=stage;i<stage+8;i++) scan_run[i]=0;
 
-
+	// FIXME: Proper 8 bit padding
 	Y= (stage>>3) + 1;
 	enc->nhw_res1_bit_len=Y;
 	enc->nhw_res1_bit = (unsigned char*)malloc(Y*sizeof(char));

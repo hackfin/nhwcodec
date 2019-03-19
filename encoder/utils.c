@@ -50,4 +50,24 @@ void copy_bitplane0(unsigned char *sp, int n, unsigned char *res)
 	}
 }
 
+#if 0
+	
+short lut[][2] = {
+	{ 12100, 121 },
+	{ 12200, 122 },
+	{ 12300, 123 },
+	{ 12400, 124 },
+	{ 12500, 125 },
+	{ 12600, 126 },
+	{ 14000, 140 },
+	{ 14100, 141 },
+	{ 14500, 145 },
+	{ 14900, 149 }
+};
 
+int translate_res3(short r)
+{
+
+}
+
+#endif

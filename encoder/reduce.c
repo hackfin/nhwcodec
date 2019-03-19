@@ -1,4 +1,5 @@
 #include "codec.h"
+#include "utils.h"
 #include <assert.h>
 
 #define REDUCE(x, w)    if (abs(x) < w)  x = 0
@@ -449,10 +450,12 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
 				int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+#ifndef COMPILE_WITHOUT_BOUNDARY_CHECKS
 				if (index < 0 || index >= IM_SIZE)
 					fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
 
 				assert(index >= 0 && index < IM_SIZE);
+#endif
 				short tmp = resIII[index];
 				if (abs(p[0])<(wvlt[1]+1)) 
 				{	
@@ -770,7 +773,248 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 		{
 			int r0 = res256[count+IM_DIM];
 			int rcs = res256[count+step]; // This is stepping out of image bounds on the last line
-#include "inline/process0.c"
+
+			int k = (i >> 9) + (j << 9);
+			short *p;
+			p = &pr[scan];
+
+			int a;
+
+			stage = k + IM_DIM;
+
+			short *q = &pr[stage];
+			
+			short *p1 = &p[step];
+			short *p2 = &p1[step];
+
+			res = p[0] - res256[count];
+			a = p[step] - r0;
+
+			short qd = *p2 - rcs;
+
+
+////////////////////////////////////////////////////////////////////////////
+// XXX Unfortunately, this can't simply be put into a table.
+// Do we need to develop a VLIW machine?
+////////////////////////////////////////////////////////////////////////////
+
+#define _MOD_ASSIGN(x, y) \
+	{ res256[count]=__CONCAT(CODE_,x); *p1 += y; *p2 += y; }
+
+
+
+			if (res==2 && a==2 && qd>=2)
+			{
+				if (qd<5 || qd>6) _MOD_ASSIGN(12400, -2);
+			}
+			else if (((res==2 && a==3) || (res==3 && a==2)) && qd>1 && qd<6)
+				 _MOD_ASSIGN(12400, -2)
+			else if ((res==3 && a==3))
+			{
+				if (qd>0 && qd<6)
+					 _MOD_ASSIGN(12400, -2)
+				else if (quality>=LOW1)
+				{
+					res256[count]=12100;p[step]=r0;
+				}
+			}
+			else if (a==-4 && (res==2 || res==3) && (qd==2 || qd==3))
+			{
+				if (res==2 && qd==2) p[step]++;
+				else _MOD_ASSIGN(12400, -2)
+			} // DONE
+			else if (res==1 && a==3 && qd==2) // DONE
+			{
+				// FIXME: No compare of loop variable inside loop
+				if (i>0) 
+				{
+					if ((p[-step]-res256[count-IM_DIM])>=0) 
+						_MOD_ASSIGN(12400, -2)
+				}
+			}
+			else if ((res==3 || res==4 || res==5 || res>6) &&
+				(a==3 ||
+				(a&65534)==4))
+			{
+				if ((res)>6) {res256[count]=12500;p[step]=r0;}
+				else if (quality>=LOW1) // REDUNDANT
+				{
+					res256[count]=12100;p[step]=r0;
+				}
+				else if (quality==LOW2) // DONE
+				{
+					if (res<5 && a==5) p[step] =14100;
+					else if (res>=5) res256[count]=14100;
+					else if (res==3 && a>=4) p[step] =14100;
+					
+					res256[count+IM_DIM] = p[step];
+				}
+			}
+			else if ((res==2 || res==3) && (a==2 || a==3))
+			{ 
+				if (qd == 0 || qd == 1)
+				{
+					if ((p[1]-res256[count+1])==2 || (p[1]-res256[count+1])==3)
+					{
+						if ((p1[1]-res256[count+(IM_DIM+1)])==2 || (p1[1]-res256[count+(IM_DIM+1)])==3)
+						{
+							if ((p2[1]-res256[count+(2*IM_DIM+1)])>0)
+							{
+								 _MOD_ASSIGN(12400, -2)
+							}
+						}
+					}
+				}
+			}
+			else if (a==4 && (res==-2 || res==-3) && (qd==-2 || qd==-3)) // DONE
+			{
+				if (res==-2 && qd==-2) p[step]--;
+				else _MOD_ASSIGN(12300, 2)
+			}
+			else if ((res==-3 || res==-4 || res==-5 || res<-7) &&
+				(a == -3 || a == -4 || a == -5))
+			{
+				if (res<-7) 
+				{
+					res256[count]=12600;p[step]=r0;
+				}
+				else if (quality>=LOW1)
+				{
+					res256[count]=12200;p[step]=r0;
+				}
+				else if (quality==LOW2)
+				{
+					if (res>-5 && a==-5)       p[step]=14000;
+					else if (res<=-5) res256[count]=14000;
+					else if (res==-3 && a<=-4) p[step]=14000;
+					
+					res256[count+IM_DIM]=p[step];
+				}
+			}
+			else if (a==-2 || a==-3)
+			{
+				if (res==-2 || res==-3)
+				{
+					if(qd<0) _MOD_ASSIGN(12300, 2)
+					else if (res==-3 && quality>=HIGH1)
+					{
+						res256[count]=14500;
+					}
+					else if (qd == 0)
+					{
+						if ((p[1]-res256[count+1])==-2 || (p[1]-res256[count+1])==-3)
+						{
+							if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-2
+							 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-3)
+							{
+								if ((p2[(1)]-res256[count+(2*IM_DIM+1)])<0)
+									_MOD_ASSIGN(12300, 2)
+							}
+						}
+					}
+					else if (res==-2) goto L_W2;
+					else goto L_W3;
+				}
+				else if (res==-1 && a==-3 && qd==-2)
+				{
+					// FIXME: No compare of loop variable inside loop
+					if (i>0) 
+					{
+						if ((p[-step]-res256[count-IM_DIM])<=0) 
+							_MOD_ASSIGN(12300, 2)
+					}
+				}
+				else if (res==-1)
+				{
+					if (qd==-3)
+						_MOD_ASSIGN(12300, 2)
+					else goto L_W1;
+
+				}
+				else if (res==-4)
+				{
+					if (qd<-1)
+					{
+						if(qd>-4)
+							_MOD_ASSIGN(12300, 2)
+						else goto L_W5;
+					}
+					else goto L_W5;
+				}
+			}
+			else if (!res || res==-1)
+			{
+L_W1:
+				if (q[0]==7)
+				{
+					if (q[0-1]>=0 && q[0-1]<8) q[0]+=2;
+				}
+				else if (q[0]==8)
+				{
+					if (q[0-1]>=-2 && q[0-1]<8) q[0]+=2;
+				}
+			}
+			else if (res==-2)
+			{
+L_W2:
+
+				if (q[0]<-14)
+				{
+					if (!((-q[0])&7) || ((-q[0])&7)==7) q[0]++;
+				}
+				else if (q[0]==7 || (q[0]&65534)==8)
+				{
+					if (q[0-1]>=-2) q[0]+=3;
+				}
+			}
+			else if (res==-3) 
+			{
+L_W3:			if (quality>=HIGH1) {res256[count]=14500;} // Redundant
+				else if (q[0]<-14)
+				{
+					if (!((-q[0])&7) || ((-q[0])&7)==7)
+					{
+						q[0]++;
+					}
+				}
+				else if (q[0]>=0 && ((q[0]+2)&65532)==8)
+				{
+					if (q[0-1]>=-2) q[0]=10;
+				}
+				else if (q[0]>14 && (q[0]&7)==7)
+				{
+					q[0]++;
+				}
+			}
+			else if (res<(-res_setting))
+			{
+L_W5:			res256[count]=14000;
+
+				if (res==-4)
+				{
+
+					if (q[0]==-7 || q[0]==-8) 
+					{
+						if (q[0-1]<2 && q[0-1]>-8) q[0]=-9;
+					}
+				}
+				else if (res<-6)
+				{
+					if (res<-7 && quality>=HIGH1) {res256[count]=14900;}
+					else
+					{
+						if (q[0]<-14)
+						{
+							if (!((-q[0])&7) || ((-q[0])&7)==7) q[0]++;
+						}
+						else if (q[0]==7 || q[0]==8)
+						{
+							if (q[0-1]>=-1 && q[0-1]<8) q[0]+=3;
+						}
+					}
+				}
+			}
+
 		}	
 	}
 
@@ -780,50 +1024,117 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 	{
 		for (scan=i,j=0;j<IM_DIM;j++,scan++,count++)
 		{
-			if (res256[count]<12000)
+			short r = res256[count];
+			if (r < CODE_12000)
 			{
 				// Transposed check pointer:
 				short *p = &pr[(j<<9)+(i>>9)+(IM_DIM)];
-#include "inline/process1.c"
-			}
-			else 
-			{
-				short r = res256[count];
+
+				res= pr[scan]-res256[count];res256[count]=0;
+
+				switch (res) {
+					case 0:
+					case 1:
+						if (p[0]==-7 || p[0]==-8) {
+							if (p[-1]<2 && p[-1]>-8) p[0]=-9;
+						}
+						break;
+					case 2:
+						switch (p[0]) {
+							case -7:
+							case -8:
+								if (p[-1] <= 1) p[0] = -9;
+								break;
+							case -6:
+								if (p[-1] <= -1 && p[-1]>-8) p[0]=-9;
+								break;
+							default:
+								if (p[0] > 15 && (p[0] & 7) == 0) p[0]--;
+						}
+						break;
+					case 3:
+						if (quality>=HIGH1)
+							{ res256[count] = 144; enc->nhw_res5_word_len++; }
+						else
+						{
+							if (p[0] > 15 && (p[0] & 7) == 0) p[0]--;
+							else if (p[0] <= 0
+							 && ((((-p[0]) + 2) & ~3) == 8)) 
+							{
+								if (p[-1] <= 2) p[0]=-10;
+							}
+						}
+						break;
+					default:
+						if (res>res_setting) 
+						{
+							res256[count]=141;enc->nhw_res1_word_len++;
+
+							if (res == 4)
+							{
+								if (p[0] == 7 || (p[0] & ~1)==8)
+								{
+									if (p[-1] >= 0 && p[-1] < 8) p[0] += 2;
+								}
+							}
+							else if (res>6) 
+							{
+								if (res > 7 && quality>=HIGH1) 
+								{
+									res256[count]=148;
+									enc->nhw_res5_word_len++;
+									enc->nhw_res1_word_len++;
+								}
+								else
+								{
+									if (p[0] > 15 && (p[0] & 7) == 0) p[0]--;
+									else if (p[0] == -6 || p[0]== -7 || p[0] == -8) 
+									{
+										if (p[-1] < 0 && p[-1] > -8) p[0] = -9;
+									}
+								}
+							}
+						}
+				}
+			} else {
 				switch (r) {
-					case 14000:
+					case CODE_14000:
 						r=140; enc->nhw_res1_word_len++; 
 						break;
-					case 14500:
+					case CODE_14500:
 						r=145; enc->nhw_res5_word_len++;
 						break;
-					case 12200:
+					case CODE_12200:
 						r=122; enc->nhw_res3_word_len++; 
 						break;
-					case 12100:
+					case CODE_12100:
 						r=121; enc->nhw_res3_word_len++;
 						break;
-					case 12300:
+					case CODE_12300:
 						r=123; enc->nhw_res3_word_len++; 
 						break;
-					case 12400:
+					case CODE_12400:
 						r=124; enc->nhw_res3_word_len++;
 						break;
-					case 14100:
+					case CODE_14100:
 						r=141; enc->nhw_res1_word_len++; 
 						break;
-					case 12500:
+					case CODE_12500:
 						r=125; enc->nhw_res3_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
-					case 12600:
+					case CODE_12600:
 						r=126;enc->nhw_res3_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
-					case 14900:
+					case CODE_14900:
 						r=149;enc->nhw_res5_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
+					default:
+						assert(0);
 				}	
+
 				res256[count] = r;
 			}
 		}
