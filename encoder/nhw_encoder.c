@@ -1128,8 +1128,6 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	free(enc->ch_res);
 
 	copy_to_quadrant(pr, resIII, n, n);
-
-	//free(resIII);
 	
 	if (quality > LOW8) { // Better than LOW8?
 
@@ -1145,6 +1143,10 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	// After last call of offsetY_recons256() we can free:
 	free(enc->highres_mem);
+	
+	// Release original data buffer
+	//
+	free(im->im_jpeg); // XXX
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -1513,10 +1515,6 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	scan_run_code(im->im_nhw, im->im_process, enc);
 
 	free(im->im_process);
-	// Release original data buffer
-	//
-	free(im->im_jpeg); // XXX
-	
 	
 ////////////////////////////////////////////////////////////////////////////	
 
