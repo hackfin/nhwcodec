@@ -51,6 +51,7 @@
 
 #include "imgio.h"
 #include "codec.h"
+#include "utils.h"
 
 #ifndef MAYBE_STATIC
 #define MAYBE_STATIC
@@ -178,11 +179,11 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 			{
 				if (d1 >2 && d1 <7)
 				{
-					if (abs(p[0]) < 8)
+					if      (abs(p[0])  < 8)
 						{ p[0]=12400;     count++;scan++;j++; continue; }
-					else if (abs(q[0]) <8)
-						{ q[0]=12400;     count++;scan++;j++;continue;}
-					else if (abs(q1[0]) <8)
+					else if (abs(q[0])  < 8 )
+						{ q[0]=12400;     count++;scan++;j++; continue;}
+					else if (abs(q1[0]) < 8 )
 						{ q1[0]=12400;    count++;scan++;j++; continue;}
 				}
 			}
@@ -190,9 +191,12 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 			{
 				if (d1 < -2 && d1 > -8)
 				{
-					if      (abs(p[0])  < 8) {  p[0] = 12600;count++;scan++;j++;continue;}
-					else if (abs(q[0])  < 8) {  q[0] = 12600;count++;scan++;j++;continue;}
-					else if (abs(q1[0]) < 8) { q1[0] = 12600;count++;scan++;j++;continue;}
+					if      (abs(p[0])  < 8)
+						{  p[0] = 12600;count++;scan++;j++; continue;}
+					else if (abs(q[0])  < 8)
+						{  q[0] = 12600;count++;scan++;j++; continue;}
+					else if (abs(q1[0]) < 8)
+						{ q1[0] = 12600;count++;scan++;j++; continue;}
 				}
 			}
 
@@ -226,7 +230,7 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 
 
 MAYBE_STATIC
-void preprocess14(const short *pr, short *result)
+void preprocess14(short *result, const short *pr)
 {
 	int cur;
 	int i, j, count, scan;
@@ -252,7 +256,23 @@ void preprocess14(const short *pr, short *result)
 	int offset_code;
 	int m;
 
-	for (i=0,count=0;i<(4*IM_SIZE>>1);i+=s,count+=halfn)
+// Score function?
+// CUR = '*'
+//
+//       'pr'                      'result'
+// +---+---+---+---+              +---+---+
+// |   | * |       |              |   |   |
+// +---+---+       + <- IM_SIZE   +---+---+
+// | * | * |       |              |   |MAR|
+// +---+---+---+---+              +---+---+
+// | ***** |       |
+// + ***** +       +
+// | ***** |       |
+// +---+---+---+---+  <- (END) 
+// ^.......^      <-  j = 0..halfn
+
+
+	for (i = 0, count=0; i < (4*IM_SIZE>>1); i+=s, count += halfn)
 	{
 		for (scan=i,j=0;j<halfn;j++,scan++) 
 		{
@@ -287,9 +307,7 @@ void preprocess14(const short *pr, short *result)
 						if    (((cur) & 7) == m
 						 ||    ((cur) & 7) == 0 )   *result += offset_code;
 
-
 				}
-
 			}
 			result++;
 		}
@@ -477,96 +495,273 @@ void postprocess14(short *dst, short *pr, short *res256)
 	}
 }
 
-MAYBE_STATIC
-void compress1(int quality, short *pr, encode_state *enc)
+
+// FIXME: Move position variables a and e into encode_state?
+static int code_tree(short scan, int i, int j, int a, int e, encode_state *enc)
 {
-	int i, j, count, scan;
-	int Y, stage, res;
+	if (scan > 255) {
+		enc->exw_Y[e++] = (i>>9);	enc->exw_Y[e++]=j+128;
+		scan -= 255; CLAMPH(scan, 255); enc->exw_Y[e++]= scan;
+		enc->tree1[a]  = enc->tree1[a-1];
+		enc->ch_res[a] = enc->tree1[a-1];
+	} else if (scan < 0)  {
+		enc->exw_Y[e++] = (i>>9);enc->exw_Y[e++]=j;
+		CLAMPL(scan, -255);
+		enc->exw_Y[e++] = -scan;
+		enc->tree1[a] = enc->tree1[a-1];
+		enc->ch_res[a]= enc->tree1[a-1];
+	} else {
+		enc->ch_res[a] = scan;
+		enc->tree1[a] = scan & ~1;
+	}
+	return e;
+}
+
+inline void cond_modify0(short scan, int step, short *q)
+{
+	if (IS_ODD(scan)) {
+		if (IS_ODD(q[0]) && IS_ODD(q[1])) {
+			if (IS_ODD(q[step]) && !IS_ODD(q[(2*step)])) {
+				if (q[0] < 10000) q[0]++;
+			}
+		}
+	}
+}
+
+static
+int compress_q3(short *pr, int step, encode_state *enc)
+{
+	int i, j, scan;
+	int stage, res;
 	int a, e;
-	int step = 2 * IM_DIM;
 
-	for (i=0,a=0,e=0,count=0,res=0,Y=0,stage=0;i<((4*IM_SIZE)>>2);i+=step)
+	// First line
+	res = 0;
+	stage = 0;
+	a = e = 0;
+
+
+	// First pixel special treatment:
+	//
+	i = 0;
+	scan = pr[0];
+
+	if (scan > 10000) {
+		scan -= 16000;
+		if (scan > 4000) {
+			scan -= 8000; enc->nhw_res4[res++]= 1;
+			stage++;
+		}
+	} 
+
+	CLAMP2(scan, 0, 255);
+	enc->ch_res[a] = scan;
+	enc->tree1[a++] = scan & ~1;
+	pr[0] = 0;
+
+	// First line:
+	//
+	short *p = &pr[1];
+
+	for (j=1; j< (step>>2)-2 ;j++, p++)
 	{
-		for (count=i,j=0;j<(step>>2);j++,count++)
-		{
-			short *p = &pr[count];
+		scan = p[0];
 
-			scan = pr[count];
-			// FIXME: Move quality check outside loop
-			if (quality>LOW3 && scan>10000) 
-			{
-				if (scan>20000) {
-					scan-=24000;
-					enc->nhw_res4[res++]= j + 1;
+		if (scan > 10000) {
+			scan -= 16000;
+			if (scan > 4000) {
+				scan -= 8000; enc->nhw_res4[res++]= j + 1;
+				stage++;
+			}
+		} else  {
+			short *q = &p[step];
+
+			if (IS_ODD(scan) && IS_ODD(p[1])) {
+				char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
+
+				if (IS_ODD(p[2])) {
+					if (abs(scan-p[2])>1) p[1]++;
+				} else if (cond) {
+					if (q[0] < 10000) q[0]++;
+				}
+
+			}
+		}
+		e = code_tree(scan, i, j, a, e, enc); a++;
+	}
+
+	// Last two rows:
+
+	for (; j < (step>>2); j++, p++) {
+		scan = p[0];
+
+		if (scan > 10000) {
+			scan -= 16000;
+			if (scan > 4000) {
+				scan -= 8000;
+				enc->nhw_res4[res++]= j + 1;
+				stage++;
+			}
+		} else  {
+			short *q = &p[step];
+
+			if (IS_ODD(scan) && IS_ODD(p[1])) {	
+				char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
+				if (cond) {
+					if (q[0] < 10000) q[0]++;
+				}
+			}
+		}
+		e = code_tree(scan, i, j, a, e, enc); a++;
+		p[0] = 0;
+	}
+
+	if (!stage) enc->nhw_res4[res++]=128;
+	else        enc->nhw_res4[res-1]+=128; // Potential out of bounds
+	stage=0;
+
+	// Second line:
+	for (i = step; i<(IM_SIZE); i += step)
+	{
+		p = &pr[i];
+		scan = p[0];
+
+		// First row:
+		j = 0;
+		if (scan > 10000) {
+			scan -= 16000;
+			if (scan > 4000) {
+				scan -= 8000; enc->nhw_res4[res++]= j + 1;
+				stage++;
+			}
+		} else 
+		if (i < (IM_SIZE-(3*step))) {
+			cond_modify0(scan, step, &p[step]);
+		}
+		e = code_tree(scan, i, j, a, e, enc); a++;
+		p[0] = 0;
+		p++;
+
+	// second row:
+		for (j = 1; j< (step>>2)-2 ;j++, p++)
+		{
+			scan = p[0];
+
+			if (scan > 10000) {
+				scan -= 16000;
+				if (scan > 4000) {
+					scan -= 8000; enc->nhw_res4[res++]= j + 1;
 					stage++;
 				}
-				else scan-=16000;
-			} else
-			if (IS_ODD(scan)
-			 && count > i
-			 && IS_ODD(p[1]) /*&& !(p[-1]&1)*/) {
-				if (j < ((IM_DIM>>1)-2)
-				 && IS_ODD(p[2]) /*&& !(p[3]&1)*/) 
-				{
-					if (abs(scan-p[2])>1 && quality>LOW3) p[1]++;
-				}
-				else if (i<(IM_SIZE-step-2)
-					&& IS_ODD(p[step])
-					&& IS_ODD(p[(2*IM_DIM+1)])
-					&& !IS_ODD(p[(2*IM_DIM+2)]))
-				{
-					if (p[step]<10000 && quality>LOW3) 
-					{
-						p[step]++;
+			} else {
+				short *q = &p[step];
+
+				if (IS_ODD(scan)
+				 && IS_ODD(p[1])) {
+
+					char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
+
+					if (IS_ODD(p[2])) {
+						if (abs(scan-p[2])>1) p[1]++;
+					} else if (i<(IM_SIZE-step-2) && cond ) {
+						if (q[0] < 10000) q[0]++;
 					}
+
+				} else
+
+				if (i >= step && i < (IM_SIZE-(3*step))) {
+					cond_modify0(scan, step, q);
 				}
-			} else
-			if (IS_ODD(scan) && i>=step && i<(IM_SIZE-(6*IM_DIM))) {
-				if ((p[step]&1)==1 && (p[(2*IM_DIM+1)]&1)==1)
-				{
-					if ((p[(4*IM_DIM)]&1)==1 && !(p[(6*IM_DIM)]&1)) 
-					{
-						if (p[step]<10000 && quality>LOW3) 
-						{
-							p[step]++;
+			} 
+			e = code_tree(scan, i, j, a, e, enc); a++;
+			p[0] = 0;
+		}
+
+		for (; j < (step>>2); j++, p++) {
+			scan = p[0];
+
+			if (scan > 10000) {
+				scan -= 16000;
+				if (scan > 4000) {
+					scan -= 8000; enc->nhw_res4[res++]= j + 1;
+					stage++;
+				}
+			} else  {
+			// FIXME: eliminate loop variable check
+				short *q = &p[step];
+
+				if (IS_ODD(scan)
+				 && IS_ODD(p[1])) {
+					char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
+
+					if (i<(IM_SIZE-step-2) && cond) { // FIXME
+						if (q[0] < 10000) q[0]++;
+					}
+				} else
+				// FIXME (i)
+				if (i < (IM_SIZE-(3*step))) { // FIXME
+					if (IS_ODD(scan)) {
+						if (IS_ODD(q[0]) && IS_ODD(q[1])) {
+							if (IS_ODD(q[step]) && !IS_ODD(q[(2*step)])) {
+								if (q[0] < 10000) q[0]++;
+							}
 						}
 					}
 				}
 			}
-
-			if (scan>255 && (j>0 || i>0))
-			{
-				enc->exw_Y[e++]=(i>>9);	enc->exw_Y[e++]=j+128;
-				Y=scan-255;if (Y>255) Y=255;enc->exw_Y[e++]=Y;
-				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;p[0]=0;
-
-			}
-			else if (scan<0 && (j>0 || i>0))  
-			{
-				enc->exw_Y[e++]=(i>>9);enc->exw_Y[e++]=j;
-				if (scan<-255) scan=-255;
-				enc->exw_Y[e++]=-scan;
-				enc->tree1[a]=enc->tree1[a-1];enc->ch_res[a]=enc->tree1[a-1];a++;p[0]=0;
-			}
-			else 
-			{
-				if (scan>255) scan=255;else if (scan<0) scan=0;
-				enc->ch_res[a]=scan;enc->tree1[a++]=scan&254;p[0]=0;
-			}
-
+			e = code_tree(scan, i, j, a, e, enc); a++;
+			p[0] = 0;
 		}
-
-		if (quality>LOW3)
-		{
-			if (!stage) enc->nhw_res4[res++]=128;
-			else enc->nhw_res4[res-1]+=128;
-			stage=0;
-		}
+		if (!stage) enc->nhw_res4[res++] =  128;
+		else        enc->nhw_res4[res-1] += 128;
+		stage = 0;
 	}
-	enc->exw_Y_end=e;
+	// Last two rows:
+
+
+	return e;
 }
 
+int compress_q(short *pr, int step, encode_state *enc)
+{
+	int i, j, scan;
+	int a, e;
 
+	for (i=0,a=0,e=0;i<((4*IM_SIZE)>>2);i+=step)
+	{
+		short *p = &pr[i];
+		for (j=0;j<(step>>2);j++, p++)
+		{
+			scan = p[0];
+			if (j>0 || i>0) { // FIXME: move outside loop
+				e = code_tree(scan, i, j, a, e, enc);
+			} else {
+				enc->ch_res[a] = scan;
+				enc->tree1[a] = scan & ~1;
+			}
+			a++;
+			p[0]=0;
+
+		}
+	}
+	return e;
+}
+
+MAYBE_STATIC
+void compress1(int quality, short *pr, encode_state *enc)
+{
+	int Y, stage, res;
+	int i, j, scan;
+	int n;
+	int step = 2 * IM_DIM;
+
+	if (quality > LOW3)  {
+		n = compress_q3(pr, step, enc);
+	} else {
+		n = compress_q(pr, step, enc);
+	}
+	enc->exw_Y_end = n;
+}
 
 
 int process_res_q3(short *pr)
@@ -749,36 +944,31 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 
 	for (i=0,count=0;i<IM_SIZE;i+=IM_DIM)
 	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan++)
+		for (scan=i,j=0;j<IM_DIM-2;j++,scan++)
 		{
-			// FIXME: comparison with loop variable, move outside
-			if (j==(IM_DIM-2))
-			{
-				res256[scan]=0;
-				res256[scan+1]=0;
-				highres[count++]=(IM_DIM-2);j++;
+			switch (res256[scan]) {
+				case 121:
+					highres[count++]=j;
+					res256[scan]=0;nhw_res3I_word[e++]=1;
+					break;
+				case 122:
+					highres[count++]=j;
+					res256[scan]=0;nhw_res3I_word[e++]=0;
+					break;
+				case 123:
+					highres[count++]=j;
+					res256[scan]=0;nhw_res3I_word[e++]=2;
+					break;
+				case 124:
+					highres[count++]=j;
+					res256[scan]=0;nhw_res3I_word[e++]=3;
+					break;
 			}
-			else if (res256[scan]==121) 
-			{
-				highres[count++]=j;
-				res256[scan]=0;nhw_res3I_word[e++]=1;
-			}
-			else if (res256[scan]==122) 
-			{
-				highres[count++]=j;
-				res256[scan]=0;nhw_res3I_word[e++]=0;
-			}
-			else if (res256[scan]==123) 
-			{
-				highres[count++]=j;
-				res256[scan]=0;nhw_res3I_word[e++]=2;
-			}
-			else if (res256[scan]==124) 
-			{
-				highres[count++]=j;
-				res256[scan]=0;nhw_res3I_word[e++]=3;
-			}
+
 		}
+		res256[scan]=0;
+		res256[scan+1]=0;
+		highres[count++]=(IM_DIM-2);
 	}
 
 	printf("nhw_res3I_word alloc length: %d, effective: %d\n",
@@ -1073,21 +1263,34 @@ void copy_thresholds(short *process, const short *resIII, int n)
 {
 	int i, j, count;
 
-	for (i=0, count=0; i < (2*IM_SIZE); i += n)
+	for (i=0, count=0; i < (IM_SIZE); i += n)
 	{
 		short *p = &process[i];
+		// LL:
+		for (j=0;j<IM_DIM >> 1;j++)
+		{ 
+			if (resIII[count]>8000) {
+				*p++ = resIII[count++];
+			} else {
+				*p++ = 0;count++;
+			}
+		}
 
+		// LH:
+		for (j=IM_DIM >> 1;j<IM_DIM;j++)
+		{ 
+			*p++ = resIII[count++];
+		}
+
+	}
+
+	for (i=IM_SIZE; i < (2*IM_SIZE); i += n)
+	{
+		short *p = &process[i];
+		// HL and HH
 		for (j=0;j<IM_DIM;j++)
 		{ 
-			// FIXME: eliminate
-			if (j<(IM_DIM>>1) && i<IM_SIZE) {
-				if (resIII[count]>8000) {
-					*p++ = resIII[count++];
-				} else {
-					*p++ = 0;count++;
-				}
-			}
-			else *p++ = resIII[count++];
+			*p++ = resIII[count++];
 		}
 	}
 }
@@ -1126,11 +1329,12 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	if (quality > LOW14) // Better quality than LOW14?
 	{
-		preprocess14(pr, res256);
+		preprocess14(res256, pr);
 		offsetY_recons256(im,enc,ratio,1);
-		wavelet_synthesis(im, n>>1,end_transform-1,1);
+		wavelet_synthesis(im, n>>1, end_transform-1,1);
+		// Modifies all 3 buffers:
 		postprocess14(im->im_jpeg, pr, res256);
-		wavelet_analysis(im, n>>1,end_transform,1);
+		wavelet_analysis(im, n >> 1, end_transform,1);
 	}
 	
 	if (quality <= LOW9) // Worse than LOW9?
@@ -1153,9 +1357,8 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	
 	copy_from_quadrant(resIII, pr, n, n);
 	
-	// Must look at this, might not be completely initialized:
-	enc->tree1=(unsigned char*)calloc(((96*IM_DIM)+4),sizeof(char));
-	enc->exw_Y=(unsigned char*)malloc(32*IM_DIM*sizeof(short));
+	enc->tree1=(unsigned char*) calloc(((96*IM_DIM)+4),sizeof(char));
+	enc->exw_Y=(unsigned char*) malloc(32*IM_DIM*sizeof(short));
 	
 	if (quality > LOW3)
 	{
@@ -1219,7 +1422,6 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 		}
 	}
 	
-
 	free(highres);
 	free(res256);
 

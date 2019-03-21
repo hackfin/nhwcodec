@@ -190,18 +190,18 @@ extern void downsample_YUV420(image_buffer *im,encode_state *enc,int rate);
 
 extern void wavelet_analysis(image_buffer *im,int norder,int last_stage,int Y);
 extern void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y);
-extern void downfilter53(short *x,int N,int decalage,short *res);
-extern void downfilter53II(short *x,int N,int decalage,short *res);
-extern void downfilter53IV(short *x,int N,int decalage,short *res);
-extern void downfilter53VI(short *x,int N,int decalage,short *res);
+extern void downfilter53(const short *x,int N,int decalage,short *res);
+extern void downfilter53II(const short *x,int N,int decalage,short *res);
+extern void downfilter53IV(const short *x,int N,int decalage,short *res);
+extern void downfilter53VI(const short *x,int N,int decalage,short *res);
 extern void downfilter97(short *x,int N,int decalage,short *res);
 extern void upfilter53(short *x,int M,short *res);
-extern void upfilter53I(short *x,int M,short *res);
-extern void upfilter53III(short *x,int M,short *res);
-extern void upfilter53VI(short *x,int M,short *res);
+extern void upfilter53I(const short *x,int M,short *res);
+extern void upfilter53III(const short *x,int M,short *res);
+extern void upfilter53VI(const short *x,int M,short *res);
 extern void upfilter53II(short *_X,int M,short *_RES);
 extern void upfilter53IV(short *_X,int M,short *_RES);
-extern void upfilter97(short *_X,int M,int E,short *_RES);
+extern void upfilter97(const short *_X,int M,int E,short *_RES);
 
 extern void pre_processing(image_buffer *im);
 extern void pre_processing_UV(image_buffer *im);

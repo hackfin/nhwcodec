@@ -52,10 +52,10 @@
 #include "codec.h"
 #include "wavelets.h"
 
-__inline void downfilter53(short *_X,int N,int decalage,short *_RES)
+__inline void downfilter53(const short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
-	short *start_line=_X, *end_line=_X+N-2;
+	const short *start_line=_X, *end_line=_X+N-2;
 
 	w_end=(N>>1)-1;
 
@@ -113,10 +113,10 @@ W_SL:	_X=start_line;
 
 }
 
-__inline void downfilter53II(short *_X,int N,int decalage,short *_RES)
+__inline void downfilter53II(const short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
-	short *start_line=_X,*end_line=_X+N-2;
+	const short *start_line=_X,*end_line=_X+N-2;
 
 	w_end=(N>>1)-1;
 
@@ -200,10 +200,10 @@ W_SLII:	_X=start_line;
 
 }
 
-__inline void downfilter53VI(short *_X,int N,int decalage,short *_RES)
+__inline void downfilter53VI(const short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
-	short *start_line=_X,*end_line=_X+N-2;
+	const short *start_line=_X,*end_line=_X+N-2;
 
 	w_end=(N>>1)-1;
 
@@ -343,10 +343,10 @@ W_SLII:	_X=start_line;
 
 }
 
-__inline void downfilter53IV(short *_X,int N,int decalage,short *_RES)
+__inline void downfilter53IV(const short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
-	short *start_line=_X,*end_line=_X+N-2;
+	const short *start_line=_X,*end_line=_X+N-2;
 
 	w_end=(N>>1)-1;
 
@@ -518,9 +518,9 @@ __inline void upfilter53(short *_X,int M,short *_RES)
 W_SE: _X=E;_RES[2]=_X[M-1];_RES[3]=_X[M-1];
 }
 
-__inline void upfilter53I(short *_X,int M,short *_RES)
+__inline void upfilter53I(const short *_X,int M,short *_RES)
 {	
-	short *E=_X,*_E1_=E+M-1;
+	const short *E=_X,*_E1_=E+M-1;
 
 	for (;_X<_E1_;_X++,_RES+=2)
 	{ 
@@ -531,9 +531,9 @@ __inline void upfilter53I(short *_X,int M,short *_RES)
 	_X=E;_RES[0]=_X[M-1]<<3;_RES[1]=_X[M-1]<<3;
 }
 
-__inline void upfilter53III(short *_X,int M,short *_RES)
+__inline void upfilter53III(const short *_X,int M,short *_RES)
 {	
-	short *E=_X,*_E2_=E+M-2,r;
+	const short *E=_X,*_E2_=E+M-2,r;
 
 	_RES[0]-=(_X[0]<<2);_RES[1]+=(5*_X[0]-_X[1]);_RES+=2;
 
@@ -546,9 +546,9 @@ __inline void upfilter53III(short *_X,int M,short *_RES)
 	_X=E;_RES[0]-=(_X[M-1]+_X[M-2])<<1;_RES[1]+=5*_X[M-1]-_X[M-2];
 }
 
-__inline void upfilter53VI(short *_X,int M,short *_RES)
+__inline void upfilter53VI(const short *_X,int M,short *_RES)
 {	
-	short *E=_X,*_E2_=E+M-2,r;
+	const short *E=_X,*_E2_=E+M-2,r;
 
 	_RES[0]-=(_X[0]<<2);_RES[1]+=5*_X[0]-_X[1];
 	if (_RES[0]>0) _RES[0]+=32;_RES[0]>>=6;
@@ -634,7 +634,7 @@ __inline void upfilter53IV(short *_X,int M,short *_RES)
 	_X=E;_RES[0]-=((_X[M-1]+_X[M-2]+2)>>2);_RES[1]+=(5*_X[M-1]-_X[M-2]+4)>>3;*/
 }
 
-void upfilter97(short *_X,int M,int E,short *_RES)
+void upfilter97(const short *_X,int M,int E,short *_RES)
 {	
 	int j,e=0;
 

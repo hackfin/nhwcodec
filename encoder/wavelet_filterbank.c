@@ -55,7 +55,7 @@
  */
 
 static
-void transpose(const short *src, short *dst, int n, int step)
+void transpose(short *dst, const short *src, int n, int step)
 {
 	int i, j, a;
 
@@ -70,23 +70,24 @@ void wla_luma(image_buffer *im, int norder, int last_stage)
 {
 	int i;
 	int n = 2 * IM_DIM; // Line length
-	short *data,*res,*res2;
+	const short *data;
+	short *res, *res2;
 	int offset;
 
 	int halfno = norder >> 1;
 
 	data=im->im_jpeg;
-	res=im->im_process;
-	res2=&im->im_process[halfno];
+	res = im->im_process;
+	res2 = &res[halfno];
 
 	for (i=0;i<norder;i++) {
 		downfilter53IV(data,norder,0,res); downfilter53IV(data,norder,1,res2);
 		data +=n;res +=n;res2 +=n;
 	}
 
-	// Transposing (Y direction)
-	transpose(im->im_process, im->im_jpeg, norder, n);
-
+	// Transposing (Y direction) into im_jpeg buffer
+	transpose(im->im_jpeg, im->im_process, norder, n);
+	// FIXME: Move outside
 	if (im->setup->quality_setting>HIGH1 && !last_stage)
 	{
 		im->im_quality_setting=(short*)malloc(2*IM_SIZE*sizeof(short));
@@ -126,7 +127,7 @@ void wla_luma(image_buffer *im, int norder, int last_stage)
 
 	if (last_stage!=im->setup->wvlts_order-1)
 	{
-		transpose(im->im_process, im->im_jpeg, norder >> 1, n);
+		transpose(im->im_jpeg, im->im_process, norder >> 1, n);
 	}
 
 }
@@ -152,7 +153,7 @@ void wla_chroma(image_buffer *im, int norder, int last_stage)
 	}
 
 	// Transposing (Y direction)
-	transpose(im->im_process, im->im_jpeg, norder, n);
+	transpose(im->im_jpeg, im->im_process, norder, n);
 
 	data=im->im_jpeg;
 	res=im->im_process;
@@ -184,7 +185,7 @@ void wla_chroma(image_buffer *im, int norder, int last_stage)
 
 	if (last_stage!=im->setup->wvlts_order-1)
 	{
-		transpose(im->im_process, im->im_jpeg, halfno, n);
+		transpose(im->im_jpeg, im->im_process, halfno, n);
 	}
 }
 
@@ -209,12 +210,13 @@ void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
 static
 void wls_luma(image_buffer *im, int norder, int last_stage)
 {
-	short *data,*res,*data2;
+	const short *data,*data2;
+	short *res;
 	int i, IM_SYNTH=IM_DIM;
 	int s = 2 * IM_SYNTH;
 	int halfno = norder >> 1;
 
-	data=im->im_jpeg;
+	data = im->im_jpeg;
 	res=im->im_process;
 	data2=im->im_jpeg + halfno;
 
@@ -258,7 +260,7 @@ void wls_luma(image_buffer *im, int norder, int last_stage)
 	}
 
 	//image transposition
-	transpose(im->im_process, im->im_jpeg, norder, s);
+	transpose(im->im_jpeg, im->im_process, norder, s);
 
 	data=im->im_jpeg;
 	res=im->im_process;
@@ -282,14 +284,15 @@ void wls_luma(image_buffer *im, int norder, int last_stage)
 	}
 
 	if (last_stage!=im->setup->wvlts_order-1) {
-		transpose(im->im_process, im->im_jpeg, norder, s);
+		transpose(im->im_jpeg, im->im_process, norder, s);
 	}
 }
 
 static
 void wls_chroma(image_buffer *im, int norder, int last_stage)
 {
-	short *data,*res,*data2;
+	const short *data,*data2;
+	short *res;
 	int i, IM_SYNTH=IM_DIM;
 	int s = IM_SYNTH; // half line size for 420 chroma buffer
 
@@ -338,7 +341,7 @@ void wls_chroma(image_buffer *im, int norder, int last_stage)
 		}
 	}
 
-	transpose(im->im_process, im->im_jpeg, norder, s);
+	transpose(im->im_jpeg, im->im_process, norder, s);
 
 	data=im->im_jpeg;
 	res=im->im_process;
@@ -362,7 +365,7 @@ void wls_chroma(image_buffer *im, int norder, int last_stage)
 	}
 
 	if (last_stage!=im->setup->wvlts_order-1) {
-		transpose(im->im_process, im->im_jpeg, norder, s);
+		transpose(im->im_jpeg, im->im_process, norder, s);
 	}
 }
 
