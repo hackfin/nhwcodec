@@ -18,4 +18,7 @@
 #define CODE_14500 14500
 #define CODE_14900 14900
 
+#ifndef __CONCAT
+#define __CONCAT(x, y) x##y
+#endif
 

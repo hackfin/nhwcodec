@@ -809,17 +809,19 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 	int count, e;
 
 
-	nhw_res1I_word=(unsigned char*)malloc(enc->nhw_res1_word_len*sizeof(char));
+	count = enc->nhw_res1_word_len;
+	count = (count + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	nhw_res1I_word = (unsigned char*) malloc(count * sizeof(char));
 	
-	for (i=0,count=0,res=0,e=0;i<IM_SIZE;i+=IM_DIM)
+	for (i=0,count=0,e=0;i<IM_SIZE;i+=IM_DIM)
 	{
 		for (scan=i,j=0;j<IM_DIM;j++,scan++)
 		{
 			short *p = &res256[scan];
-			if (j==(IM_DIM-2))
+			if (j==(IM_DIM-2)) // FIXME: move outside loop
 			{
-				p[0]=0;
-				p[1]=0;
+				p[0]=0; p[1]=0;
 				highres[count++]=(IM_DIM-2);j++; 
 			} else {
 				switch (p[0]) {
@@ -851,6 +853,11 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 		}
 	}
 
+	scan_run = &nhw_res1I_word[e];
+
+	// Pad remaining with zeros:
+	for (i = e % 8; i < 8; i++) *scan_run++ = 0;
+
 	ch_comp=(unsigned char*)malloc(count*sizeof(char));
 	memcpy(ch_comp,highres,count*sizeof(char));
 
@@ -870,13 +877,18 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 	highres[res++]=ch_comp[count-1];
 	free(ch_comp);
 
-	enc->nhw_res1_len=res;
-	enc->nhw_res1_word_len=e;
-	enc->nhw_res1=(unsigned char*) calloc((enc->nhw_res1_len),sizeof(char));
+	enc->nhw_res1_len = res;
+	enc->nhw_res1_word_len = e;
+
+	enc->nhw_res1=(unsigned char*) malloc((enc->nhw_res1_len) * sizeof(char));
 
 	for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
 
-	scan_run=(unsigned char*)malloc((enc->nhw_res1_len+8)*sizeof(char));
+	printf("res effective: %d\n", res);
+	res = (res + 7) & ~7; // Round up to next multiple of 8 for padding
+	printf("res rounded: %d\n", res);
+
+	scan_run=(unsigned char*) malloc(res * sizeof(char));
 
 	for (i=0;i<enc->nhw_res1_len;i++) scan_run[i]=enc->nhw_res1[i]>>1;
 
@@ -888,8 +900,8 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 		if (d>=0 && d<8)
 		{
 			int d1 = scan_run[i+1]-scan_run[i];
-			if (d1 >=0 && d1 < 16) {
-				highres[count++]=128+(d<<4)+d1;
+			if (d1 >= 0 && d1 < 16) {
+				highres[count++]= 128 + (d << 4) + d1;
 				i++;
 			}
 			else highres[count++]=scan_run[i];
@@ -902,22 +914,24 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 		if (enc->nhw_res1[i]!=254) scan_run[stage++]=enc->nhw_res1[i];
 	}
 
-	for (i=stage;i<stage+8;i++) scan_run[i]=0;
+	res = (stage + 7) & ~7; // Round up to next mul 8 and zero-pad:
+	for (i = stage; i < res; i++) scan_run[i]=0;
 
-	// FIXME: Proper 8 bit padding
-	Y= (stage>>3) + 1;
-	enc->nhw_res1_bit_len=Y;
-	enc->nhw_res1_bit = (unsigned char*)malloc(Y*sizeof(char));
+	Y = res >> 3;
+	enc->nhw_res1_bit_len = Y;
+	enc->nhw_res1_bit = (unsigned char*) malloc(Y * sizeof(char));
 	copy_bitplane0(scan_run, Y, enc->nhw_res1_bit);
+	free(scan_run); // no longer needed
+
 	enc->nhw_res1_len=count;
 
-	Y= (enc->nhw_res1_word_len >> 3) + 1;
-	free(scan_run);
-	enc->nhw_res1_word=(unsigned char*)malloc((Y)*sizeof(char));
+	Y = enc->nhw_res1_word_len + 7;
+	Y = (Y >> 3);
+	enc->nhw_res1_word = (unsigned char*) malloc((Y)*sizeof(char));
 	copy_bitplane0(nhw_res1I_word, Y, enc->nhw_res1_word);
-	enc->nhw_res1_word_len=Y;
+	enc->nhw_res1_word_len = Y;
 
-	for (i=0;i<count;i++) enc->nhw_res1[i]=highres[i];
+	for (i = 0; i < count; i++) enc->nhw_res1[i] = highres[i];
 
 	free(nhw_res1I_word);
 }
@@ -1483,6 +1497,8 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 
 	// Add one pad unit, see residual_coding_q2()::FIXME
 	res256 = (short*) malloc((imquart + 1)*sizeof(short));
+	res256[imquart] = 0; // Pad to 0
+
 	resIII = (short*) malloc(imquart*sizeof(short));
 
 	copy_from_quadrant(res256, im->im_jpeg, s2, s2);
