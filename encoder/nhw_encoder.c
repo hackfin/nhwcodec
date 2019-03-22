@@ -884,9 +884,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 
 	for (i=0;i<enc->nhw_res1_len;i++) enc->nhw_res1[i]=highres[i];
 
-	printf("res effective: %d\n", res);
 	res = (res + 7) & ~7; // Round up to next multiple of 8 for padding
-	printf("res rounded: %d\n", res);
 
 	scan_run=(unsigned char*) malloc(res * sizeof(char));
 
@@ -985,10 +983,6 @@ void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 		highres[count++]=(IM_DIM-2);
 	}
 
-	printf("nhw_res3I_word alloc length: %d, effective: %d\n",
-		enc->nhw_res3_word_len, e);
-	
-	// e = (e + 7) & ~7; // Round up to next multiple of 8
 	// Store effective length:
 	res3I_word_len = e;
 
@@ -1669,7 +1663,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 			{
 				if (scan>255) { scan=255; }
 				else if (scan<0) { scan=0; }
-				enc->tree1[a++]=scan&254;
+				enc->tree1[a++]=scan& ~1;
 				p[0]=0;
 			}
 		}

@@ -445,8 +445,8 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 		enc->qsetting3_len=e;
 	}
 
-	highres=(unsigned char*)malloc((count+(2*IM_DIM))*sizeof(char));
-	nhw_res6I_word=(unsigned char*)malloc(count*sizeof(char));
+	highres=(unsigned char*) malloc((count+(2*IM_DIM))*sizeof(char));
+	nhw_res6I_word = (unsigned char*) calloc(count , sizeof(char));
 
 	enc->nhw_char_res1=(unsigned short*)malloc(256*sizeof(short));
 
@@ -483,14 +483,15 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 			}
 			else if (wavelet_half_synthesis[scan]==30000)
 			{
-				highres[count++]=(j&255);nhw_res6I_word[e++]=0;
+				highres[count++]=(j&255); nhw_res6I_word[e++]=0;
 			}
 			else if (wavelet_half_synthesis[scan]==31000)
 			{
-				highres[count++]=(j&255);nhw_res6I_word[e++]=1;
+				highres[count++]=(j&255); nhw_res6I_word[e++]=1;
 			}
 		}
 	}
+
 
 	free(wavelet_half_synthesis);
 
@@ -517,11 +518,16 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 
 	enc->nhw_res6_len=res;
 	enc->nhw_res6_word_len=e;
+
 	enc->nhw_res6=(unsigned char*)malloc((enc->nhw_res6_len)*sizeof(char));
 
 	for (i=0;i<enc->nhw_res6_len;i++) enc->nhw_res6[i]=highres[i];
 
-	scan_run=(unsigned char*)malloc((enc->nhw_res6_len+8)*sizeof(char));
+	e = enc->nhw_res6_len;
+
+	e = (e + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	scan_run = (unsigned char*) malloc(e * sizeof(char));
 
 	for (i=0;i<enc->nhw_res6_len;i++) scan_run[i]=enc->nhw_res6[i]>>1;
 
@@ -546,42 +552,30 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 		if (enc->nhw_res6[i]!=(IM_DIM-2)) scan_run[scan++]=enc->nhw_res6[i];
 	}
 
-	for (i=scan;i<scan+8;i++) scan_run[i]=0;
+	// CHECK:
+	// Do we need to pad the remaining? If we don't, there is remaining data from
+	// the second loop above
+	for (i = scan; i < e; i++) scan_run[i] = 0;
 
-	enc->nhw_res6_bit_len=((scan>>3)+1);
+	Y = ((scan + 7) >> 3);
 
-	enc->nhw_res6_bit=(unsigned char*)malloc(enc->nhw_res6_bit_len*sizeof(char));
+	enc->nhw_res6_bit_len = Y;
+	enc->nhw_res6_bit = (unsigned char*) malloc (enc->nhw_res6_bit_len*sizeof(char));
 
-	Y=scan>>3;
-
-	for (i=0,scan=0;i<((Y<<3)+8);i+=8)
-	{
-		enc->nhw_res6_bit[scan++]=((scan_run[i]&1)<<7)|((scan_run[i+1]&1)<<6)|
-								   ((scan_run[i+2]&1)<<5)|((scan_run[i+3]&1)<<4)|
-								   ((scan_run[i+4]&1)<<3)|((scan_run[i+5]&1)<<2)|
-								   ((scan_run[i+6]&1)<<1)|((scan_run[i+7]&1));
-	}
+	copy_bitplane0(scan_run, Y, enc->nhw_res6_bit);
+	free(scan_run); // no longer needed here
 
 	enc->nhw_res6_len=count;
 
-	Y=enc->nhw_res6_word_len>>3;
-	free(scan_run);
-	scan_run=(unsigned char*)nhw_res6I_word;
-	enc->nhw_res6_word=(unsigned char*)malloc((enc->nhw_res6_bit_len<<1)*sizeof(char));
 
-	for (i=0,scan=0;i<((Y<<3)+8);i+=8)
-	{
-		enc->nhw_res6_word[scan++]=((scan_run[i]&1)<<7)|((scan_run[i+1]&1)<<6)|
-								   ((scan_run[i+2]&1)<<5)|((scan_run[i+3]&1)<<4)|
-								   ((scan_run[i+4]&1)<<3)|((scan_run[i+5]&1)<<2)|
-								   ((scan_run[i+6]&1)<<1)|((scan_run[i+7]&1));
-	}
+	Y = enc->nhw_res6_word_len + 7; Y >>= 3;
+	enc->nhw_res6_word_len = Y;
 
-	enc->nhw_res6_word_len=scan;
+	enc->nhw_res6_word= (unsigned char*) malloc((enc->nhw_res6_bit_len<<1) * sizeof(char));
+	copy_bitplane0(nhw_res6I_word, Y, enc->nhw_res6_word);
 
 	for (i=0;i<count;i++) enc->nhw_res6[i]=highres[i];
 
-	
 	free(nhw_res6I_word);
 
 }

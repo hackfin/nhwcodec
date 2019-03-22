@@ -5,6 +5,8 @@ NHWDEC = ../decoder/nhwdec
 SETTING = norm
 
 DIFFTOOL = python analysis.py
+# Image comparison:
+CMP = compare -fuzz 1 -metric rmse
 # DIFFTOOL = meld
 
 ALL_SETTINGS = h3 h2 h1 norm l1 l3 l5 l6 l7 l9 l8 l12  l16
@@ -71,6 +73,16 @@ CURIMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING)DEC.png)
 
 EXTENSION = _$(SETTING)DEC
 
+compare:
+	@echo "=================================================="
+	for i in $(IMAGES); do \
+		DIFFIMAGES="$(WORKDIR)/$${i}$(EXTENSION).png \
+		$(REFDIR)/$${i}$(EXTENSION).png" ; \
+		diff $$DIFFIMAGES || \
+		( $(CMP) $$DIFFIMAGES /tmp/diff_$${i}$(EXTENSION).png; \
+			display /tmp/diff_$${i}$(EXTENSION).png ) & \
+	done
+
 pngdiff: $(CURIMAGES)
 	@echo ============= Quality '$(SETTING)' ===============
 	@for i in $(IMAGES); do \
@@ -78,7 +90,7 @@ pngdiff: $(CURIMAGES)
 	$(REFDIR)/$${i}$(EXTENSION).png || ERR=1 ;\
 	done; \
 	echo "==================================================" ; \
-	if [ "$$ERR" == "1" ]; then echo "FAIL"; else true; fi
+	if [ "$$ERR" == "1" ]; then echo "FAIL"; false; else true; fi
 
 
 testdiff:
