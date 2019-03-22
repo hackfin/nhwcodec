@@ -10,6 +10,7 @@ RUN mkdir /home/nhw/work
 
 COPY init.sh /home/nhw
 COPY build_test.sh /home/nhw
+COPY build_check.sh /home/nhw
 
 RUN chown -R nhw /home/nhw
 
