@@ -1,6 +1,8 @@
 NHWENC = ../encoder/nhwenc
 NHWDEC = ../decoder/nhwdec
 
+-include ../encoder/config.mk
+
 # Default setting:
 SETTING = norm
 
@@ -25,9 +27,14 @@ NHWIMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).nhw)
 
 LOOPBACK_IMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).png)
 
+ifdef SWAP
+NHW_ENCODE = $(NHWENC) $< -$(SETTING) -o $@
+else
+NHW_ENCODE = $(NHWENC) $< -$(SETTING); mv $(TESTDIR)/$*.nhw $@
+endif
+
 $(WORKDIR)/%_$(SETTING).nhw: $(TESTDIR)/%.png
-	$(NHWENC) $< -$(SETTING)
-	mv $(TESTDIR)/$*.nhw $@
+	$(NHW_ENCODE)
 
 %.png: %.nhw
 	$(NHWDEC) $<

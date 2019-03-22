@@ -15,14 +15,21 @@ static struct option long_options[] = {
 	{ NULL } // Terminator
 };
 
+struct config {
+	char *outfilename;
+	int tilepower;
+} g_encconfig = {
+	.tilepower = 9
+};
 
 void init_lut(uint8_t *lut, float gamma);
 
 void write_image(const char *filename, const uint8_t *buf)
 {
 	FILE *out = fopen(filename, "wb");
+	int s = 1 << g_encconfig.tilepower;
 	if (out) {
-		write_png(out, buf, 512, 512, 0);
+		write_png(out, buf, s, s, 0);
 	} else {
 		perror("Opening file");
 	}
@@ -71,6 +78,54 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int n
 	free(buf8);
 }
 
+/* Substantially 'broken' simplified encoder function for fixed quality
+ */
+
+void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
+{
+	int quality = im->setup->quality_setting;
+	int res;
+	short *res256, *resIII;
+	unsigned char *highres;
+	short *pr;
+	char wvlt[7];
+	pr = im->im_process;
+
+	int n = 2 * IM_DIM; // line size Y
+	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
+	resIII = (short*) malloc(IM_SIZE*sizeof(short));
+	enc->tree1 = (unsigned char*) calloc(((96*IM_DIM)+4),sizeof(char));
+	enc->exw_Y = (unsigned char*) malloc(32*IM_DIM*sizeof(short)); // CHECK: short??
+	enc->ch_res=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+
+	init_lut(g_lut, 0.7);
+	virtfb_init(512, 512);
+
+
+	// This always places the result in pr:
+	wavelet_analysis(im, n, 0, 1); // CAN_HW
+	// copy LL1
+	copy_from_quadrant(res256, im->im_jpeg, n, n); // CAN_HW
+
+	im->setup->RES_HIGH=0;
+	wavelet_analysis(im, n >> 1, 1, 1); // CAN_HW
+
+	configure_wvlt(quality, wvlt);
+	copy_from_quadrant(resIII, pr, n, n);
+
+	compress1(quality, pr, enc);
+	Y_highres_compression(im, enc);
+
+	copy_to_quadrant(pr, resIII, n, n);
+	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
+
+	copy_thresholds(pr, resIII, n);
+	ywl(quality, pr, ratio);
+	offsetY(im,enc,ratio);
+
+	virtfb_close();
+	free(enc->ch_res);
+}
 
 
 /*
@@ -110,9 +165,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	virtfb_init(512, 512);
 
 	end_transform=0;
-	// Unused:
-	// wavelet_order=im->setup->wvlts_order;
-	//for (stage=0;stage<wavelet_order;stage++) wavelet_analysis(im,(2*IM_DIM)>>stage,end_transform++,1); 
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, end_transform++, 1);
@@ -133,6 +185,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	write_image16("/tmp/wl2.png", im->im_process, 512, 0);
 
+#ifndef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
 		preprocess14(res256, pr);
@@ -151,9 +204,11 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
 		reduce_q9_LH(pr, wvlt, ratio, n);
 	}
-	
+#endif
+		
 	configure_wvlt(quality, wvlt);
 
+#ifndef CRUCIAL
 	if (quality < LOW7) {
 			
 		reduce_q7_LL(quality, pr, wvlt);
@@ -163,11 +218,12 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 			reduce_q9_LL(pr, wvlt, n);
 		}
 	}
+#endif
 	
 	copy_from_quadrant(resIII, pr, n, n);
 	
 	enc->tree1=(unsigned char*) calloc(((96*IM_DIM)+4),sizeof(char));
-	enc->exw_Y=(unsigned char*) malloc(32*IM_DIM*sizeof(short));
+	enc->exw_Y=(unsigned char*) malloc(32*IM_DIM*sizeof(short)); // CHECK: short??
 	
 	if (quality > LOW3)
 	{
@@ -210,9 +266,11 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
 	
+#ifndef CRUCIAL
 	if (quality > LOW8) {
 		process_res_q8(quality, pr, res256, enc);
 	}
+#endif
 
 	highres=(unsigned char*)calloc(((96*IM_DIM)+1),sizeof(char));
 
@@ -220,6 +278,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		process_res_hq(quality, im->im_wavelet_first_order, res256);
 	}
 	
+#ifndef CRUCIAL
 	if (quality > LOW8)
 	{
 		process_hires_q8(highres, res256, enc);
@@ -233,6 +292,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 			process_res5_q1(highres, res256, enc);
 		}
 	}
+#endif
 	
 	free(highres);
 	free(res256);
@@ -257,10 +317,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 }
 
-struct config {
-	char *outfilename;
-} g_encconfig;
-
 const char lq_table[] = {
 	LOW1, LOW2, LOW3, LOW4, LOW5, LOW6, 
 	LOW7, LOW8, LOW9, LOW10, LOW11, LOW12,
@@ -272,17 +328,69 @@ const char hq_table[] = {
 	HIGH1, HIGH2, HIGH3 
 };
 
-int set_quality(const char *optarg, char high)
+int set_quality(const char *optarg, codec_setup *setup, char high)
 {
 	int n = atoi(optarg);
 	n--;
 	if (n < 0) return -1;
 	if (high) {
-		if (n < sizeof(hq_table)) return hq_table[n];
+		if (n < sizeof(hq_table)) { setup->quality_setting = hq_table[n]; return 0; }
 	} else {
-		if (n < sizeof(lq_table)) return lq_table[n];
+		if (n < sizeof(lq_table)) { setup->quality_setting = lq_table[n]; return 0; }
 	}
 	return -1;
+}
+
+void encode_image(image_buffer *im,encode_state *enc, int ratio)
+{
+	int res_uv;
+
+	if (im->setup->quality_setting > LOW3) res_uv=4;
+	else                                   res_uv=5;
+
+
+	im->im_process=(short*) calloc(4*IM_SIZE,sizeof(short));
+
+	//if (im->setup->quality_setting<=LOW6) block_variance_avg(im);
+
+#ifndef CRUCIAL
+	if (im->setup->quality_setting<HIGH2) 
+	{
+		pre_processing(im);
+	}
+#endif
+	encode_y_simplified(im, enc, ratio);
+
+	im->im_nhw=(unsigned char*)calloc(6*IM_SIZE,sizeof(char));
+
+	scan_run_code(im->im_nhw, im->im_process, enc);
+
+	free(im->im_process);
+	
+////////////////////////////////////////////////////////////////////////////	
+
+	im->im_process=(short*)calloc(IM_SIZE,sizeof(short)); // {
+	im->im_jpeg=(short*)calloc(IM_SIZE,sizeof(short)); // Work buffer {
+
+	encode_uv(im, enc, ratio, res_uv, 0);
+	free(im->im_bufferU); // Previously reserved buffer XXX
+
+	encode_uv(im, enc, ratio, res_uv, 1);
+	free(im->im_bufferV); // Previously reserved buffer XXX
+
+	free(im->im_jpeg); // Free Work buffer }
+
+	free(im->im_process); // }
+
+	// This frees previously allocated enc->tree[1,2]:
+	highres_compression(im, enc);
+	free(enc->tree1);
+	free(enc->highres_comp);
+
+	// This creates new enc->tree structures
+	wavlts2packet(im,enc);
+
+	free(im->im_nhw);
 }
 
 int main(int argc, char **argv) 
@@ -304,7 +412,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:no:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-l:h:s:no:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -317,12 +425,15 @@ int main(int argc, char **argv)
 				output_filename = optarg;
 				break;
 			case 'h':
-				ret = set_quality(optarg, 1);
+				ret = set_quality(optarg, &setup, 1);
 				break;
 			case 'n':
 				break;
 			case 'l':
-				ret = set_quality(optarg, 0);
+				ret = set_quality(optarg, &setup, 0);
+				break;
+			case 's':
+				g_encconfig.tilepower = atoi(optarg);
 				break;
 			default:
 				input_filename = optarg;
@@ -348,10 +459,11 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	ret = read_png(image, im.im_buffer4, 512); 
+	ret = read_png(image, im.im_buffer4, 1 << g_encconfig.tilepower); 
 	fclose(image);
 
 	switch (ret) {
+		case 0: break; // No error
 		case -1:
 			str = "Bad size"; break;
 		case -2:
@@ -360,17 +472,24 @@ int main(int argc, char **argv)
 			str = "Unknown error";
 	}
 
-	if (ret >= 0) {
+	if (ret == 0) {
 		downsample_YUV420(&im, &enc, rate);
 	} else {
 		fprintf(stderr, "Error: %s\n", str);
 	}
 
-	encode_image(&im, &enc, rate);
+	if (ret == 0) {
+#ifndef CRUCIAL
+		setup.quality_setting = LOW8; // force
+#endif
 
-	write_compressed_file(&im, &enc, output_filename);
+		encode_image(&im, &enc, rate);
 
-	free(enc.tree1);
-	free(enc.tree2);
+		write_compressed_file(&im, &enc, output_filename);
+
+		free(enc.tree1);
+		free(enc.tree2);
+	}
+	return ret;
 }
 

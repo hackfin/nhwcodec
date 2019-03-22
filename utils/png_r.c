@@ -35,6 +35,7 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 	ret = fread(header, 1, 8, fp);
 	if (ret < 0 || png_sig_cmp(header, 0, 8))
 		return -2;
+	else ret = 0;
 
 
 	/* initialize stuff */

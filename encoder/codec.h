@@ -46,9 +46,13 @@
 #ifndef _CODEC_H
 #define _CODEC_H
 
+// API tricks, temporary
+#include "debug_api.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 
 /*==========================================*/
 

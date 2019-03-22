@@ -62,13 +62,6 @@
 #define ARRAY_SIZE(a)  (sizeof(a) / sizeof(a[0]))
 #define LAST_ELEMENT(a)  (ARRAY_SIZE(a)-1)
 
-// XXX This is for restructuring tests only:
-#ifdef SWAPOUT
-#define SWAPOUT_FUNCTION(f)  __CONCAT(orig,f)
-#else
-#define SWAPOUT_FUNCTION(f)  f
-#endif
-
 #define IS_ODD(x) (((x) & 1) == 1)
 
 // Local protos
@@ -1760,7 +1753,7 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 
 }
 
-void encode_image(image_buffer *im,encode_state *enc, int ratio)
+void SWAPOUT_FUNCTION(encode_image)(image_buffer *im,encode_state *enc, int ratio)
 {
 	int res_uv;
 
