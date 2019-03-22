@@ -128,6 +128,17 @@ allhex:
 		$(MAKE) hexfiles SETTING=$$i; \
 	done
 
+VALGRIND_OPTS = --track-origins=yes --leak-check=full --error-exitcode=1
+VALGRIND_OPTS += --read-var-info=yes
+
+valgrind: $(TESTDIR)/$(TESTIMAGE).png
+	@echo ============= Quality '$(SETTING)' ===============
+	valgrind $(VALGRIND_OPTS) \
+		--read-var-info=yes \
+	$(NHWENC) $< -$(SETTING) 
+	@echo ===============  DONE  ==================
+
+
 clean:
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 

@@ -576,6 +576,7 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 
 	for (i=0;i<count;i++) enc->nhw_res6[i]=highres[i];
 
+	free(highres);
 	free(nhw_res6I_word);
 
 }

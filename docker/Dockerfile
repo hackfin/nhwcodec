@@ -1,7 +1,8 @@
 FROM debian:latest
 
 RUN apt-get update; apt-get install -y \
-	make git gcc libpng-dev vim wget unzip python bsdmainutils
+	make git gcc libpng-dev vim wget unzip python bsdmainutils \
+	valgrind
 
 RUN useradd -u 1000 -g 100 -m -s /bin/bash nhw 
 RUN mkdir /home/nhw/src

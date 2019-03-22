@@ -83,5 +83,7 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 
 		free(row_pointers);
 	}
+ 	png_destroy_info_struct(pngp, &infop);
+ 	png_destroy_read_struct(&pngp, &infop, &infop);
 	return ret;
 }

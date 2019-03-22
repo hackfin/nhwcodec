@@ -991,12 +991,10 @@ END_RES3:
 		}
 	}
 
-	free(enc->tree1);
 
 	enc->ch_res=(unsigned char*)calloc(j,sizeof(char));
 	enc->end_ch_res=j;
 	memcpy(enc->ch_res,ch_comp,enc->end_ch_res*sizeof(char));
-	// XXX NEVER! free(enc->highres_comp);
 }
 
 

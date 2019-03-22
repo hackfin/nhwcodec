@@ -46,19 +46,19 @@ int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrg
 	infop = png_create_info_struct(pngp);
 	if (!infop) {
 		printf("Could not create PNG info struct\n");
-		goto fail;
+		goto fail_info;
 	}
 
 	if (setjmp(png_jmpbuf(pngp))) {
 		printf("Error in init_io\n");
-		goto fail;
+		goto fail_png;
 	}
 
 	png_init_io(pngp, fp);
 
 	if (setjmp(png_jmpbuf(pngp))) {
 		printf("Error writing PNG file\n");
-		goto fail;
+		goto fail_png;
 	}
 
 	png_set_IHDR(pngp, infop, width, height, 8,
@@ -74,6 +74,10 @@ int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrg
 
 	free(row_pointers);
 	retcode = 0;
+fail_png:
+	png_destroy_info_struct(pngp, &infop);
+fail_info:
+	png_destroy_write_struct(&pngp, &infop);
 fail:
 	return retcode;
 }

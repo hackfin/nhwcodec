@@ -99,6 +99,7 @@ int main(int argc, char **argv)
 	encode_state enc;
 	int select;
 	char *arg;
+	codec_setup setup;
 
 	if (argv[1]==NULL || argv[1]==0)
 	{
@@ -108,8 +109,8 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	im.setup=(codec_setup*)malloc(sizeof(codec_setup));
-	im.setup->quality_setting=NORM;
+	im.setup = &setup;
+	setup.quality_setting=NORM;
 
 	if (argv[2]==NULL || argv[2]==0) select=8;
 	else
@@ -147,8 +148,12 @@ int main(int argc, char **argv)
 	/* Encode Image */
 	encode_image(&im,&enc,select);
 
-
 	write_compressed_file(&im,&enc,argv);
+	
+	// Need to free structures written in previous routine:
+	free(enc.tree1);
+	free(enc.tree2);
+
 	return 0;
 }
 
@@ -1791,8 +1796,12 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	free(im->im_process); // }
 
+	// This frees previously allocated enc->tree[1,2]:
 	highres_compression(im, enc);
+	free(enc->tree1);
+	free(enc->highres_comp);
 
+	// This creates new enc->tree structures
 	wavlts2packet(im,enc);
 
 	free(im->im_nhw);
@@ -2020,10 +2029,10 @@ int write_compressed_file(image_buffer *im,encode_state *enc,char **argv)
 
 	if (q > LOW5)  	
 	{
-		free(enc->highres_word);
 		free(enc->res_U_64);
 		free(enc->res_V_64);
 	}
+	free(enc->highres_word);
 	return 0;
 }
 
