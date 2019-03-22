@@ -71,14 +71,9 @@
 
 #define IS_ODD(x) (((x) & 1) == 1)
 
+// Local protos
+
 void encode_y(image_buffer *im, encode_state *enc, int ratio);
-
-void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);
-
-void copy_from_quadrant(short *dst, const short *src, int x, int y);
-void copy_to_quadrant(short *dst, const short *src, int x, int y);
-void copy_buffer(short *dst, const short *src, int x, int y);
-
 void reduce_q7_LL(int quality, short *pr, const char *wvlt);
 void reduce_q9_LL(short *pr, const char *wvlt, int s);
 void reduce_q9_LH(short *pr, const char *wvlt, int ratio, int s);
@@ -93,13 +88,15 @@ void scan_run_code(unsigned char *s, const short *pr, encode_state *enc);
 
 void encode_image(image_buffer *im,encode_state *enc, int ratio);
 
-int main(int argc, char **argv) 
+
+int SWAPOUT_FUNCTION(main)(int argc, char **argv) 
 {	
 	image_buffer im;
 	encode_state enc;
 	int select;
 	char *arg;
 	codec_setup setup;
+	char OutputFile[200];
 
 	if (argv[1]==NULL || argv[1]==0)
 	{
@@ -148,7 +145,13 @@ int main(int argc, char **argv)
 	/* Encode Image */
 	encode_image(&im,&enc,select);
 
-	write_compressed_file(&im,&enc,argv);
+	int len;
+
+	len=strlen(argv[1]);
+	memset(argv[1]+len-4,0,4);
+	sprintf(OutputFile,"%s.nhw",argv[1]);
+
+	write_compressed_file(&im, &enc, OutputFile);
 	
 	// Need to free structures written in previous routine:
 	free(enc.tree1);
@@ -1852,22 +1855,17 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 	return 0 ;
 }
 
-int write_compressed_file(image_buffer *im,encode_state *enc,char **argv)
+int write_compressed_file(image_buffer *im,encode_state *enc, const char *outfilename)
 {
 	FILE *compressed;
-	int len;
-	char OutputFile[200];
 
-	len=strlen(argv[1]);
-	memset(argv[1]+len-4,0,4);
-	sprintf(OutputFile,"%s.nhw",argv[1]);
 
 	int q = im->setup->quality_setting;
 
-	compressed = fopen(OutputFile,"wb");
+	compressed = fopen(outfilename,"wb");
 	if( NULL == compressed )
 	{
-		printf("Failed to create compressed .nhw file %s\n",OutputFile);
+		printf("Failed to create compressed .nhw file %s\n", outfilename);
 		return (-1);
 	}
 

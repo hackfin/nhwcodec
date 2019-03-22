@@ -140,6 +140,7 @@ valgrind: $(TESTDIR)/$(TESTIMAGE).png
 
 
 clean:
+	rm -f $(TESTDIR)/*.nhw
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 
 nhw: $(NHWIMAGES)

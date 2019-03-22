@@ -184,7 +184,7 @@ typedef struct{
 extern void encode_image(image_buffer *im,encode_state *enc, int ratio);
 
 extern int menu(char **argv,image_buffer *im,encode_state *os,int rate);
-extern int write_compressed_file(image_buffer *im,encode_state *enc,char **argv);
+extern int write_compressed_file(image_buffer *im,encode_state *enc, const char *outfile);
 
 extern void downsample_YUV420(image_buffer *im,encode_state *enc,int rate);
 

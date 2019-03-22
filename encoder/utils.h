@@ -22,3 +22,8 @@
 #define __CONCAT(x, y) x##y
 #endif
 
+void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);
+void copy_buffer(short *dst, const short *src, int x, int y);
+void copy_to_quadrant(short *dst, const short *src, int x, int y);
+void copy_from_quadrant(short *dst, const short *src, int x, int y);
+

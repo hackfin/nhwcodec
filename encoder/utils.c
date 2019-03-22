@@ -1,5 +1,7 @@
 /* Frequently used code */
 
+#include "utils.h"
+
 /** Copy top left quadrant from source image to destination */
 void copy_from_quadrant(short *dst, const short *src, int x, int y)
 {
