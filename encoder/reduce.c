@@ -413,7 +413,8 @@ int configure_wvlt(int quality, char *wvlt)
 
 void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *wvlt, int thr)
 {
-	int i, scan, j;
+	int i, scan, j, res3=0;
+	short tmp;
 	//  LL    HL 
 	// *LH*   HH
 
@@ -424,8 +425,14 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
 			{	
-				short tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
-				if (abs(tmp) < wvlt[3]) p[0]=0;
+				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				{
+					tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
+					res3=1;
+				}
+				else res3=0;
+				
+				if (res3 && abs(tmp) < wvlt[3]) p[0]=0;
 				else if (abs(p[0]+p[-1])<wvlt[4] && abs(p[1])<wvlt[4]) {
 					p[0]=0;p[-1]=0;
 				} else if (abs(p[0]+p[1])<wvlt[4] && abs(p[-1])<wvlt[4]) {
@@ -449,17 +456,25 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
-				int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				{
+					int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+					
 #ifndef COMPILE_WITHOUT_BOUNDARY_CHECKS
-				if (index < 0 || index >= IM_SIZE)
-					fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
+					if (index < 0 || index >= IM_SIZE)
+						fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
 
-				assert(index >= 0 && index < IM_SIZE);
+					assert(index >= 0 && index < IM_SIZE);
 #endif
-				short tmp = resIII[index];
+					tmp = resIII[index];
+					
+					res3=1;
+				}
+				else res3=0;
+				
 				if (abs(p[0])<(wvlt[1]+1)) 
 				{	
-					if (abs(tmp)<(wvlt[3]+1)) p[0]=0;
+					if (res3 && abs(tmp)<(wvlt[3]+1)) p[0]=0;
 					else if (abs(p[0]+p[-1]) < wvlt[4]
 						  && abs(p[1])       < wvlt[4]) 
 					{
