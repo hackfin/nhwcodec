@@ -80,7 +80,7 @@ void reduce_LH_q9(short *pr, const char *wvlt, int ratio, int s);
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt,
 	encode_state *enc, int ratio);
 int configure_wvlt(int quality, char *wvlt);
-void ywl(int quality, short *pr, int ratio);
+void ywl(int quality, short *pr, int ratio, const short *y_wl);
 void process_res_q8(int quality, short *pr, short *res256, encode_state *enc);
 
 void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio);
@@ -1310,6 +1310,25 @@ void copy_thresholds(short *process, const short *resIII, int n)
 	}
 }
 
+static const short y_threshold_table[][3] = {
+	{ 9, 9, 11 },   // LOW3
+	{ 8, 9, 11 },   // LOW2
+	{ 8, 9, 11 },   // LOW1
+	{ 8, 9, 11 },   // NORM
+	{ 8, 9, 11 },   // HIGH1
+	{ 8, 9, 11 },   // HIGH2
+	{ 8, 4, 8 },    // HIGH3
+};
+
+const short *lookup_ywlthreshold(int quality)
+{
+	quality -= LOW3;
+	if (quality < 0) quality = 0;
+	else if (quality > 8) quality = 8;
+
+	return y_threshold_table[quality];
+}
+
 void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
@@ -1444,7 +1463,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	copy_thresholds(pr, resIII, n);
 
 	free(resIII);
-	ywl(quality, pr, ratio);
+	ywl(quality, pr, ratio, lookup_ywlthreshold(quality));
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
