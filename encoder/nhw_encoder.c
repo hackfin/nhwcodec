@@ -720,6 +720,8 @@ int compress_q3(short *pr, int step, encode_state *enc)
 	// Last two rows:
 
 
+	enc->exw_Y_end = e;
+
 	return e;
 }
 
@@ -745,6 +747,7 @@ int compress_q(short *pr, int step, encode_state *enc)
 
 		}
 	}
+	enc->exw_Y_end = e;
 	return e;
 }
 
@@ -753,15 +756,13 @@ void compress1(int quality, short *pr, encode_state *enc)
 {
 	int Y, stage, res;
 	int i, j, scan;
-	int n;
 	int step = 2 * IM_DIM;
 
 	if (quality > LOW3)  {
-		n = compress_q3(pr, step, enc);
+		compress_q3(pr, step, enc);
 	} else {
-		n = compress_q(pr, step, enc);
+		compress_q(pr, step, enc);
 	}
-	enc->exw_Y_end = n;
 }
 
 

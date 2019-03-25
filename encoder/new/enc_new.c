@@ -103,25 +103,25 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 
 
 	// This always places the result in pr:
-	wavelet_analysis(im, n, 0, 1); // CAN_HW
+	wavelet_analysis(im, n, 0, 1);                  // CAN_HW
 	// copy LL1
-	copy_from_quadrant(res256, im->im_jpeg, n, n); // CAN_HW
+	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
 
 	im->setup->RES_HIGH=0;
-	wavelet_analysis(im, n >> 1, 1, 1); // CAN_HW
+	wavelet_analysis(im, n >> 1, 1, 1);             // CAN_HW
 
-	configure_wvlt(quality, wvlt);
-	copy_from_quadrant(resIII, pr, n, n);
+	configure_wvlt(quality, wvlt);                  // CAN_HW
+	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 
-	compress1(quality, pr, enc);
-	Y_highres_compression(im, enc);
+	compress_q(pr, 2 * IM_DIM, enc);                // CAN_HW (< LOW3)
+	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
-	copy_to_quadrant(pr, resIII, n, n);
+	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
 	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
 
-	copy_thresholds(pr, resIII, n);
+	copy_thresholds(pr, resIII, n);                 // CAN_HW
 	ywl(quality, pr, ratio);
-	offsetY(im,enc,ratio);
+	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();
 	free(enc->ch_res);
@@ -185,7 +185,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	write_image16("/tmp/wl2.png", im->im_process, 512, 0);
 
-#ifndef CRUCIAL
+#ifdef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
 		preprocess14(res256, pr);
@@ -194,6 +194,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 		offsetY_recons256(im,enc,ratio,1);
 		wavelet_synthesis(im, n>>1, end_transform-1,1);
+		write_image16("/tmp/syn_stage1.png", im->im_process, 512, 0);
 		// Modifies all 3 buffers:
 		postprocess14(im->im_jpeg, pr, res256);
 		wavelet_analysis(im, n >> 1, end_transform,1);
@@ -202,20 +203,20 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	if (quality <= LOW9) // Worse than LOW9?
 	{
 		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
-		reduce_q9_LH(pr, wvlt, ratio, n);
+		reduce_LH_q9(pr, wvlt, ratio, n);
 	}
 #endif
 		
 	configure_wvlt(quality, wvlt);
 
-#ifndef CRUCIAL
+#ifdef CRUCIAL
 	if (quality < LOW7) {
 			
-		reduce_q7_LL(quality, pr, wvlt);
+		reduce_LL_q7(quality, pr, wvlt);
 		
 		if (quality <= LOW9)
 		{
-			reduce_q9_LL(pr, wvlt, n);
+			reduce_LL_q9(pr, wvlt, n);
 		}
 	}
 #endif
@@ -266,19 +267,21 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
 	
-#ifndef CRUCIAL
+#ifdef CRUCIAL
 	if (quality > LOW8) {
 		process_res_q8(quality, pr, res256, enc);
 	}
 #endif
 
+#ifdef CRUCIAL
 	highres=(unsigned char*)calloc(((96*IM_DIM)+1),sizeof(char));
 
 	if (quality > HIGH1) {
 		process_res_hq(quality, im->im_wavelet_first_order, res256);
 	}
+#endif
 	
-#ifndef CRUCIAL
+#ifdef CRUCIAL
 	if (quality > LOW8)
 	{
 		process_hires_q8(highres, res256, enc);
@@ -292,9 +295,9 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 			process_res5_q1(highres, res256, enc);
 		}
 	}
-#endif
 	
 	free(highres);
+#endif
 	free(res256);
 
 	copy_thresholds(pr, resIII, n);
@@ -353,13 +356,14 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	//if (im->setup->quality_setting<=LOW6) block_variance_avg(im);
 
-#ifndef CRUCIAL
+#ifdef CRUCIAL
 	if (im->setup->quality_setting<HIGH2) 
 	{
 		pre_processing(im);
 	}
 #endif
 	encode_y_simplified(im, enc, ratio);
+	// encode_y(im, enc, ratio);
 
 	im->im_nhw=(unsigned char*)calloc(6*IM_SIZE,sizeof(char));
 
@@ -473,15 +477,10 @@ int main(int argc, char **argv)
 	}
 
 	if (ret == 0) {
-		downsample_YUV420(&im, &enc, rate);
-	} else {
-		fprintf(stderr, "Error: %s\n", str);
-	}
-
-	if (ret == 0) {
-#ifndef CRUCIAL
+#ifndef NOT_CRUCIAL
 		setup.quality_setting = LOW8; // force
 #endif
+		downsample_YUV420(&im, &enc, rate);
 
 		encode_image(&im, &enc, rate);
 
@@ -489,6 +488,9 @@ int main(int argc, char **argv)
 
 		free(enc.tree1);
 		free(enc.tree2);
+
+	} else {
+		fprintf(stderr, "Error: %s\n", str);
 	}
 	return ret;
 }
