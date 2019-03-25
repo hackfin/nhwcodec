@@ -53,10 +53,9 @@ void ywl(int quality, short *pr, int ratio)
 
 	// Notation:
 	//
-	// LL HL
-	// LH HH
+	//  LL  *HL*
+	//  LH   HH
 
-	// Scan HL:
 	for (i=step,scan=0; i < ((im_size>>1)-step); i += step)
 	{
 		for (j=(halfs+1);j<(step-1);j++)
@@ -90,8 +89,9 @@ void ywl(int quality, short *pr, int ratio)
 
 	// Notation:
 	//
-	// LL HL
-	// LH HH
+	//  LL   HL
+	// *LH*  HH
+
 
 	// Scan LH:
 	for (i=(im_size>>1),scan=0;i<(im_size-step);i+=step)
@@ -123,8 +123,8 @@ void ywl(int quality, short *pr, int ratio)
 
 	// Notation:
 	//
-	// LL HL
-	// LH HH
+	//  LL   HL
+	//  LH  *HH*
 
 	// Scan HH:
 	for (i = (im_size>>1), scan=0; i < (im_size-step); i += step)
