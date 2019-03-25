@@ -67,9 +67,9 @@
 // Local protos
 
 void encode_y(image_buffer *im, encode_state *enc, int ratio);
-void reduce_q7_LL(int quality, short *pr, const char *wvlt);
-void reduce_q9_LL(short *pr, const char *wvlt, int s);
-void reduce_q9_LH(short *pr, const char *wvlt, int ratio, int s);
+void reduce_LL_q7(int quality, short *pr, const char *wvlt);
+void reduce_LL_q9(short *pr, const char *wvlt, int s);
+void reduce_LH_q9(short *pr, const char *wvlt, int ratio, int s);
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt,
 	encode_state *enc, int ratio);
 int configure_wvlt(int quality, char *wvlt);
@@ -776,16 +776,17 @@ int process_res_q3(short *pr)
 	{
 		for (count=i,j=0;j<((step>>2)-3);j++,count++)
 		{
-			if (IS_ODD(pr[count])   &&
-			    IS_ODD(pr[count+1]) &&
-			    IS_ODD(pr[count+2]) &&
-			    IS_ODD(pr[count+3]) &&
-			    abs(pr[count]-pr[count+3])>1)
+			short *p = &pr[count];
+			if (IS_ODD(p[0]) &&
+			    IS_ODD(p[1]) &&
+			    IS_ODD(p[2]) &&
+			    IS_ODD(p[3]) &&
+			    abs(p[0]-p[3])>1)
 			{
-				pr[count]  +=24000;
-				pr[count+1]+=16000;
-				pr[count+2]+=16000;
-				pr[count+3]+=16000;
+				p[0] +=24000;
+				p[1] +=16000;
+				p[2] +=16000;
+				p[3] +=16000;
 				res++;stage++;j+=3;count+=3;
 			}
 		}
@@ -795,8 +796,6 @@ int process_res_q3(short *pr)
 	}
 	return res;
 }
-
-
 
 
 void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
@@ -1105,7 +1104,7 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 	{
 		for (scan=i,j=0;j<IM_DIM;j++,scan++)
 		{
-			if (j==(IM_DIM-2))
+			if (j==(IM_DIM-2)) // FIXME: Move out of loop
 			{
 				res256[scan]=0;
 				res256[scan+1]=0;
@@ -1349,18 +1348,17 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	if (quality <= LOW9) // Worse than LOW9?
 	{
 		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
-		reduce_q9_LH(pr, wvlt, ratio, n);
+		reduce_LH_q9(pr, wvlt, ratio, n);
 	}
 	
 	configure_wvlt(quality, wvlt);
 
 	if (quality < LOW7) {
 			
-		reduce_q7_LL(quality, pr, wvlt);
+		reduce_LL_q7(quality, pr, wvlt);
 		
-		if (quality <= LOW9)
-		{
-			reduce_q9_LL(pr, wvlt, n);
+		if (quality <= LOW9) {
+			reduce_LL_q9(pr, wvlt, n);
 		}
 	}
 	

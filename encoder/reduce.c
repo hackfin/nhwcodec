@@ -45,7 +45,7 @@ inline void reduce(short *q, int s, char w0, char w1)
 	&& abs(p[3]-p[1]) < v \
 	&& abs(p[3]-p[2]) < v
 
-void reduce_q7_LL(int quality, short *pr, const unsigned char *wvlt)
+void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
 	int e;
@@ -212,7 +212,7 @@ void reduce_q7_LL(int quality, short *pr, const unsigned char *wvlt)
 	}
 }
 
-void reduce_q9_LL(short *pr, const unsigned char *wvlt, int s)
+void reduce_LL_q9(short *pr, const unsigned char *wvlt, int s)
 {
 	int i, j, count, scan;
 	char w;
@@ -241,7 +241,7 @@ void reduce_q9_LL(short *pr, const unsigned char *wvlt, int s)
 	}
 }
 
-void reduce_q9_LH(short *pr, const unsigned char *wvlt, int ratio, int s)
+void reduce_LH_q9(short *pr, const unsigned char *wvlt, int ratio, int s)
 {
 	int i, j, scan;
 		
@@ -413,7 +413,8 @@ int configure_wvlt(int quality, char *wvlt)
 
 void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *wvlt, int thr)
 {
-	int i, scan, j;
+	int i, scan, j, res3=0;
+	short tmp;
 	//  LL    HL 
 	// *LH*   HH
 
@@ -424,8 +425,14 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
 			{	
-				short tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
-				if (abs(tmp) < wvlt[3]) p[0]=0;
+				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				{
+					tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
+					res3=1;
+				}
+				else res3=0;
+				
+				if (res3 && abs(tmp) < wvlt[3]) p[0]=0;
 				else if (abs(p[0]+p[-1])<wvlt[4] && abs(p[1])<wvlt[4]) {
 					p[0]=0;p[-1]=0;
 				} else if (abs(p[0]+p[1])<wvlt[4] && abs(p[-1])<wvlt[4]) {
@@ -449,17 +456,25 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
-				int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				{
+					int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+					
 #ifndef COMPILE_WITHOUT_BOUNDARY_CHECKS
-				if (index < 0 || index >= IM_SIZE)
-					fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
+					if (index < 0 || index >= IM_SIZE)
+						fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
 
-				assert(index >= 0 && index < IM_SIZE);
+					assert(index >= 0 && index < IM_SIZE);
 #endif
-				short tmp = resIII[index];
+					tmp = resIII[index];
+					
+					res3=1;
+				}
+				else res3=0;
+				
 				if (abs(p[0])<(wvlt[1]+1)) 
 				{	
-					if (abs(tmp)<(wvlt[3]+1)) p[0]=0;
+					if (res3 && abs(tmp)<(wvlt[3]+1)) p[0]=0;
 					else if (abs(p[0]+p[-1]) < wvlt[4]
 						  && abs(p[1])       < wvlt[4]) 
 					{
@@ -487,6 +502,229 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 
 }
 
+void reduce_LH_q5(short *pr, int step, int ratio)
+{
+	int i, j, scan;
+
+		//  LL    HL
+		// *LH*   HH
+
+	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	{
+		for (scan=i,j=0;j<IM_DIM;j++,scan++)
+		{
+			short *p = &pr[scan];
+
+			if (abs(p[0])>=ratio && abs(p[0])<9) 
+			{	
+				 if (p[0]>0) p[0]=7;else p[0]=-7;	
+			}
+		}
+
+		for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (abs(p[0])>=ratio && abs(p[0])<=14) 
+			{	
+				 if (p[0]>0) p[0]=7;else p[0]=-7;	
+			}
+		}
+	}
+}
+
+void reduce_LH_q56(short *pr, int step, int ratio, char *wvlt)
+{
+	int i, j, scan;
+	//  LL    HL
+	// *LH*   HH
+
+	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	{
+		for (scan=i,j=0;j<(IM_DIM);j++,scan++)
+		{		
+			short *p = &pr[scan];
+			if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) { p[0] = 0; }
+		}
+
+		for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (abs(p[0])>=ratio && abs(p[0]) < wvlt[1]) {	
+				if      (p[0] >= 14)       p[0]=7;
+				else if (p[0] <= -14)      p[0]=-7;	
+				else 	                   p[0]=0;	
+			}
+		}
+	}
+}
+
+int count_threshold(short *pr, int thresh)
+{
+	int count;
+	int i;
+	for (i = (2*IM_SIZE),count=0;i < (4*IM_SIZE); i++) {
+		if (abs(pr[i]) >= thresh) count++;
+	}
+	return count;
+}
+
+void reduce_HL_q4(short *pr, int step)
+{
+	int i, j, scan;
+
+//  LL   *HL*
+//  LH    HH 
+	
+	for (i=step; i<((2*IM_SIZE)-step);i+=step)
+	{
+		for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (p[0]>4 && p[0]<8)
+			{
+				if (p[-1]>3 && p[-1]<=7)
+				{
+					if (p[1]>3 && p[1]<=7)
+					{
+						p[0]=12700;p[-1]=10100;p[1]=10100;
+					}
+				}
+			}
+			else if (p[0]<-4 && p[0]>-8)
+			{
+				if (p[-1]<-3 && p[-1]>=-7)
+				{
+					if (p[1]<-3 && p[1]>=-7)
+					{
+						p[0]=12900;p[-1]=10100;p[1]=10100;	 
+					}
+				}
+			}
+			else if ((p[0]==-7) && (p[1]==-6 || p[1]==-7))
+			{
+				p[0]=10204;p[1]=10100;
+			}
+			else if (p[0]==7 && p[1]==7)
+			{
+				p[0]=10300;p[1]=10100;
+			}
+			else if (p[0]==8)
+			{
+				if (FLOOR2(p[-1])==6 || FLOOR2(p[1])==6) p[0]=10;
+				else if (p[1]==8) {p[0]=9;p[1]=9;}
+			}
+			else if (p[0]==-8)
+			{
+				if (FLOOR2(-p[-1])==6 || FLOOR2(-p[1])==6) p[0]=-9;
+				else if (p[1]==-8) {p[0]=-9;p[1]=-9;}
+			}
+		}
+	}
+
+	//  LL    HL 
+	// *LH*   HH 
+
+	for (i=((2*IM_SIZE)+step);i<((4*IM_SIZE)-step);i+=step)
+	{
+		for (scan=i+1,j=1;j<(IM_DIM-1);j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (p[0]>4 && p[0]<8)
+			{
+				if (p[-1]>3 && p[-1]<=7)
+				{
+					if (p[1]>3 && p[1]<=7)
+					{
+						p[0]=12700;p[-1]=10100;p[1]=10100;
+					}
+				}
+			}
+			else if (p[0]<-4 && p[0]>-8)
+			{
+				if (p[-1]<-3 && p[-1]>=-7)
+				{
+					if (p[1]<-3 && p[1]>=-7)
+					{
+						p[0]=12900;p[-1]=10100;p[1]=10100;
+					}
+				}
+			}
+			else if (p[0]==-6 || p[0]==-7)
+			{
+				if (p[1]==-7)
+				{
+					p[0]=10204;p[1]=10100;
+				}
+				else if (p[-step]==-7)
+				{
+					if (abs(p[IM_DIM])<8) p[IM_DIM]=10204;p[0]=10100;
+				}
+				
+			}
+			else if (p[0]==7)
+			{
+				if (p[1]==7)
+				{
+					p[0]=10300;p[1]=10100;
+				}
+				else if (p[-step]==7)
+				{
+					if (abs(p[IM_DIM])<8) p[IM_DIM]=10300;p[0]=10100;
+				}
+			}
+			else if (p[0]==8)
+			{
+				if (FLOOR2(p[-1])==6 || FLOOR2(p[1])==6) p[0]=10;
+			}
+			else if (p[0]==-8)
+			{
+				if (FLOOR2(-p[-1])==6 || FLOOR2(-p[1])==6) p[0]=-9;
+			}
+		}
+	}
+
+}
+
+
+void reduce_LH_q6(short *pr, short *resIII, int step, int ratio, char *wvlt)
+{
+	int i, j, scan;
+
+	//  LL   *HL*
+	//  LH    HH 
+	
+	for (i=0;i<(2*IM_SIZE);i+=step)
+	{
+		for (scan=i+IM_DIM,j=IM_DIM;j<step;j++,scan++)
+		{
+			short *p = &pr[scan];
+			if (abs(p[0]) >= ratio) {
+				if (abs(p[0]) < (wvlt[2]+2)) 
+				{	
+					short tmp = resIII[RESIII_GETXY(j-IM_DIM, i, IM_DIM >> 1)];
+
+					if (abs(tmp) < wvlt[3])
+						p[0] = 0;
+					// if (abs(resIII[(((i>>1)+(j-IM_DIM))>>1)+(IM_DIM>>1)])<wvlt[3]) p[0]=0;
+					else if (abs(p[0]+p[-1]) < wvlt[4] && abs(p[1]) < wvlt[4]) {
+						p[0] = 0; p[-1] = 0;
+					}
+					else if (abs(p[0]+p[1]) < wvlt[4] && abs(p[-1]) < wvlt[4]) {
+						p[0] = 0; p[1] = 0;
+					}
+				}
+				
+				if (abs(p[0]) < wvlt[2]) 
+				{	
+					if (abs(p[-1])<ratio && abs(p[1])<ratio) 
+					{
+						p[0]=0;
+					}
+				}
+			}
+		}
+	}
+}
 
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
 {
@@ -494,138 +732,36 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 
 	int step = 2 * IM_DIM;
 
-	if (quality<NORM && quality>LOW5)
-	{
-
-		//  LL    HL
-		// *LH*   HH
-
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<IM_DIM;j++,scan++)
-			{
-				short *p = &pr[scan];
-
-				if (abs(p[0])>=ratio && abs(p[0])<9) 
-				{	
-					 if (p[0]>0) p[0]=7;else p[0]=-7;	
-				}
-			}
-
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<=14) 
-				{	
-					 if (p[0]>0) p[0]=7;else p[0]=-7;	
-				}
-			}
-		}
-	}
-	else if (quality<=LOW5 && quality>=LOW6)
-	{ 
+	if (quality < NORM && quality > LOW5) {
+		reduce_LH_q5(pr, step, ratio);
+	} else if (quality <= LOW5 && quality >= LOW6) { 
 		wvlt[0] = 11;
 
-		if (quality==LOW5) wvlt[1]=19;
-		else if (quality==LOW6) wvlt[1]=20;
+		if      (quality == LOW5) wvlt[1]=19;
+		else if (quality == LOW6) wvlt[1]=20;
 		
-		//  LL    HL
-		// *LH*   HH
+		reduce_LH_q56(pr, step, ratio, wvlt);
 
-		for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
-		{
-			for (scan=i,j=0;j<(IM_DIM);j++,scan++)
-			{		
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) 
-				{	
-					p[0]=0;			
-				}
-			}
+	} else if (quality < LOW6) { 
+		if (quality <= LOW8) {
+			count = count_threshold(pr, 12);
 
-			for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0])>=ratio && abs(p[0])<wvlt[1]) 
-				{	
-					if (p[0]>=14) p[0]=7;
-					else if (p[0]<=-14) p[0]=-7;	
-					else 	p[0]=0;	
-				}
-			}
-		}
-	}
-	else if (quality<LOW6)
-	{ 
-		if (quality<=LOW8)
-		{
-			for (i=(2*IM_SIZE),count=0;i<(4*IM_SIZE);i++)
-			{
-				if (abs(pr[i])>=12) count++;
-			}
-			
 			//if (count>15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
-			if (count>12500)      COPY_WVLT(wvlt, quality_special12500)
-			else if (count>10000) COPY_WVLT(wvlt, quality_special10000)
-			else if (count>=7000) COPY_WVLT(wvlt, quality_special7000)
-			else                  COPY_WVLT(wvlt, quality_special_default);
-			
-			if (quality==LOW9) 
-			{
-				if (count>12500) 
-				{
-					wvlt[0]++;wvlt[1]++;wvlt[2]++;wvlt[3]++;wvlt[4]++;
-				}
+			if      (count > 12500)      COPY_WVLT(wvlt, quality_special12500)
+			else if (count > 10000)      COPY_WVLT(wvlt, quality_special10000)
+			else if (count >= 7000)      COPY_WVLT(wvlt, quality_special7000)
+			else                         COPY_WVLT(wvlt, quality_special_default);
+			if (quality == LOW9) {
+				if (count > 12500) { wvlt[0]++;wvlt[1]++;wvlt[2]++;wvlt[3]++;wvlt[4]++; }
 				else wvlt[0]++;
-			}
-			else if (quality<=LOW10) 
+			} else if (quality <= LOW10) 
 			{
-				if (count>12500) 
-				{
-					wvlt[0]+=3;wvlt[1]+=3;wvlt[2]+=2;wvlt[3]+=3;wvlt[4]+=3;
-				}
-				else 
-				{
-					wvlt[0]+=3;wvlt[1]+=2;wvlt[2]+=2;wvlt[3]+=2;wvlt[4]+=2;
-				}
+				if (count > 12500) { wvlt[0]+=3;wvlt[1]+=3;wvlt[2]+=2;wvlt[3]+=3;wvlt[4]+=3; }
+				else               { wvlt[0]+=3;wvlt[1]+=2;wvlt[2]+=2;wvlt[3]+=2;wvlt[4]+=2; }
 			}
 		}
 	
-		//  LL   *HL*
-		//  LH    HH 
-		
-		for (i=0;i<(2*IM_SIZE);i+=step)
-		{
-			for (scan=i+IM_DIM,j=IM_DIM;j<step;j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (abs(p[0]) >= ratio) {
-					if (abs(p[0]) < (wvlt[2]+2)) 
-					{	
-						short tmp = resIII[RESIII_GETXY(j-IM_DIM, i, IM_DIM >> 1)];
-
-						if (abs(tmp) < wvlt[3])
-							p[0] = 0;
-						// if (abs(resIII[(((i>>1)+(j-IM_DIM))>>1)+(IM_DIM>>1)])<wvlt[3]) p[0]=0;
-						else if (abs(p[0]+p[-1]) < wvlt[4] && abs(p[1]) < wvlt[4]) {
-							p[0] = 0; p[-1] = 0;
-						}
-						else if (abs(p[0]+p[1]) < wvlt[4] && abs(p[-1]) < wvlt[4]) {
-							p[0] = 0; p[1] = 0;
-						}
-					}
-					
-					if (abs(p[0]) < wvlt[2]) 
-					{	
-						if (abs(p[-1])<ratio && abs(p[1])<ratio) 
-						{
-							p[0]=0;
-						}
-					}
-				}
-			}
-		}
-
+		reduce_LH_q6(pr, resIII, step, ratio, wvlt);
 
 		if (quality > LOW10) {
 			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 16);
@@ -635,119 +771,8 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 
 	}
 
-	if (quality>LOW4)
-	{ 
-
-		//  LL   *HL*
-		//  LH    HH 
-		
-		for (i=step; i<((2*IM_SIZE)-step);i+=step)
-		{
-			for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (p[0]>4 && p[0]<8)
-				{
-					if (p[-1]>3 && p[-1]<=7)
-					{
-						if (p[1]>3 && p[1]<=7)
-						{
-							p[0]=12700;p[-1]=10100;p[1]=10100;
-						}
-					}
-				}
-				else if (p[0]<-4 && p[0]>-8)
-				{
-					if (p[-1]<-3 && p[-1]>=-7)
-					{
-						if (p[1]<-3 && p[1]>=-7)
-						{
-							p[0]=12900;p[-1]=10100;p[1]=10100;	 
-						}
-					}
-				}
-				else if ((p[0]==-7) && (p[1]==-6 || p[1]==-7))
-				{
-					p[0]=10204;p[1]=10100;
-				}
-				else if (p[0]==7 && p[1]==7)
-				{
-					p[0]=10300;p[1]=10100;
-				}
-				else if (p[0]==8)
-				{
-					if (FLOOR2(p[-1])==6 || FLOOR2(p[1])==6) p[0]=10;
-					else if (p[1]==8) {p[0]=9;p[1]=9;}
-				}
-				else if (p[0]==-8)
-				{
-					if (FLOOR2(-p[-1])==6 || FLOOR2(-p[1])==6) p[0]=-9;
-					else if (p[1]==-8) {p[0]=-9;p[1]=-9;}
-				}
-			}
-		}
-
-		//  LL    HL 
-		// *LH*   HH 
-
-		for (i=((2*IM_SIZE)+step);i<((4*IM_SIZE)-step);i+=step)
-		{
-			for (scan=i+1,j=1;j<(IM_DIM-1);j++,scan++)
-			{
-				short *p = &pr[scan];
-				if (p[0]>4 && p[0]<8)
-				{
-					if (p[-1]>3 && p[-1]<=7)
-					{
-						if (p[1]>3 && p[1]<=7)
-						{
-							p[0]=12700;p[-1]=10100;p[1]=10100;
-						}
-					}
-				}
-				else if (p[0]<-4 && p[0]>-8)
-				{
-					if (p[-1]<-3 && p[-1]>=-7)
-					{
-						if (p[1]<-3 && p[1]>=-7)
-						{
-							p[0]=12900;p[-1]=10100;p[1]=10100;
-						}
-					}
-				}
-				else if (p[0]==-6 || p[0]==-7)
-				{
-					if (p[1]==-7)
-					{
-						p[0]=10204;p[1]=10100;
-					}
-					else if (p[-step]==-7)
-					{
-						if (abs(p[IM_DIM])<8) p[IM_DIM]=10204;p[0]=10100;
-					}
-					
-				}
-				else if (p[0]==7)
-				{
-					if (p[1]==7)
-					{
-						p[0]=10300;p[1]=10100;
-					}
-					else if (p[-step]==7)
-					{
-						if (abs(p[IM_DIM])<8) p[IM_DIM]=10300;p[0]=10100;
-					}
-				}
-				else if (p[0]==8)
-				{
-					if (FLOOR2(p[-1])==6 || FLOOR2(p[1])==6) p[0]=10;
-				}
-				else if (p[0]==-8)
-				{
-					if (FLOOR2(-p[-1])==6 || FLOOR2(-p[1])==6) p[0]=-9;
-				}
-			}
-		}
+	if (quality > LOW4) { 
+		reduce_HL_q4(pr, step);
 	}
 }
 
@@ -757,10 +782,11 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 	int res_setting;
 	int step = 2 * IM_DIM;
 
-	if (quality>=NORM) res_setting=3;
-	else if (quality>=LOW2) res_setting=4;
-	else if (quality>=LOW5) res_setting=6;
-	else if (quality>=LOW7) res_setting=8;
+	// Put into LUT:
+	if      (quality >= NORM) res_setting=3;
+	else if (quality >= LOW2) res_setting=4;
+	else if (quality >= LOW5) res_setting=6;
+	else if (quality >= LOW7) res_setting=8;
 
 	// *LL*  HL
 	//  LH   HH
