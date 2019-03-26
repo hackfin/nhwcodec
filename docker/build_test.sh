@@ -1,4 +1,4 @@
-GOLDEN_REFERENCE=75dbbd81c839981b53fcb8998496af23ef35b11a
+GOLDEN_REFERENCE=8b301f47fad3d57f6eb2c1060cc5f4f2d4b3ddce
 
 GIT_REPO=https://github.com/hackfin/nhwcodec.git
 
@@ -15,4 +15,4 @@ cd $HOME/src/nhwcodec; make clean all
 cd $HOME/src/nhw_reference; make clean all
 
 cd $HOME/src/nhw_reference/test; make clean all-nhw reference
-cd $HOME/src/nhwcodec/test; make clean all-test all-diff
+cd $HOME/src/nhwcodec/test; make clean verify

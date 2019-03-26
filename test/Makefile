@@ -61,9 +61,8 @@ all-%:
 
 TESTIMAGE = will-b-272731-unsplash
 
-test: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
-
 reference:
+	git describe >> $(REFDIR)/GIT_REVISION
 	cp -r $(WORKDIR)/*.nhw $(REFDIR)
 	cp -r $(WORKDIR)/*.png $(REFDIR)
 
@@ -95,9 +94,9 @@ pngdiff: $(CURIMAGES)
 
 testdiff:
 	@echo "=================================================="
-	@for i in $(ALL_SETTINGS); do \
-		diff $(WORKDIR)/$(TESTIMAGE)_$$i.nhw \
-		$(REFDIR)/$(TESTIMAGE)_$$i.nhw; \
+	@for i in $(IMAGES); do \
+		diff $(WORKDIR)/$${i}_$(SETTING).nhw \
+		$(REFDIR)/$${i}_$(SETTING).nhw; \
 	done
 
 hexdiff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
@@ -144,3 +143,5 @@ clean:
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 
 nhw: $(NHWIMAGES)
+
+verify: all-nhw all-testdiff
