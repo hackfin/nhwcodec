@@ -442,189 +442,165 @@ L_COD2:	if (codebook[i]==128)
 	enc->size_tree2=b;
 	}
 
-	if (part==0) {part=1;a++;p1=4*IM_SIZE;p2=6*IM_SIZE;im->im_nhw[4*IM_SIZE]=color;
-											im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];goto L1;}
+	if (part==0)
+	{
+		part=1;
+		a++; 
+		p1=4*IM_SIZE;
+		p2=6*IM_SIZE;
+		im->im_nhw[4*IM_SIZE]=color;
+		im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];
+		goto L1;
+	}
 }
 
-void Y_highres_compression(image_buffer *im,encode_state *enc)
+
+static
+int compress_res0(int quality,
+	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
-	int i,j,e,Y,a,res,scan,count,mem;
-	unsigned char *highres,*ch_comp,*comp_tmp;
+	int i, j, mem;
+	int e;
 
-	highres=(unsigned char*)enc->tree1;
+	mem = 0;
 
-	enc->highres_word=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+//FIXME:
+#define LOOP_VAR_CONDITION(i) (i < ((IM_SIZE>>2))-2)
 
-	//for (i=0;i<300;i++) printf("%d %d\n",i,highres[i]);
-
-	for (i=1,e=0,Y=0,a=0;i<(IM_SIZE>>2);i++)
+	for (i=1,j=1;i<(IM_SIZE>>2);i++)
 	{
-L11:	if (i<(IM_SIZE>>2) && highres[i]==highres[i-1])
+		int dh0 = highres[i]-highres[i-1];
+		int dh1 = highres[i+1]-highres[i];
+
+		if (dh0==0 && dh1==0)
 		{
-			e++;
-			if (e<16) 
-			{
-				if (e==8) a++;
-				i++;goto L11;
+			if (highres[i+2] == highres[i+1]) {
+				i += 3; ch_comp[j] = (1 << 3);
+				// Skip if we have several nulls
+			} else {
+				i += 2; ch_comp[j] = 0;
 			}
-			else if (e==16) {Y++;goto L15;}
+			int d0 = highres[i] - highres[i-1];
+			int d1 = highres[i+1] - highres[i];
+
+			int comp = ch_comp[j];
+
+			switch (d0) {
+				case 2:
+					switch (d1) {
+						case -2: comp +=2; i++; break;
+						case 0:  comp +=3; i++; break;
+						default: comp +=1;
+					}
+					break;
+				case -2:
+					switch (d1) {
+						case 2:  comp +=4; i++; break;
+						case 0:  comp +=5; i++; break;
+						default: comp +=6;
+					}
+					break;
+				case 4:   comp += 7; break;
+				default:  i--;
+			}
+			ch_comp[j++] = comp;
 		}
-L15:	e=0;
-	}
-
-	a+=Y;
-
-	enc->highres_mem_len=0;
-	enc->highres_comp=(unsigned char*)calloc((IM_SIZE>>1),sizeof(char));
-	enc->highres_mem=(unsigned short*)calloc((IM_SIZE>>2),sizeof(short));
-	ch_comp=(unsigned char*)enc->highres_comp;
-
-	ch_comp[0]=highres[0];
-
-	if (Y>299) {im->setup->RES_LOW=2;goto L4;}
-	else if (a>179) {im->setup->RES_LOW=1;goto L2;} 
-	else im->setup->RES_LOW=0;
-
-	for (i=1,j=1,a=0,res=0,mem=0;i<(IM_SIZE>>2);i++)
-	{
-		scan=highres[i]-highres[i-1];
-		count=highres[i+1]-highres[i];
-
-		if (scan==0 && count==0)
+		else if (abs(dh0)<=6 && abs(dh1)<=8)
 		{
-			if (highres[i+a+2]==highres[i+a+1]) a++;
+			dh0+=6;dh1+=8;
+			int d2 = highres[i+2]-highres[i+1];
 
-			i+=(a+2);
-			ch_comp[j]=(a<<3);
-			
-			if (highres[i]-highres[i-1]==2) 
+			if (dh0==12 || dh1==16) 
 			{
-				if (highres[i+1]-highres[i]==-2) 
+				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i)) 
 				{
-					ch_comp[j]+=2;i++;
-				}
-				else if (highres[i+1]-highres[i]==0) 
-				{
-					ch_comp[j]+=3;i++;
-				}
-				else ch_comp[j]+=1;
-			}
-			else if (highres[i]-highres[i-1]==-2)
-			{
-				if (highres[i+1]-highres[i]==2) 
-				{
-					ch_comp[j]+=4;i++;
-				}
-				else if (highres[i+1]-highres[i]==0) 
-				{
-					ch_comp[j]+=5;i++;
-				}
-				else ch_comp[j]+=6;
-				
-			}
-			else if (highres[i]-highres[i-1]==4) ch_comp[j]+=7;
-			else  i--;
+					e = d2 + 32;dh0 += 26;dh1 += 8; goto COMP3;
+				} else {
+					ch_comp[j++]=128;
+					ch_comp[j++]=128+(highres[i]>>1);
 
-			a=0;
-			j++;
-		}
-		else if (abs(scan)<=6 && abs(count)<=8)
-		{
-			scan+=6;count+=8;
-			if (scan==12 || count==16) 
-			{
-				if (abs(highres[i+2]-highres[i+1])<=32 && i<16382) 
-				{
-					e=highres[i+2]-highres[i+1]+32;scan+=26;count+=8;goto COMP3;
-				}
-				else 
-				{
-					if (im->setup->quality_setting>LOW5)
+					if (quality>LOW5)
 					{
-						ch_comp[j++]=128;
-						ch_comp[j++]=128+(highres[i]>>1);
 						ch_comp[j++]=128+(highres[i+1]>>1);
 						enc->highres_word[mem++]=enc->ch_res[i];
 						enc->highres_mem[enc->highres_mem_len++]=i;
 						i++;
 					}
-					else 
-					{
-						ch_comp[j++]=128;
-						ch_comp[j++]=128+(highres[i]>>1);
-					}
 				}
-			}
-			else 
-			{
-				if (scan<8) ch_comp[j++]=32+ (scan<<2) + (count>>1);
-				else
-				{
-					if (scan==8)
+			} else {
+				if (dh0<8) ch_comp[j++]=32+ (dh0<<2) + (dh1>>1);
+				else {
+					if (dh0==8)
 					{
-						ch_comp[j++]= 16 + (count>>1);
+						ch_comp[j++]= 16 + (dh1>>1);
 					}
 					else
 					{
-						ch_comp[j++]= 24 + (count>>1);
+						ch_comp[j++]= 24 + (dh1>>1);
 					}
 				}
 
 				i++;
 			}
 		}
-		else if (abs(scan)<=32 && abs(count)<=16 && abs(highres[i+2]-highres[i+1])<=32 && i<16382)
+		else if (abs(dh0)<=32 && abs(dh1)<=16 &&
+		  abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
 		{
-			scan+=32;count+=16;e=highres[i+2]-highres[i+1]+32;
-COMP3:		if (scan==64 || count==32 || e==64) 
+			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
+COMP3:	
+			if (dh0==64 || dh1==32 || e==64) 
 			{
-				if (im->setup->quality_setting>LOW5)
+				ch_comp[j++]=128;
+				ch_comp[j++]=128+(highres[i]>>1);
+
+				if (quality>LOW5)
 				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
 					ch_comp[j++]=128+(highres[i+1]>>1);
 					enc->highres_word[mem++]=enc->ch_res[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
-				else 
-				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
-				}
 			}
 			else 
 			{
-				count>>=1;
+				dh1>>=1;
 				ch_comp[j++]=64;
-				ch_comp[j++]=64 +(scan) + (count>>3);
-				ch_comp[j++]=((count&7)<<5) + (e>>1);
+				ch_comp[j++]=64 +(dh0) + (dh1>>3);
+				ch_comp[j++]=((dh1&7)<<5) + (e>>1);
 	
 				i+=2;
 			}
 		}
 		else
 		{
-			if (im->setup->quality_setting>LOW5)
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
+			ch_comp[j++]=128;
+			ch_comp[j++]=128+(highres[i]>>1);
+
+			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
 				enc->highres_word[mem++]=enc->ch_res[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
 			}
-			else 
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
-			}
 		}
 	}
 
-	goto L3;
+	enc->highres_comp_len=mem;
 
-L2:	for (i=1,j=1,a=0,mem=0;i<(IM_SIZE>>2);i++)
+	return j; // # of values i ch_comp[]
+}
+
+
+static
+int compress_res1(int quality,
+	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
+{
+	int i, j, a, mem;
+	int scan, count, e;
+
+	mem=0;
+
+	for (i=1,j=1,a=0;i<(IM_SIZE>>2);i++)
 	{
 		scan=highres[i]-highres[i-1];
 		count=highres[i+1]-highres[i];
@@ -666,7 +642,7 @@ END_RES4:
 				}
 				else
 				{
-					if (im->setup->quality_setting>LOW5)
+					if (quality>LOW5)
 					{
 						ch_comp[j++]=128;
 						ch_comp[j++]=128+(highres[i]>>1);
@@ -695,7 +671,7 @@ END_RES4:
 			scan+=32;count+=16;e=highres[i+2]-highres[i+1]+32;
 COMP4:		if (scan==64 || count==32 || e==64) 
 			{
-				if (im->setup->quality_setting>LOW5)
+				if (quality>LOW5)
 				{
 					ch_comp[j++]=128;
 					ch_comp[j++]=128+(highres[i]>>1);
@@ -722,7 +698,7 @@ COMP4:		if (scan==64 || count==32 || e==64)
 		}
 		else
 		{
-			if (im->setup->quality_setting>LOW5)
+			if (quality>LOW5)
 			{
 				ch_comp[j++]=128;
 				ch_comp[j++]=128+(highres[i]>>1);
@@ -739,9 +715,17 @@ COMP4:		if (scan==64 || count==32 || e==64)
 		}
 	}
 
-	goto L3;
+	enc->highres_comp_len=mem;
+	return j;
+}
 
-L4:	for (i=1,j=1,a=0,mem=0;i<(IM_SIZE>>2);i++)
+static
+int compress_res2(int quality,
+	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
+{
+	int i, j, a, e, mem, scan, count;
+
+	for (i=1,j=1,a=0,mem=0;i<(IM_SIZE>>2);i++)
 	{
 		scan=highres[i]-highres[i-1];
 		count=highres[i+1]-highres[i];
@@ -764,7 +748,7 @@ END_RES5:
 			scan+=32;count+=16;e=highres[i+2]-highres[i+1]+32;
 		if (scan==64 || count==32 || e==64) 
 			{
-				if (im->setup->quality_setting>LOW5)
+				if (quality>LOW5)
 				{
 					ch_comp[j++]=128;
 					ch_comp[j++]=128+(highres[i]>>1);
@@ -791,7 +775,7 @@ END_RES5:
 		}
 		else
 		{
-			if (im->setup->quality_setting>LOW5)
+			if (quality>LOW5)
 			{
 				ch_comp[j++]=128;
 				ch_comp[j++]=128+(highres[i]>>1);
@@ -808,10 +792,24 @@ END_RES5:
 		}
 	}
 
-L3: 
+	enc->highres_comp_len=mem;
+
+	return j;
+}
+
+static
+void compress_pass2(int quality, int j,
+	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
+{
+	int i, a, e;
+
+	unsigned char *comp_tmp;
+
 	comp_tmp=(unsigned char*)calloc(j,sizeof(char));
 
 	memcpy(comp_tmp,ch_comp,j*sizeof(char));
+
+	char *p = &comp_tmp[1];
 
 	for (i=1,e=1,a=0;i<j-1;i++)
 	{
@@ -823,7 +821,7 @@ L3:
 		}
 		else if (comp_tmp[i]==128)
 		{
-			if (im->setup->quality_setting>LOW5)
+			if (quality>LOW5)
 			{
 				i++;
 				ch_comp[e++]=comp_tmp[i+1];
@@ -845,11 +843,77 @@ L3:
 
 	free(comp_tmp);
 
-	enc->highres_comp_len=mem;
+
 
 	enc->Y_res_comp=e;
-	
-	//printf("%d\n",enc->Y_res_comp);
+
+}
+
+void Y_highres_compression(image_buffer *im,encode_state *enc)
+{
+	int i, e, Y, a,count;
+	unsigned char *ch_comp, *comp_tmp;
+
+	const unsigned char *highres;
+
+	highres=(unsigned char*)enc->tree1;
+
+	enc->highres_word=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+
+	//for (i=0;i<300;i++) printf("%d %d\n",i,highres[i]);
+	e = 0; Y = 0; a = 0;
+
+	for (i = 1; i<(IM_SIZE>>2); i++)
+	{
+		// FIXME: ineffective comparison
+L11:	if (i<(IM_SIZE>>2) && highres[i]==highres[i-1])
+		{
+			e++;
+			if (e<16) {
+				if (e==8) a++;
+				i++;goto L11;
+			}
+			else if (e==16) {Y++;e = 0;}
+			else e = 0;
+		} else {
+			e = 0;
+		}
+	}
+
+	a+=Y;
+
+	enc->highres_mem_len=0;
+	enc->highres_comp=(unsigned char*)calloc((IM_SIZE>>1),sizeof(char));
+	enc->highres_mem=(unsigned short*)calloc((IM_SIZE>>2),sizeof(short));
+	ch_comp=(unsigned char*)enc->highres_comp;
+
+	ch_comp[0]=highres[0];
+
+	if (Y>299) {im->setup->RES_LOW=2; }
+	else if (a>179) {im->setup->RES_LOW=1; } 
+	else im->setup->RES_LOW=0;
+
+	int quality = im->setup->quality_setting;
+
+
+	switch (im->setup->RES_LOW) {
+		case 2:
+			count = compress_res2(im->setup->quality_setting, highres, ch_comp, enc);
+			compress_pass2(im->setup->quality_setting,
+				count, highres, ch_comp, enc);
+			break;
+		case 1:
+			count = compress_res1(im->setup->quality_setting, highres, ch_comp, enc);
+			compress_pass2(im->setup->quality_setting,
+				count, highres, ch_comp, enc);
+			break;
+		default:
+			count = compress_res0(im->setup->quality_setting,
+				highres, ch_comp, enc);
+			compress_pass2(im->setup->quality_setting,
+				count, highres, ch_comp, enc);
+
+	}
 
 }
 
