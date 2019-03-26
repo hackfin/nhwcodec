@@ -33,7 +33,7 @@ inline void reduce_yterms(short *p, short e, short f, int step, int condition)
 	p[0] = e; p[1] = f;
 }
 
-void ywl(int quality, short *pr, int ratio, const short *y_wl)
+void ywl(short *pr, int ratio, const short *y_wl)
 {
 	int i, j, scan;
 	int e, f;

@@ -446,7 +446,7 @@ L_COD2:	if (codebook[i]==128)
 											im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];goto L1;}
 }
 
-void Y_highres_compression(image_buffer *im,encode_state *enc)
+void SWAPOUT_FUNCTION(Y_highres_compression)(image_buffer *im,encode_state *enc)
 {
 	int i,j,e,Y,a,res,scan,count,mem;
 	unsigned char *highres,*ch_comp,*comp_tmp;

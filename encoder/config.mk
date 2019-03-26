@@ -9,7 +9,7 @@ ifdef SWAP
 CFLAGS += -DSWAPOUT
 CFLAGS += -I$(NETPP)/devices
 CFLAGS += -I.
-OBJS += new/enc_new.o new/remote.o
+OBJS += new/enc_new.o new/remote.o new/compress.o
 endif
 
 LDFLAGS += -L$(NETPP)/devices/libmaster/Debug -lmaster

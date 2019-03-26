@@ -24,6 +24,10 @@ struct config {
 
 void init_lut(uint8_t *lut, float gamma);
 
+void Y_highres_compression(image_buffer *im,encode_state *enc);
+
+const short *lookup_ywlthreshold(int quality);
+
 void write_image(const char *filename, const uint8_t *buf)
 {
 	FILE *out = fopen(filename, "wb");
@@ -101,7 +105,6 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	init_lut(g_lut, 0.7);
 	virtfb_init(512, 512);
 
-
 	// This always places the result in pr:
 	wavelet_analysis(im, n, 0, 1);                  // CAN_HW
 	// copy LL1
@@ -120,7 +123,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
 
 	copy_thresholds(pr, resIII, n);                 // CAN_HW
-	ywl(quality, pr, ratio);
+	ywl(pr, ratio, lookup_ywlthreshold(quality));   // CAN_HW, complex
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();

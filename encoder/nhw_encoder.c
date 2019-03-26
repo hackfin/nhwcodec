@@ -73,7 +73,7 @@ void reduce_LH_q9(short *pr, const char *wvlt, int ratio, int s);
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt,
 	encode_state *enc, int ratio);
 int configure_wvlt(int quality, char *wvlt);
-void ywl(int quality, short *pr, int ratio, const short *y_wl);
+void ywl(short *pr, int ratio, const short *y_wl);
 void process_res_q8(int quality, short *pr, short *res256, encode_state *enc);
 
 void compress_s2(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio);
@@ -1457,7 +1457,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	copy_thresholds(pr, resIII, n);
 
 	free(resIII);
-	ywl(quality, pr, ratio, lookup_ywlthreshold(quality));
+	ywl(pr, ratio, lookup_ywlthreshold(quality));
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
