@@ -459,13 +459,6 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 				if (i<((4*IM_SIZE)-(2*IM_DIM)))
 				{
 					int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
-					
-#ifndef COMPILE_WITHOUT_BOUNDARY_CHECKS
-					if (index < 0 || index >= IM_SIZE)
-						fprintf(stderr, "Index: %d, i: %d, j: %d\n", index, i, j);
-
-					assert(index >= 0 && index < IM_SIZE);
-#endif
 					tmp = resIII[index];
 					
 					res3=1;
@@ -860,7 +853,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 			}
 			else if ((res==3 || res==4 || res==5 || res>6) &&
 				(a==3 ||
-				(a&65534)==4))
+				(a& ~1)==4))
 			{
 				if ((res)>6) {res256[count]=CODE_12500;p[step]=r0;}
 				else if (quality>=LOW1) // REDUNDANT
@@ -988,7 +981,7 @@ L_W2:
 				{
 					if (!((-q[0])&7) || ((-q[0])&7)==7) q[0]++;
 				}
-				else if (q[0]==7 || (q[0]&65534)==8)
+				else if (q[0]==7 || (q[0]& ~1)==8)
 				{
 					if (q[0-1]>=-2) q[0]+=3;
 				}

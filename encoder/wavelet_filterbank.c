@@ -49,6 +49,10 @@
 
 #include "codec.h"
 
+// Temporary: Hack for remote function overlay
+#ifndef SWAPOUT_FUNCTION
+#define SWAPOUT_FUNCTION(x) x
+#endif
 
 /* The wavelet transform works in-place
  *
@@ -65,8 +69,7 @@ void transpose(short *dst, const short *src, int n, int step)
 	}
 }
 
-static
-void wla_luma(image_buffer *im, int norder, int last_stage)
+void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int highres)
 {
 	int i;
 	int n = 2 * IM_DIM; // Line length
@@ -76,8 +79,8 @@ void wla_luma(image_buffer *im, int norder, int last_stage)
 
 	int halfno = norder >> 1;
 
-	data=im->im_jpeg;
-	res = im->im_process;
+	data = src;
+	res  = dst;
 	res2 = &res[halfno];
 
 	for (i=0;i<norder;i++) {
@@ -86,20 +89,17 @@ void wla_luma(image_buffer *im, int norder, int last_stage)
 	}
 
 	// Transposing (Y direction) into im_jpeg buffer
-	transpose(im->im_jpeg, im->im_process, norder, n);
-	// FIXME: Move outside
-	if (im->setup->quality_setting>HIGH1 && !last_stage)
-	{
-		im->im_quality_setting=(short*)malloc(2*IM_SIZE*sizeof(short));
+	transpose(src, dst, norder, n);
 
-		for (i=0;i<(2*IM_SIZE);i++) im->im_quality_setting[i]=im->im_jpeg[i];
+	if (qs_storage) {
+		for (i=0;i<(2*IM_SIZE);i++) qs_storage[i]=src[i];
 	}
 
-	data=im->im_jpeg;
-	res=im->im_process;
-	res2=&im->im_process[halfno];
+	data=src;
+	res=dst;
+	res2=&res[halfno];
 
-	if (!im->setup->RES_HIGH)
+	if (!highres)
 	{
 		for (i=0;i<halfno;i++)
 		{
@@ -116,24 +116,17 @@ void wla_luma(image_buffer *im, int norder, int last_stage)
 
 	offset = norder* n >> 1;
 
-	data=&im->im_jpeg[offset];
-	res=&im->im_process[offset]; res2=&im->im_process[offset + halfno];
+	data=&src[offset];
+	res=&dst[offset]; res2=&res[halfno];
 
 	for (i=halfno;i<norder;i++)
 	{
 		downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
 		data +=n;res +=n;res2 +=n;
 	}
-
-	if (last_stage!=im->setup->wvlts_order-1)
-	{
-		transpose(im->im_jpeg, im->im_process, norder >> 1, n);
-	}
-
 }
 
-static
-void wla_chroma(image_buffer *im, int norder, int last_stage)
+void SWAPOUT_FUNCTION(wla_chroma)(short *dst, short *src, int norder, int highres)
 {
 	// Chroma processing:
 	int i;
@@ -142,9 +135,9 @@ void wla_chroma(image_buffer *im, int norder, int last_stage)
 	int offset;
 	int halfno = norder >> 1;
 
-	data=im->im_jpeg; // U data
-	res=im->im_process;
-	res2=&im->im_process[halfno];
+	data=src; // U data
+	res=dst;
+	res2=&res[halfno];
 
 	for (i=0;i<norder;i++) {
 		downfilter53IV(data,norder,0,res);
@@ -152,14 +145,14 @@ void wla_chroma(image_buffer *im, int norder, int last_stage)
 		data +=n;res +=n;res2 +=n;
 	}
 
-	// Transposing (Y direction)
-	transpose(im->im_jpeg, im->im_process, norder, n);
+	// Transposing (Y direction) back to src:
+	transpose(src, dst, norder, n);
 
-	data=im->im_jpeg;
-	res=im->im_process;
-	res2=&im->im_process[halfno];
+	data=src;
+	res=dst;
+	res2=&res[halfno];
 
-	if (!im->setup->RES_HIGH) {
+	if (!highres) {
 		for (i=0;i<halfno;i++) {
 			downfilter53VI(data,norder,0,res);downfilter53VI(data,norder,1,res2);
 			data +=n;res +=n;res2 +=n;
@@ -173,37 +166,47 @@ void wla_chroma(image_buffer *im, int norder, int last_stage)
 
 	offset = norder * n >> 1;
 
-	data=&im->im_jpeg[offset];
-	res=&im->im_process[offset];
-	res2=&im->im_process[offset + halfno];
+	data=&src[offset];
+	res=&dst[offset];
+	res2=&res[halfno];
 
 	for (i=halfno;i<norder;i++)
 	{
 		downfilter53(data,norder,0,res);downfilter53(data,norder,1,res2);
 		data +=n;res +=n;res2 +=n;
 	}
-
-	if (last_stage!=im->setup->wvlts_order-1)
-	{
-		transpose(im->im_jpeg, im->im_process, halfno, n);
-	}
 }
-
 
 void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
 {
 	int i,j,a;
 	short *data,*res,*res2;
 	int n = IM_DIM; // Half the pixel line size
+	int halfno = norder >> 1;
+	short *qs;
 
 	for (i=0;i<(norder*n);i+=(2*n)) {
-		for (a=i,j=0;j<(norder>>1);j++,a++) im->im_process[a]=0; 
+		for (a=i,j=0;j<(halfno);j++,a++) im->im_process[a]=0; 
 	}
 
 	if (is_luma) {
-		wla_luma(im, norder, last_stage);
+		if (im->setup->quality_setting>HIGH1 && !last_stage) {
+			// FIXME: move outside
+			im->im_quality_setting=(short*)malloc(2*IM_SIZE*sizeof(short));
+			qs = im->im_quality_setting;
+		} else {
+			qs = (short *) NULL;
+		}
+		// Always places result in im_process but uses im_jpeg as work buffer
+		wla_luma(im->im_process, im->im_jpeg, qs, norder, im->setup->RES_HIGH);
+		n *= 2; // For transpose() below
 	} else {
-		wla_chroma(im, norder, last_stage);
+		wla_chroma(im->im_process, im->im_jpeg, norder, im->setup->RES_HIGH);
+	}
+
+	if (last_stage!=im->setup->wvlts_order-1)
+	{
+		transpose(im->im_jpeg, im->im_process, halfno, n);
 	}
 }
 

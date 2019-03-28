@@ -268,8 +268,6 @@ int rle_tree_bitplane_code(struct compression_context *ctx,
 	for (i=0;i<e;i+=2) *cur++ = enc->tree1[i];
 	for (i=1;i<e;i+=2) *cur++ = enc->tree1[i];
 
-	printf("# Code words: %d\n", cur - codebook);
-	printf(" e: %d\n", e);
 
 	b = code_occurence(codebook, e, 3, enc->tree1);
 	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree1[i]);
@@ -301,7 +299,6 @@ int rle_tree2_code(struct compression_context *ctx,
 	for (i=1;i<e;i+=2) *cur++ = enc->tree2[i];
 
 //	for (i=0;i<e;i++) printf("%d %d\n",i,codebook[i]);
-	printf("b: %d  e: %d\n", b, e);
 
 	b = code_occurence(codebook, e, 128, enc->tree2);
 
@@ -589,7 +586,6 @@ int compress_res0(int quality,
 			// Count subsequent equal values in a:
 			a = 0;
 			const unsigned char *p = &highres[i];
-#warning "Out of bounds access possible, check if properly padded"
 			// FIXME: Turn into state machine.
 			while (a < 1 && p[2] == p[1]) { a++; p++; }
 
@@ -726,7 +722,6 @@ int compress_res1(int quality,
 			// Count subsequent equal values in a:
 			a = 0;
 			const unsigned char *p = &highres[i];
-#warning "Out of bounds access possible, check if properly padded"
 			// FIXME: Turn into state machine.
 			while (a < 7 && p[2] == p[1]) { a++; p++; }
 
@@ -846,7 +841,6 @@ int compress_res2(int quality,
 			// Count subsequent equal values in a:
 			a = 0;
 			const unsigned char *p = &highres[i];
-#warning "Out of bounds access possible, check if properly padded"
 			// FIXME: Turn into state machine.
 			while (a < 63 && p[2] == p[1]) { a++; p++; }
 			i+=(a+2);

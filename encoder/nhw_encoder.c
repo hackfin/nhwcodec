@@ -1199,74 +1199,38 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 }
 
 MAYBE_STATIC
-void process_res_hq(int quality, short *wl_first_order, short *res256)
+void process_res_hq(int quality, short *wl_first_order, const short *res256)
 {
 	int i, j, count, scan;
+	int k = 0;
 
-	for (i=0,count=0;i<IM_SIZE;i+=IM_DIM)
+	short *w;
+
+	for (i=0;i<IM_SIZE;i+=IM_DIM, res256 += 2)
 	{
-		for (scan=i,j=0;j<IM_DIM-2;j++,scan++)
+		// Walk the transposed way:
+		// w = &wl_first_order[0];
+		for (scan=i,j=0;j<IM_DIM-2;j++,scan++, w += IM_DIM)
 		{
-			if (res256[scan]!=0)
-			{
-				count=(j<<8)+(i>>8);
+			short r = *res256++;
 
-				if (res256[scan]==141) 
-				{
-					wl_first_order[count]-=5;
-				}
-				else if (res256[scan]==140) 
-				{
-					wl_first_order[count]+=5;
-				}
-				else if (res256[scan]==144) 
-				{
-					wl_first_order[count]-=3;
-				}
-				else if (res256[scan]==145) 
-				{
-					wl_first_order[count]+=3;
-				}
-				else if (res256[scan]==121) 
-				{
-					wl_first_order[count]-=4;
-					wl_first_order[count+1]-=3;
-				}
-				else if (res256[scan]==122) 
-				{
-					wl_first_order[count]+=4;
-					wl_first_order[count+1]+=3;
-				}
-				else if (res256[scan]==123) 
-				{
-					wl_first_order[count]+=2;
-					wl_first_order[count+1]+=2;
-					wl_first_order[count+2]+=2;
-				}
-				else if (res256[scan]==124) 
-				{
-					wl_first_order[count]-=2;
-					wl_first_order[count+1]-=2;
-					wl_first_order[count+2]-=2;
-				}
-				else if (res256[scan]==126) 
-				{
-					wl_first_order[count]+=9;
-					wl_first_order[count+1]+=3;
-				}
-				else if (res256[scan]==125) 
-				{
-					count=(j<<8)+(i>>8);
-					wl_first_order[count]-=9;
-					wl_first_order[count+1]-=3;
-				}
-				else if (res256[scan]==148) 
-				{
-					wl_first_order[count]-=8;
-				}
-				else if (res256[scan]==149) 
-				{
-					wl_first_order[count]+=8;
+				count=(j<<8)+(i>>8);
+			w = &wl_first_order[count];
+
+			if (r !=0) {
+				switch (r) {
+					case 141: w[0] -= 5;                      break;
+					case 140: w[0] += 5;                      break;
+					case 144: w[0] -= 3;                      break;
+					case 145: w[0] += 3;                      break;
+					case 121: w[0] -= 4;  w[1]-=3;            break;
+					case 122: w[0] += 4;  w[1]+=3;            break;
+					case 123: w[0] += 2;  w[1]+=2; w[2]+=2;   break;
+					case 124: w[0] -= 2;  w[1]-=2; w[2]-=2;   break;
+					case 126: w[0] += 9;  w[1]+=3;            break;
+					case 125: w[0] -= 9;  w[1]-=3;            break;
+					case 148: w[0] -= 8;                      break;
+					case 149: w[0] += 8;                      break;
 				}
 			}
 		}
