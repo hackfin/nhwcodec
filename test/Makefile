@@ -110,7 +110,7 @@ hexdiff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
 		$(REFDIR)/$(TESTIMAGE)_$(SETTING).hex
 		meld $^
 
-diff:
+diff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
 	@echo ============= Quality '$(SETTING)' ===============
 	@diff $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw \
 		$(REFDIR)/$(TESTIMAGE)_$(SETTING).nhw || \
@@ -150,5 +150,8 @@ clean:
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 
 nhw: $(NHWIMAGES)
+
+test:
+	
 
 verify: all-nhw all-testdiff

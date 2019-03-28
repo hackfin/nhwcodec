@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "utils.h"
 #include "codec.h"
 #include "tree.h"
 
@@ -125,10 +126,10 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 
 		if (a>10000)
 		{ 
-			if (a==12400) {p[0]=124;continue;} 
-			else if (a==12600) {p[0]=126;continue;} 
-			else if (a==12900) {p[0]=122;continue;}  
-			else if (a==13000) {p[0]=130;continue;}  
+			if (a==CODE_12400) {p[0]=124;continue;} 
+			else if (a==CODE_12600) {p[0]=126;continue;} 
+			else if (a==CODE_12900) {p[0]=122;continue;}  
+			else if (a==CODE_13000) {p[0]=130;continue;}  
 		}
 
 		// FIXME:
@@ -259,14 +260,14 @@ void offsetY_LL_q4(short *pr, int step)
 				{
 					if (q[1]>3 && q[1]<=7)
 					{
-						q[0]=12700;q[-1]=10100;j++;a++;//q[1]=10100;
+						q[0]=MARK_127;q[-1]=MARK_128;j++;a++;//q[1]=MARK_128;
 					}
 					else if (q[(step-1)]>3 && q[(step-1)]<=7)
 					{
 						if (q[step]>3 && q[step]<=7)
 						{
-							q[-1]=12100;q[0]=10100;
-							q[(step-1)]=10100;q[step]=10100;
+							q[-1]=MARK_121;q[0]=MARK_128;
+							q[(step-1)]=MARK_128;q[step]=MARK_128;
 							j++;a++;
 						}
 					}
@@ -278,14 +279,14 @@ void offsetY_LL_q4(short *pr, int step)
 				{
 					if (q[1]<-3 && q[1]>=-7)
 					{
-						q[0]=12900;q[-1]=10100;j++;a++;//q[1]=10100;	 
+						q[0]=MARK_129;q[-1]=MARK_128;j++;a++;//q[1]=MARK_128;	 
 					}
 					else if (q[(step-1)]<-3 && q[(step-1)]>=-7)
 					{
 						if (q[step]<-3 && q[step]>=-7)
 						{
-							q[-1]=12200;q[0]=10100;
-							q[(step-1)]=10100;q[step]=10100;
+							q[-1]=MARK_122;q[0]=MARK_128;
+							q[(step-1)]=MARK_128;q[step]=MARK_128;
 							j++;a++;
 						}
 					}
@@ -306,7 +307,7 @@ void offsetY_LL_q4(short *pr, int step)
 			if (q[0]==5 || q[0]==6 || q[0]==7) {
 				if (q[1]==5 || q[1]==6 || q[1]==7) {
 					//q[0]+=3;
-					q[0]=10300;
+					q[0]=MARK_126;
 					j++;a++;
 				}
 			}
@@ -315,7 +316,7 @@ void offsetY_LL_q4(short *pr, int step)
 				if (q[1]==-5 || q[1]==-6 || q[1]==-7)
 				{
 					//q[0]-=3;
-					q[0]=10204;
+					q[0]=MARK_125;
 					j++;a++;
 				}
 			}
@@ -348,13 +349,13 @@ void offsetY(image_buffer *im,encode_state *enc, int m1)
 
 		switch (a) {
 
-			case 10100:  q[0] = 128; break;
-			case 12700:  q[0] = 127; break;
-			case 12900:  q[0] = 129; break;
-			case 10204:  q[0] = 125; break;
-			case 10300:  q[0] = 126; break;
-			case 12100:  q[0] = 121; break;
-			case 12200:  q[0] = 122; break;
+			case MARK_128:  q[0] = 128; break;
+			case MARK_127:  q[0] = 127; break;
+			case MARK_129:  q[0] = 129; break;
+			case MARK_125:  q[0] = 125; break;
+			case MARK_126:  q[0] = 126; break;
+			case MARK_121:  q[0] = 121; break;
+			case MARK_122:  q[0] = 122; break;
 
 			default:
 			{
@@ -687,6 +688,7 @@ void pre_processing_UV(image_buffer *im)
 	}
 }
 
+#if 0 // UNUSED
 void block_variance_avg(image_buffer *im)
 {
 	int i,j,e,a,t1,scan,count,avg,variance;
@@ -824,6 +826,7 @@ void block_variance_avg(image_buffer *im)
 
 	free(block_var);
 }
+#endif
 
 #define IS_ODD(x)  ((x & 1) == 1)
 
@@ -869,12 +872,12 @@ int fixup_neighbours(short *p, short *q, int step)
 		if     (p[-1] >3 && p[-1] <=7) {
 
 			if (p[1]  >3 && p[1]  <=7) {
-				p[-1]=15300;p[0]=0;q[0]=5;q[1]=5; skip = 1;
+				p[-1]=CODE_15300;p[0]=0;q[0]=5;q[1]=5; skip = 1;
 			} else
 			if     ((p[(step-1)] > 3 && p[(step-1)] <=7)
 				&&  (p[(step)]   > 3 && p[(step)]   <=7)) {
-					p[-1] =       15500;  q[0]      = 5;
-					p[(step-1)] = 15500;  q[(step)] = 5;
+					p[-1] =       CODE_15500;  q[0]      = 5;
+					p[(step-1)] = CODE_15500;  q[(step)] = 5;
 					p[(step)] = 0;
 					skip = 1;
 			}
@@ -882,13 +885,13 @@ int fixup_neighbours(short *p, short *q, int step)
 	} else if (p[0] <- 3 && p[0] > -8) {
 		if (p[-1]    <-3 && p[-1] >=-7) {
 			if (p[1] <-3 && p[1]  >=-7) {
-				p[-1] = 15400;  p[0] = 0;
+				p[-1] = CODE_15400;  p[0] = 0;
 				q[0]  = -6;     q[1] = -5; skip = 1;
 			}
 			else if (p[(step-1)] < -3 && p[(step-1)] >= -7) {
 				if (p[(step)] <    -3 && p[(step)]   >= -7) {
-					p[-1]      = 15600;  q[0]      = -5;
-					p[(step-1)]= 15600;  q[(step)] = -5;
+					p[-1]      = CODE_15600;  q[0]      = -5;
+					p[(step-1)]= CODE_15600;  q[(step)] = -5;
 					p[(step)]=0;
 					skip = 1;
 				}
@@ -903,13 +906,13 @@ int tag_thresh_neighbour(short *p)
 	if (p[0]==5 || p[0]==6 || p[0]==7) {
 		if (p[1]==5 || p[1]==6 || p[1]==7) {
 			//p[0]+=3;
-			p[0]=15700;
+			p[0]=CODE_15700;
 			return 1;
 		}
 	} else if (p[0]==-5 || p[0]==-6 || p[0]==-7) {
 		if (p[1]==-5 || p[1]==-6 || p[1]==-7) {
 			//p[0]-=3;
-			p[0]=15800;
+			p[0]=CODE_15800;
 			return 1;
 		}
 	}
@@ -1000,12 +1003,12 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 
 	} else {
 		switch (a) {
-			case 15300: q[0] =  5;          return 2;
-			case 15400: q[0] = -5;          return 2;
-			case 15500: q[0] =  5;          return 1;
-			case 15600: q[0] = -5;          return 1;
-			case 15700: q[0] =  6; q[1]= 6; return 1;
-			case 15800: q[0] = -6; q[1]=-6; return 1;
+			case CODE_15300: q[0] =  5;          return 2;
+			case CODE_15400: q[0] = -5;          return 2;
+			case CODE_15500: q[0] =  5;          return 1;
+			case CODE_15600: q[0] = -5;          return 1;
+			case CODE_15700: q[0] =  6; q[1]= 6; return 1;
+			case CODE_15800: q[0] = -6; q[1]=-6; return 1;
 			case 8:
 				if (end && p[1]==-7) p[1]=-8;
 				break;

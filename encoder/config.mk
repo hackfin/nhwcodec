@@ -1,5 +1,6 @@
 DEBUG = y
 
+CFLAGS += -Wall
 CFLAGS += -I$(NETPP)/include -I$(NETPP)/devices
 CFLAGS += -DCOMPILE_WITHOUT_BOUNDARY_CHECKS
 

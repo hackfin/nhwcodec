@@ -1,34 +1,41 @@
 #include "codec.h"
 
+static
+void shuffle_quadpacks(unsigned char *s, const short *pr, int step)
+{
+	int i, j;
+
+	// Re-order coefficients in four-blocks:
+
+
+	for (j=0;j<(IM_DIM<<1);)
+	{
+		for (i=0;i<IM_DIM;i++)
+		{
+			*s++ = pr[0]; *s++ = pr[1]; *s++ = pr[2]; *s++ = pr[3];
+	
+			j += step;
+			pr += step;
+
+			// Next line in reverse order:
+			*s++ = pr[3]; *s++ = pr[2]; *s++ = pr[1]; *s++ = pr[0];
+
+			j += step;
+			pr += step;
+		}
+
+		j-=((4*IM_SIZE)-4);
+		pr-=((4*IM_SIZE)-4);
+	}
+}
+
 void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 {
 	int i, j, count;
 
 	int step = 2 * IM_DIM;
 
-	for (j=0,count=0;j<(IM_DIM<<1);)
-	{
-		for (i=0;i<IM_DIM;i++)
-		{
-			s[count]=pr[j];
-			s[count+1]=pr[j+1];
-			s[count+2]=pr[j+2];
-			s[count+3]=pr[j+3];
-	
-			j+=step;
-
-			s[count+4]=pr[j+3];
-			s[count+5]=pr[j+2];
-			s[count+6]=pr[j+1];
-			s[count+7]=pr[j];
-
-			j+=step;
-			count+=8;
-		}
-
-		j-=((4*IM_SIZE)-4);
-	}
-
+	shuffle_quadpacks(s, pr, step);
 
 	for (i=0;i<4*IM_SIZE-4;i++)
 	{
@@ -38,10 +45,15 @@ void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 			{
 				if  (s[i+3]==128)
 				{
-					if (s[i]==136 && s[i+4]==136) {s[i]=132;s[i+4]=201;i+=4;}
-					else if (s[i]==136 && s[i+4]==120) {s[i]=133;s[i+4]=201;i+=4;}
-					else if (s[i]==120 && s[i+4]==136) {s[i]=134;s[i+4]=201;i+=4;}
-					else if (s[i]==120 && s[i+4]==120) {s[i]=135;s[i+4]=201;i+=4;}
+					if (s[i]==136 && s[i+4]==136)
+						{s[i] = 132; s[i+4]=201;i+=4;}
+					else if (s[i]==136 && s[i+4]==120)
+						{s[i] = 133; s[i+4]=201;i+=4;}
+					else if (s[i]==120 && s[i+4]==136)
+						{s[i] = 134; s[i+4]=201;i+=4;}
+					else if (s[i]==120 && s[i+4]==120)
+						{s[i] = 135; s[i+4]=201;i+=4;}
+
 					//else if (s[i]==136 && s[i+4]==112) {s[i]=127;i+=4;}
 					//else if (s[i]==112 && s[i+4]==136) {s[i]=126;i+=4;}
 					//else if (s[i]==136 && s[i+4]==144) {s[i]=125;i+=4;}
