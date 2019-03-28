@@ -471,7 +471,6 @@ void postprocess14(short *dst, short *pr, short *res256)
 					}
 				}
 
-#warning "OUT_OF_BOUNDS FIX"
 				if (e > 0 && count > 0) {
 					a+=(pr[e-1]-p[-1]);
 				}
@@ -1349,7 +1348,6 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	wavelet_analysis(im, n,end_transform++,1);
 
-#warning "OUT_OF_BOUNDS Fix"
 	// Add some head room for padding (PAD is initialized to 0!)
 	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
 	resIII = (short*) malloc(IM_SIZE*sizeof(short));

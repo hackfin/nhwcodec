@@ -50,101 +50,100 @@
 #include "codec.h"
 #include "tree.h"
 
-int wavlts2packet(image_buffer *im,encode_state *enc)
-{
-	int i,j,k,e,a,b,c,select,tag,thresh,pos,pack,match,part,p1,p2;
-	unsigned int weight[354],weight2[354],l1,l2,huffman_word;
-	unsigned short rle_tree[580];
-	unsigned char codebook[580],zone_entrance,color,pixel,*nhw_s1,*nhw_s2;
+#define PRINTF(...)
+
+#define NUM_CODE_WORDS   2 * DEPTH
+
+struct compression_context {
+	int enc_ptr;
+	int s1_pos;
+	int s2_pos;
+	int zone_entrance;
 	unsigned char *nhw_comp;
-	int rle_buf[256],rle_128[256];
+	unsigned char *nhw_s1;
+	unsigned char *nhw_s2;
+	int rle_buf[256];
+	int rle_128[256];
+	unsigned short rle_tree[NUM_CODE_WORDS];
+};
 
-	nhw_comp=(unsigned char*)im->im_nhw;
+static void rle_histo(struct compression_context *ctx, int p1, int p2)
+{
+	int i, e;
+	const unsigned char *nhw_comp = ctx->nhw_comp;
+	int *rle_buf = ctx->rle_buf;
+	int *rle_128 = ctx->rle_128;
 
-	enc->encode=(unsigned int*)calloc(80000,sizeof(int));
-	enc->tree1=(unsigned char*)calloc((DEPTH+UNZONE1+1)*2,sizeof(char));
-	enc->tree2=(unsigned char*)calloc((DEPTH+1)*2,sizeof(char));
-
-	part=0;p1=0;p2=(4*IM_SIZE);a=0;color=im->im_nhw[4*IM_SIZE];im->im_nhw[4*IM_SIZE]=3;
-	
-	thresh=DEPTH+UNZONE1;
-
-L1:	if (part==0) select=4; else {select=3;thresh=DEPTH;}
-	memset(rle_buf,0,256*sizeof(int));
-	memset(rle_128,0,256*sizeof(int));
-	
-	/////// FIRST STAGE ////////
-
-	e=0;b=0;c=0;
-
-	for (i=p1;i<p2-1;i++)   
-	{
-L_RUN1:	if (i<p2 && nhw_comp[i]==128)   
-		{
-			while (i<(p2-1) && nhw_comp[i+1]==128)
-			{
-				e++;c=1;
-				if (e>255) {e=254;rle_128[254]++;i--;e=0;c=0;goto L_RUN1;}
+	i = p1;
+	int n;
+	PRINTF("-------\n 0: ");
+	while (i < p2-1) {
+		if (nhw_comp[i]==128) { // (1)
+			e=0;
+			while (i<(p2-1) && nhw_comp[i+1]==128) {
+				e++;
+				// nasty: If more than 255 occurences found,
+				// decrement i and resume. This is not effective,
+				// as the condition (1) is THEN always true.
+				// FIXME: State machine / unwrap loop
+				if (e > 255) { i-=2; e = 253; break; }
 				else i++;
 			}
-		}
 
-		if (c) 
-		{
-			rle_128[e+1]++;
+			if (e)  { rle_128[e+1]++; PRINTF("[%d]", e);}
+				
+			else    { rle_buf[nhw_comp[i]]++; PRINTF("%d,", nhw_comp[i]);}
+
+			n++; if (n == 4) { PRINTF("\n %d: ", i); n = 0; }
+		} else {
+			rle_buf[nhw_comp[i]]++; PRINTF("%d,", nhw_comp[i]);
+			n++; if (n == 4) { PRINTF("\n %d: ", i); n = 0; }
 		}
-		else 
-		{
-			rle_buf[nhw_comp[i]]++;
-		}
-		e=0;c=0;
+		i++;
 	}
+	PRINTF("\n---------------------------------------------------\n");
+	
 
-L_RATIO:
-	memset(weight,0,354*sizeof(int));
-	memset(weight2,0,354*sizeof(int));
+}
 
-	for (i=0;i<109;i+=2)
-	{
-		if (rle_buf[i]>0) 
-		{
+
+static
+int rle_weights(unsigned int *weight, unsigned int *weight2,
+	int *rle_buf, int *rle_128, unsigned short *rle_tree, int sel)
+{
+	int i, j, k;
+
+	for (i=0;i<109;i+=2) {
+		if (rle_buf[i]>0) {
 			weight2[i] = rle_buf[i]; 
 		}
 	}
 
-	if (rle_buf[112]>0) 
-	{
+	if (rle_buf[112]>0) {
 		weight2[112] = rle_buf[112]; 
 	}
 
-	for (i=120;i<141;i++)
-	{
-		if (rle_buf[i]>0) 
-		{
+	for (i=120;i<141;i++) {
+		if (rle_buf[i]>0) {
 			weight2[i] = rle_buf[i]; 
 		}
 	}
 
-	for (i=144;i<256;i+=4)
-	{
-		if (rle_buf[i]>0) 
-		{
+	for (i=144;i<256;i+=4) {
+		if (rle_buf[i]>0) {
 			weight2[i] = rle_buf[i]; 
 		}
 	}
 
-	for (j=2;j<256;j++)
-		{
-			if (rle_128[j]>0) 
-			{
+	for (j=2;j<256;j++) {
+			if (rle_128[j]>0) {
 				weight2[128] += j*rle_128[j]; 
 			}
 		}
 
-	for (j=2;j<select;j++) rle_128[j]=0;
+	for (j=2;j<sel;j++) rle_128[j]=0;
 
-	for(j=select;j<256;j++)
-	{
+	for(j=sel;j<256;j++) {
 		if (rle_128[j]>0) weight2[128]-=j*rle_128[j];
 		//else rle_buf[128][j]=0;
 	}
@@ -152,237 +151,85 @@ L_RATIO:
 	rle_buf[128]=weight2[128];
 
 	k=0;
-	for (j=select;j<256;j++)
-	{
-		if (rle_128[j]>0)
-		{
+	for (j=sel;j<256;j++) {
+		if (rle_128[j]>0) {
 			rle_tree[k]=(unsigned short)((j<<8)|128);
 			weight[k]=rle_128[j];
 			k++;
 		}
 	}
 
-	for (i=0;i<109;i+=2)
-	{
-		if (rle_buf[i]>0)
-		{
+	for (i=0;i<109;i+=2) {
+		if (rle_buf[i]>0) {
 			rle_tree[k]=(unsigned short)((1<<8)|i);
 			weight[k]=rle_buf[i];
 			k++;
 		}
 	}
 
-	if (rle_buf[112]>0)
-	{
+	if (rle_buf[112]>0) {
 		rle_tree[k]=(unsigned short)((1<<8)|112);
 		weight[k]=rle_buf[112];
 		k++;
 	}
 
-	for (i=120;i<141;i++)
-	{
-		if (rle_buf[i]>0)
-		{
+	for (i=120;i<141;i++) {
+		if (rle_buf[i]>0) {
 			rle_tree[k]=(unsigned short)((1<<8)|i);
 			weight[k]=rle_buf[i];
 			k++;
 		}
 	}
 
-	for (i=144;i<256;i+=4)
-	{
-		if (rle_buf[i]>0)
-		{
+	for (i=144;i<256;i+=4) {
+		if (rle_buf[i]>0) {
 			rle_tree[k]=(unsigned short)((1<<8)|i);
 			weight[k]=rle_buf[i];
 			k++;
 		}
 	}
 
- 	if (k>thresh)   
-	{
-		select++;
-		if (select>=100) exit(-1);
-		goto L_RATIO;
-	}
+	return k;
+}
 
-	for (i=0;(i<k);i++)
-	{
-		for (j=1;j<(k-i);j++)
-		{
-			if (weight[j]>weight[j-1])
-			{
-				l1=rle_tree[j-1];
-				l2=weight[j-1];
-				rle_tree[j-1]=rle_tree[j];
-				weight[j-1]=weight[j];
-				rle_tree[j]=l1;
-				weight[j]=l2;
-			}
-		}
-	}
+static
+int rle_tree_bitplane_code(struct compression_context *ctx,
+	int k, unsigned char *codebook, encode_state *enc)
+{
+	unsigned char pixel;
+	int b, e;
+	int i;
 
-#ifdef NHW_BOOKS
-	printf("\nsize= %d\n",k);printf("\nCodeBooks\n");
-	for(i=0;i<290;i++) printf("%d %d %d %d\n",i,(unsigned char)rle_tree[i],rle_tree[i]>>8,weight[i]);
-#endif
+	int c = ctx->s1_pos;
+	int j = ctx->s2_pos;
 
-	//////// LAST STAGE ///////
+	c = (c + 7) & ~7; // Round up to next multiple of 8 for padding
 
-	for (i=0;i<k;i++)
-	{
-		//l1=(unsigned char)(rle_tree[i]);
-		//l2=(unsigned char)(rle_tree[i]>>8);
-		if ((rle_tree[i]>>8)==1) rle_buf[(rle_tree[i]&0xFF)]=i;
-		else rle_128[(rle_tree[i]>>8)]=i;
-	}
-
-	if ((rle_tree[0]==((1<<8)|128))) b=1; else b=0;
-	if ((part==0) && (b==0) && (k>290)) exit(-1);
-	if ((part==1) && (select!=4) && (k>290)) exit(-1);
-
-	if (select==4 && b==1) zone_entrance=1;else zone_entrance=0;
-	if (part==1) zone_entrance=0;
-	
-	if (!part)
-	{
-		enc->nhw_select1 = (enc->nhw_select1 + 7) & ~7; // Round up to next multiple of 8 for padding
-		enc->nhw_select2 = (enc->nhw_select2 + 7) & ~7; // Round up to next multiple of 8 for padding
-	
-		nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
-		nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
-	}
-
-	e=1;match=0;pack=0;tag=0;c=0,j=0;
-	for (i=p1;i<p2-1;i++)   
-	{
-		pixel=nhw_comp[i];
-
-		if (pixel>=153)
-		{
-			if (pixel==153) 
-			{
-				nhw_s1[c++]=0;continue;
-			}
-			else if (pixel==155) 
-			{
-				nhw_s1[c++]=1;continue;
-			}
-			else if (pixel==157) 
-			{
-				nhw_s2[j++]=0;continue;
-			}
-			else if (pixel==159) 
-			{
-				nhw_s2[j++]=1;continue;
-			}
-		}
-
-		if (pixel!=128 && pixel<136 && pixel>120)
-		{
-			pos=(unsigned short)rle_buf[pixel];
-			if (pixel>131) i+=4;
-			goto L_ZE;
-		}
-
-		if (pixel==128)   
-		{
-			while (i<(p2-1) && nhw_comp[i+1]==128)
-			{
-				e++;
-				if (e>255) {e=254;i--;goto L_JUMP;}
-				else i++;
-			}
-
-			if (e>1) 
-			{ 
-				if (e<select) {i-=(e-1);tag=e;e=1;}
-			}
-		}
-
-L_JUMP:	if (e==1) pos=(unsigned short)rle_buf[pixel];
-		else pos=(unsigned short)rle_128[e];
-
-L_ZE:		if (pos>=110 && pos<174 && zone_entrance)
-		{
-			pack += 15;
-			if (pack<=32) enc->encode[a] |= ((1<<6)|(pos-110))<<(32-pack); 
-			else
-			{
-				match=pack-32;
-				enc->encode[a] |= ((1<<6)|(pos-110))>>match;
-				a++;
-				enc->encode[a] |= (((1<<6)|(pos-110))&((1<<match)-1))<<(32-match);
-				pack=match;
-			}
-		}
-		else
-		{
-			if (pos>=174) if (zone_entrance) pos -=UNZONE1;
-			pack += len[pos];
-
-			if (pack<=32) enc->encode[a] |= huffman_tree[pos]<<(32-pack); 
-			else
-			{
-				match=pack-32;
-				enc->encode[a] |= huffman_tree[pos]>>match;
-				a++;
-				enc->encode[a] |= (huffman_tree[pos]&((1<<match)-1))<<(32-match);
-				pack=match;
-			}
-		}
-
-L_TAG:	e=1;
-		// check the tag, maybe can be elsewhere faster...
-		if (tag>0) {tag--;if (tag>0){i++;goto L_JUMP;}} 
-	}
-
-	
-	if (part==0)
-	{
-	enc->size_data1=a+1;
-	if (select>4 || b==0) im->setup->wavelet_type=4;
-	else im->setup->wavelet_type=0;
-	
-	c= (c + 7) & ~7; // Round up to next multiple of 8 for padding
-
-	b=(c>>3);e=0;
+	b = (c>>3); e=0;
 	enc->nhw_select_word1=(unsigned char*)calloc((b<<3),sizeof(char));
 
-	for (i=0;i<(b<<3);i+=8)
-	{
-		enc->nhw_select_word1[e++]=((nhw_s1[i]&1)<<7)|((nhw_s1[i+1]&1)<<6)|
-								   ((nhw_s1[i+2]&1)<<5)|((nhw_s1[i+3]&1)<<4)|
-								   ((nhw_s1[i+4]&1)<<3)|((nhw_s1[i+5]&1)<<2)|
-								   ((nhw_s1[i+6]&1)<<1)|((nhw_s1[i+7]&1));	
-	}
+	copy_bitplane0(ctx->nhw_s1, b, enc->nhw_select_word1);
 
-	free(nhw_s1);
-
-	enc->nhw_select1=e;
+	enc->nhw_select1=b;
 	
 	j= (j + 7) & ~7; // Round up to next multiple of 8 for padding
 
 	b=(j>>3);e=0;
 	enc->nhw_select_word2=(unsigned char*)calloc((b<<3),sizeof(char));
 
-	for (i=0;i<(b<<3);i+=8)
-	{
-		enc->nhw_select_word2[e++]=((nhw_s2[i]&1)<<7)|((nhw_s2[i+1]&1)<<6)|
-								   ((nhw_s2[i+2]&1)<<5)|((nhw_s2[i+3]&1)<<4)|
-								   ((nhw_s2[i+4]&1)<<3)|((nhw_s2[i+5]&1)<<2)|
-								   ((nhw_s2[i+6]&1)<<1)|((nhw_s2[i+7]&1));	
-	}
+	copy_bitplane0(ctx->nhw_s2, b, enc->nhw_select_word2);
 
-	free(nhw_s2);
-
-	enc->nhw_select2=e;
+	enc->nhw_select2=b;
 
 	e=0;b=0;c=0;
-	for (i=0;i<k;i++)
-	{
-		if ((rle_tree[i]>>8)==0x1) enc->tree1[e++]= (unsigned char)((rle_tree[i]&0xff));
-		else {enc->tree1[e++]=3;enc->tree1[e++]=(rle_tree[i]>>8);}
+	for (i=0;i<k;i++) {
+		unsigned short tmp = ctx->rle_tree[i];
+		if (tmp >> 8 == 0x1)
+			enc->tree1[e++]= (unsigned char)((tmp & 0xff));
+		else {
+			enc->tree1[e++] = 3;
+			enc->tree1[e++] = (tmp >> 8);
+		}
 	}
 
 	for (i=0;i<e;i+=2) codebook[b++]=enc->tree1[i];
@@ -402,19 +249,24 @@ L_COD:	if (codebook[i]==3)
 	}
 
 	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree1[i]);
+	return b;
+}
 
-	enc->size_tree1=b;
-	}
-	else
-	{
-	enc->size_data2=a+1;
+static
+int rle_tree2_code(struct compression_context *ctx,
+	int k, unsigned char *codebook, encode_state *enc)
+{
+	int i, e, b, c;
 
 	e=0;b=0;c=0;
 
-	for (i=0;i<k;i++)
-	{
-		if ((rle_tree[i]>>8)==0x1) enc->tree2[e++]= (unsigned char)((rle_tree[i]&0xff)|1);
-		else {enc->tree2[e++]=(rle_tree[i]&0xff);enc->tree2[e++]=(rle_tree[i]>>8);}
+	for (i=0;i<k;i++) {
+		unsigned short tmp = ctx->rle_tree[i];
+		if ((tmp >> 8)==0x1)
+			enc->tree2[e++] = (unsigned char)((tmp & 0xff) | 1);
+		else {
+			enc->tree2[e++] = (tmp&0xff);
+			enc->tree2[e++] = (tmp>>8);}
 	}
 
 	enc->tree_end=e;
@@ -438,48 +290,278 @@ L_COD2:	if (codebook[i]==128)
 	}
 
 	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree2[i]);
-
 	enc->size_tree2=b;
-	}
-
-	if (part==0)
-	{
-		part=1;
-		a++; 
-		p1=4*IM_SIZE;
-		p2=6*IM_SIZE;
-		im->im_nhw[4*IM_SIZE]=color;
-		im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];
-		goto L1;
-	}
 }
+
+static
+void rle_pixelcount(struct compression_context *ctx,
+	int p1, int p2, int sel, encode_state *enc)
+{
+	int i, j;
+	int c, e;
+	int tag, pos, match, pack;
+	unsigned char pixel;
+	// unsigned char *nhw_s1 = ctx->nhw_s1;
+	// unsigned char *nhw_s2 = ctx->nhw_s1;
+
+	int a = ctx->enc_ptr;
+
+	e=1; match=0; pack=0; tag=0; c=0, j=0;
+	for (i=p1;i<p2-1;i++)   
+	{
+		pixel=ctx->nhw_comp[i];
+
+		if (pixel>=153)
+		{
+			if (pixel==153) 
+			{
+				ctx->nhw_s1[c++]=0;continue;
+			}
+			else if (pixel==155) 
+			{
+				ctx->nhw_s1[c++]=1;continue;
+			}
+			else if (pixel==157) 
+			{
+				ctx->nhw_s2[j++]=0;continue;
+			}
+			else if (pixel==159) 
+			{
+				ctx->nhw_s2[j++]=1;continue;
+			}
+		}
+
+		if (pixel!=128 && pixel<136 && pixel>120)
+		{
+			pos=(unsigned short) ctx->rle_buf[pixel];
+			if (pixel>131) i+=4;
+			goto L_ZE;
+		}
+
+		if (pixel==128)   
+		{
+			while (i<(p2-1) && ctx->nhw_comp[i+1]==128)
+			{
+				e++;
+				if (e>255) {e=254;i--;goto L_JUMP;}
+				else i++;
+			}
+
+			if (e>1) 
+			{ 
+				if (e<sel) {i-=(e-1);tag=e;e=1;}
+			}
+		}
+
+L_JUMP:	if (e==1) pos=(unsigned short) ctx->rle_buf[pixel];
+		else pos=(unsigned short) ctx->rle_128[e];
+
+L_ZE:		if (pos>=110 && pos<174 && ctx->zone_entrance)
+		{
+			pack += 15;
+			if (pack<=32) enc->encode[a] |= ((1<<6)|(pos-110))<<(32-pack); 
+			else
+			{
+				match=pack-32;
+				enc->encode[a] |= ((1<<6)|(pos-110))>>match;
+				a++;
+				enc->encode[a] |= (((1<<6)|(pos-110))&((1<<match)-1))<<(32-match);
+				pack=match;
+			}
+		}
+		else
+		{
+			if (pos>=174) if (ctx->zone_entrance) pos -=UNZONE1;
+			pack += len[pos];
+
+			if (pack<=32) enc->encode[a] |= huffman_tree[pos]<<(32-pack); 
+			else
+			{
+				match=pack-32;
+				enc->encode[a] |= huffman_tree[pos]>>match;
+				a++;
+				enc->encode[a] |= (huffman_tree[pos]&((1<<match)-1))<<(32-match);
+				pack=match;
+			}
+		}
+
+/* L_TAG: */	e=1;
+		// check the tag, maybe can be elsewhere faster...
+		if (tag>0) {tag--;if (tag>0){i++;goto L_JUMP;}} 
+	}
+	// write back encode data counters:
+	ctx->s2_pos = j; ctx->s1_pos = c;
+	ctx->enc_ptr = a;
+}
+
+	
+int wavlts2packet(image_buffer *im,encode_state *enc)
+{
+	int i,j,k,e,b,c,sel,thresh,part,p1,p2;
+	int tag, pos, match, pack; // XXX
+
+ 	struct compression_context C;
+ 
+	unsigned int weight[354],weight2[354],l1,l2,huffman_word;
+	unsigned char codebook[NUM_CODE_WORDS],color,pixel;
+
+	C.nhw_comp=(unsigned char*)im->im_nhw;
+
+	enc->encode=(unsigned int*)calloc(80000,sizeof(int));
+	enc->tree1=(unsigned char*)calloc((DEPTH+UNZONE1+1)*2,sizeof(char));
+	enc->tree2=(unsigned char*)calloc((DEPTH+1)*2,sizeof(char));
+
+	C.enc_ptr = 0; // Encoded output pointer index
+
+	part=0;p1=0;p2=(4*IM_SIZE);color=im->im_nhw[4*IM_SIZE];im->im_nhw[4*IM_SIZE]=3;
+
+	struct local_parameters {
+		int sel;
+		int thresh;
+	} parms[] = {
+		{ 4, DEPTH+UNZONE1 },
+		{ 3, DEPTH },
+	};
+	
+	enc->nhw_select1 = (enc->nhw_select1 + 7) & ~7; // Round up to next multiple of 8 for padding
+	enc->nhw_select2 = (enc->nhw_select2 + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	C.nhw_s1=(unsigned char*)calloc(enc->nhw_select1,sizeof(char));
+	C.nhw_s2=(unsigned char*)calloc(enc->nhw_select2,sizeof(char));
+
+	for (part = 0; part < 2; part++) {
+		sel = parms[part].sel;
+
+		memset(C.rle_buf,0,256*sizeof(int));
+		memset(C.rle_128,0,256*sizeof(int));
+		
+		/////// FIRST STAGE ////////
+
+		// Statistics on occurences of values in nhw_comp[]:
+		// rle_128 contains the histogram for run lengths of following
+		// values of 128
+		// rle_buf contains statistics on single value occurence.
+		rle_histo(&C, p1, p2);
+
+		do {
+			memset(weight,0,354*sizeof(int));
+			memset(weight2,0,354*sizeof(int));
+
+
+			// Set weights
+			k = rle_weights(weight, weight2, C.rle_buf, C.rle_128, C.rle_tree, sel);
+
+			if (k > parms[part].thresh)   
+			{
+				sel++;
+			} else break;
+		} while (sel < 100);
+
+		if (sel>=100) exit(-1);
+
+		for (i = 0; i < k; i++) {
+			for (j = 1; j < (k-i); j++) {
+				if (weight[j] > weight[j-1]) {
+					l1 = C.rle_tree[j-1];
+					l2 = weight[j-1];
+					C.rle_tree[j-1] = C.rle_tree[j];
+					weight[j-1] = weight[j];
+					C.rle_tree[j] = l1;
+					weight[j] = l2;
+				}
+			}
+		}
+
+	#ifdef NHW_BOOKS
+		printf("\nsize= %d\n",k);printf("\nCodeBooks\n");
+		for(i=0;i< NUM_CODE_WORDS/2 ;i++) printf("%d %d %d %d\n",i,(unsigned char)C.rle_tree[i],C.rle_tree[i]>>8,weight[i]);
+	#endif
+
+		//////// LAST STAGE ///////
+
+		for (i=0;i<k;i++)
+		{
+			//l1=(unsigned char)(C.rle_tree[i]);
+			//l2=(unsigned char)(C.rle_tree[i]>>8);
+			if ((C.rle_tree[i]>>8)==1) C.rle_buf[(C.rle_tree[i]&0xFF)]=i;
+			else C.rle_128[(C.rle_tree[i]>>8)]=i;
+		}
+
+		if ((C.rle_tree[0]==((1<<8)|128))) {
+			b=1;
+			if (sel==4)    C.zone_entrance = 1;
+			else           C.zone_entrance = 0;
+		} else {
+			b=0;
+			if ((part==0) && (k> NUM_CODE_WORDS/2)) exit(-1);
+		}
+
+		if ((part==1) && (sel!=4) && (k> NUM_CODE_WORDS/2)) exit(-1);
+
+		if (part==1) C.zone_entrance=0;
+		
+		// Second pass: Run through nhw_comp[] and grab huffman codes from
+		// huffman_tree[] according to occurence based RLE coding
+		//
+		// Again, use state machine
+
+		rle_pixelcount(&C, p1, p2, sel, enc);
+
+		// Output parameters used next: c, j
+		
+		if (part==0) {
+			enc->size_data1= C.enc_ptr+1;
+			if (sel>4 || b==0) im->setup->wavelet_type=4;
+			else im->setup->wavelet_type=0;
+			b = rle_tree_bitplane_code(&C, k, codebook, enc);
+			enc->size_tree1=b;
+			C.enc_ptr++; 
+			p1=4*IM_SIZE;
+			p2=6*IM_SIZE;
+			im->im_nhw[4*IM_SIZE]=color;
+			im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];
+
+		} else {
+			enc->size_data2= C.enc_ptr+1;
+			rle_tree2_code(&C, k, codebook, enc);
+		}
+	} // repeat for part == 1
+
+	free(C.nhw_s1);
+	free(C.nhw_s2);
+}
+
+//FIXME:
+#define LOOP_VAR_CONDITION(i) (i < ((IM_SIZE>>2))-2)
+
+// These three functions are all similar and could possibly be
+// squashed into one.
 
 
 static
 int compress_res0(int quality,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
-	int i, j, mem;
-	int e;
+	int i, j, a, e, mem;
 
 	mem = 0;
-
-//FIXME:
-#define LOOP_VAR_CONDITION(i) (i < ((IM_SIZE>>2))-2)
 
 	for (i=1,j=1;i<(IM_SIZE>>2);i++)
 	{
 		int dh0 = highres[i]-highres[i-1];
 		int dh1 = highres[i+1]-highres[i];
 
-		if (dh0==0 && dh1==0)
-		{
-			if (highres[i+2] == highres[i+1]) {
-				i += 3; ch_comp[j] = (1 << 3);
-				// Skip if we have several nulls
-			} else {
-				i += 2; ch_comp[j] = 0;
-			}
+		if (dh0==0 && dh1==0) {
+			// Count subsequent equal values in a:
+			a = 0;
+			const unsigned char *p = &highres[i];
+#warning "Out of bounds access possible, check if properly padded"
+			// FIXME: Turn into state machine.
+			while (a < 1 && p[2] == p[1]) { a++; p++; }
+
+			i+=(a+2);
+			ch_comp[j]=(a<<3);
+
 			int d0 = highres[i] - highres[i-1];
 			int d1 = highres[i+1] - highres[i];
 
@@ -505,20 +587,23 @@ int compress_res0(int quality,
 			}
 			ch_comp[j++] = comp;
 		}
+
+
+
 		else if (abs(dh0)<=6 && abs(dh1)<=8)
 		{
 			dh0+=6;dh1+=8;
-			int d2 = highres[i+2]-highres[i+1];
 
 			if (dh0==12 || dh1==16) 
 			{
+				int d2 = highres[i+2]-highres[i+1];
+
 				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i)) 
 				{
-					e = d2 + 32;dh0 += 26;dh1 += 8; goto COMP3;
+					e = d2 + 32; dh0 += 26; dh1 += 8; goto COMP3;
 				} else {
 					ch_comp[j++]=128;
 					ch_comp[j++]=128+(highres[i]>>1);
-
 					if (quality>LOW5)
 					{
 						ch_comp[j++]=128+(highres[i+1]>>1);
@@ -543,11 +628,11 @@ int compress_res0(int quality,
 				i++;
 			}
 		}
-		else if (abs(dh0)<=32 && abs(dh1)<=16 &&
-		  abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
+		else if (abs(dh0)<=32 && abs(dh1)<=16
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
-COMP3:	
+COMP3:
 			if (dh0==64 || dh1==32 || e==64) 
 			{
 				ch_comp[j++]=128;
@@ -587,221 +672,203 @@ COMP3:
 
 	enc->highres_comp_len=mem;
 
-	return j; // # of values i ch_comp[]
+	return j; // # of values in ch_comp[]
 }
-
 
 static
 int compress_res1(int quality,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
-	int i, j, a, mem;
-	int scan, count, e;
+	int i, j, a, e, mem;
 
-	mem=0;
+	mem = 0;
 
-	for (i=1,j=1,a=0;i<(IM_SIZE>>2);i++)
+	for (i=1,j=1;i<(IM_SIZE>>2);i++)
 	{
-		scan=highres[i]-highres[i-1];
-		count=highres[i+1]-highres[i];
+		int dh0 = highres[i]-highres[i-1];
+		int dh1 = highres[i+1]-highres[i];
 
-		if (scan==0 && count==0)
-		{
-RES_COMPR4:	if (highres[i+a+2]==highres[i+a+1])
-			{
-				a++;
-				if (a<7) goto RES_COMPR4;
-				if (a==7) goto END_RES4;
-			}
-END_RES4:	
+		if (dh0==0 && dh1==0) {
+			// Count subsequent equal values in a:
+			a = 0;
+			const unsigned char *p = &highres[i];
+#warning "Out of bounds access possible, check if properly padded"
+			// FIXME: Turn into state machine.
+			while (a < 7 && p[2] == p[1]) { a++; p++; }
+
 			i+=(a+2);
 			ch_comp[j]=(a<<2);
-			
-			if (highres[i]-highres[i-1]==2) 
-			{
-				ch_comp[j]+=1;
-			}
-			else if (highres[i]-highres[i-1]==-2)
-			{
-				ch_comp[j]+=2;	
-			}
-			else if (highres[i]-highres[i-1]==0) ch_comp[j]+=3;
-			else i--; 
 
-			a=0;
-			j++;
+			int d0 = highres[i] - highres[i-1];
+
+			int comp = ch_comp[j];
+
+			switch (d0) {
+				case 2:
+					comp+=1; break;
+				case -2:
+					comp+=2; break;
+				case 0:
+					comp+=3; break;
+				default:
+					i--; 
+			}
+			ch_comp[j++] = comp;
 		}
-		else if (abs(scan)<=4 && abs(count)<=8)
+
+
+
+		else if (abs(dh0)<=4 && abs(dh1)<=8)
 		{
-			scan+=4;count+=8;
-			if (scan==8 || count==16) 
+			dh0+=4;dh1+=8;
+
+			if (dh0==8 || dh1==16) 
 			{
-				if (abs(highres[i+2]-highres[i+1])<=32 && i<16382) 
+				int d2 = highres[i+2]-highres[i+1];
+
+				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i)) 
 				{
-					e=highres[i+2]-highres[i+1]+32;scan+=28;count+=8;goto COMP4;
-				}
-				else
-				{
+					e = d2 + 32; dh0 += 28; dh1 += 8; goto COMP4;
+				} else {
+					ch_comp[j++]=128;
+					ch_comp[j++]=128+(highres[i]>>1);
 					if (quality>LOW5)
 					{
-						ch_comp[j++]=128;
-						ch_comp[j++]=128+(highres[i]>>1);
 						ch_comp[j++]=128+(highres[i+1]>>1);
 						enc->highres_word[mem++]=enc->ch_res[i];
 						enc->highres_mem[enc->highres_mem_len++]=i;
 						i++;
 					}
-					else 
-					{
-						ch_comp[j++]=128;
-						ch_comp[j++]=128+(highres[i]>>1);
-					}
 				}
-			}
-			else 
-			{
-				ch_comp[j++]=32+ (scan<<2) + (count>>1);
+			} else {
+				ch_comp[j++]=32+ (dh0<<2) + (dh1>>1);
 				//if (highres[i+2]==highres[i+1] && i<12286) { ch_comp[j-1]+=1;i+=2;}
 				//else i++;
 				i++;
 			}
 		}
-		else if (abs(scan)<=32 && abs(count)<=16 && abs(highres[i+2]-highres[i+1])<=32 && i<16382)
+		else if (abs(dh0)<=32 && abs(dh1)<=16
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
 		{
-			scan+=32;count+=16;e=highres[i+2]-highres[i+1]+32;
-COMP4:		if (scan==64 || count==32 || e==64) 
+			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
+COMP4:
+			if (dh0==64 || dh1==32 || e==64) 
 			{
+				ch_comp[j++]=128;
+				ch_comp[j++]=128+(highres[i]>>1);
+
 				if (quality>LOW5)
 				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
 					ch_comp[j++]=128+(highres[i+1]>>1);
 					enc->highres_word[mem++]=enc->ch_res[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
-				else 
-				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
-				}
 			}
 			else 
 			{
-				count>>=1;
+				dh1>>=1;
 				ch_comp[j++]=64;
-				ch_comp[j++]=64 +(scan) + (count>>3);
-				ch_comp[j++]=((count&7)<<5) + (e>>1);
+				ch_comp[j++]=64 +(dh0) + (dh1>>3);
+				ch_comp[j++]=((dh1&7)<<5) + (e>>1);
 	
 				i+=2;
 			}
 		}
 		else
 		{
-			if (quality>LOW5)
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
+			ch_comp[j++]=128;
+			ch_comp[j++]=128+(highres[i]>>1);
+
+			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
 				enc->highres_word[mem++]=enc->ch_res[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
 			}
-			else 
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
-			}
 		}
 	}
 
 	enc->highres_comp_len=mem;
-	return j;
+
+	return j; // # of values in ch_comp[]
 }
+
 
 static
 int compress_res2(int quality,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
-	int i, j, a, e, mem, scan, count;
+	int i, j, a, e, mem;
 
-	for (i=1,j=1,a=0,mem=0;i<(IM_SIZE>>2);i++)
+	mem = 0;
+
+	for (i=1,j=1;i<(IM_SIZE>>2);i++)
 	{
-		scan=highres[i]-highres[i-1];
-		count=highres[i+1]-highres[i];
+		int dh0 = highres[i]-highres[i-1];
+		int dh1 = highres[i+1]-highres[i];
 
-		if (scan==0 && count==0)
-		{
-RES_COMPR5:	if (highres[i+a+2]==highres[i+a+1])
-			{
-				a++;
-				if (a<63) goto RES_COMPR5;
-				if (a==63) goto END_RES5;
-			}
-END_RES5:	
-			i+=(a+1);
+		if (dh0==0 && dh1==0) {
+			// Count subsequent equal values in a:
+			a = 0;
+			const unsigned char *p = &highres[i];
+#warning "Out of bounds access possible, check if properly padded"
+			// FIXME: Turn into state machine.
+			while (a < 63 && p[2] == p[1]) { a++; p++; }
+			i+=(a+2);
 			ch_comp[j++]=a;
-			a=0;
 		}
-		else if (abs(scan)<=32 && abs(count)<=16 && abs(highres[i+2]-highres[i+1])<=32 && i<16382)
+		else if (abs(dh0)<=32 && abs(dh1)<=16
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
 		{
-			scan+=32;count+=16;e=highres[i+2]-highres[i+1]+32;
-		if (scan==64 || count==32 || e==64) 
+			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
+		if (dh0==64 || dh1==32 || e==64) 
 			{
+				ch_comp[j++]=128;
+				ch_comp[j++]=128+(highres[i]>>1);
+
 				if (quality>LOW5)
 				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
 					ch_comp[j++]=128+(highres[i+1]>>1);
 					enc->highres_word[mem++]=enc->ch_res[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
-				else 
-				{
-					ch_comp[j++]=128;
-					ch_comp[j++]=128+(highres[i]>>1);
-				}
 			}
 			else 
 			{
-				count>>=1;
+				dh1>>=1;
 				ch_comp[j++]=64;
-				ch_comp[j++]=64 +(scan) + (count>>3);
-				ch_comp[j++]=((count&7)<<5) + (e>>1);
+				ch_comp[j++]=64 +(dh0) + (dh1>>3);
+				ch_comp[j++]=((dh1&7)<<5) + (e>>1);
 	
 				i+=2;
 			}
 		}
 		else
 		{
-			if (quality>LOW5)
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
+			ch_comp[j++]=128;
+			ch_comp[j++]=128+(highres[i]>>1);
+
+			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
 				enc->highres_word[mem++]=enc->ch_res[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
-			}
-			else 
-			{
-				ch_comp[j++]=128;
-				ch_comp[j++]=128+(highres[i]>>1);
 			}
 		}
 	}
 
 	enc->highres_comp_len=mem;
 
-	return j;
+	return j; // # of values in ch_comp[]
 }
 
 static
 void compress_pass2(int quality, int j,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
-	int i, a, e;
+	int i, e;
 
 	unsigned char *comp_tmp;
 
@@ -811,7 +878,7 @@ void compress_pass2(int quality, int j,
 
 	char *p = &comp_tmp[1];
 
-	for (i=1,e=1,a=0;i<j-1;i++)
+	for (i=1,e=1;i<j-1;i++)
 	{
 		if (comp_tmp[i]==64)
 		{
@@ -843,11 +910,10 @@ void compress_pass2(int quality, int j,
 
 	free(comp_tmp);
 
-
-
 	enc->Y_res_comp=e;
-
 }
+
+
 
 void Y_highres_compression(image_buffer *im,encode_state *enc)
 {
@@ -962,27 +1028,31 @@ END_RES3:
 			{
 				i++;
 				ch_comp[j]=64+ (a<<3);
+
+				int d0 = highres[i]-highres[i-1];
+				int d1 = highres[i+1]-highres[i];
+				int d2 = highres[i+2]-highres[i+1];
 			
-				if (highres[i]-highres[i-1]==4) 
+				if (d0==4) 
 				{
-					if (highres[i+1]-highres[i]==-4) 
+					if (d1==-4) 
 					{
-						if (highres[i+2]-highres[i+1]==0) {ch_comp[j]+=3;i+=2;}
+						if (d2==0) {ch_comp[j]+=3;i+=2;}
 						else  {ch_comp[j]+=2;i++;}
 					}
 					else ch_comp[j]+=1;
 				}
-				else if (highres[i]-highres[i-1]==-4)
+				else if (d0==-4)
 				{
-					if (highres[i+1]-highres[i]==4) 
+					if (d1==4) 
 					{
-						if (highres[i+2]-highres[i+1]==0) {ch_comp[j]+=4;i+=2;}
+						if (d2==0) {ch_comp[j]+=4;i+=2;}
 						else  {ch_comp[j]+=5;i++;}
 					}
 					else ch_comp[j]+=6;
 				
 				}
-				else if (highres[i]-highres[i-1]==8) ch_comp[j]+=7;
+				else if (d0==8) ch_comp[j]+=7;
 				else i--;
 			}
 
