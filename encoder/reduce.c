@@ -586,7 +586,7 @@ void reduce_HL_q4(short *pr, int step)
 				{
 					if (p[1]>3 && p[1]<=7)
 					{
-						p[0]=12700;p[-1]=10100;p[1]=10100;
+						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128;
 					}
 				}
 			}
@@ -596,17 +596,17 @@ void reduce_HL_q4(short *pr, int step)
 				{
 					if (p[1]<-3 && p[1]>=-7)
 					{
-						p[0]=12900;p[-1]=10100;p[1]=10100;	 
+						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;	 
 					}
 				}
 			}
 			else if ((p[0]==-7) && (p[1]==-6 || p[1]==-7))
 			{
-				p[0]=10204;p[1]=10100;
+				p[0]=MARK_125;p[1]=MARK_128;
 			}
 			else if (p[0]==7 && p[1]==7)
 			{
-				p[0]=10300;p[1]=10100;
+				p[0]=MARK_126;p[1]=MARK_128;
 			}
 			else if (p[0]==8)
 			{
@@ -635,7 +635,7 @@ void reduce_HL_q4(short *pr, int step)
 				{
 					if (p[1]>3 && p[1]<=7)
 					{
-						p[0]=12700;p[-1]=10100;p[1]=10100;
+						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128;
 					}
 				}
 			}
@@ -645,7 +645,7 @@ void reduce_HL_q4(short *pr, int step)
 				{
 					if (p[1]<-3 && p[1]>=-7)
 					{
-						p[0]=12900;p[-1]=10100;p[1]=10100;
+						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;
 					}
 				}
 			}
@@ -653,11 +653,11 @@ void reduce_HL_q4(short *pr, int step)
 			{
 				if (p[1]==-7)
 				{
-					p[0]=10204;p[1]=10100;
+					p[0]=MARK_125;p[1]=MARK_128;
 				}
 				else if (p[-step]==-7)
 				{
-					if (abs(p[IM_DIM])<8) p[IM_DIM]=10204;p[0]=10100;
+					if (abs(p[IM_DIM])<8) p[IM_DIM]=MARK_125;p[0]=MARK_128;
 				}
 				
 			}
@@ -665,11 +665,11 @@ void reduce_HL_q4(short *pr, int step)
 			{
 				if (p[1]==7)
 				{
-					p[0]=10300;p[1]=10100;
+					p[0]=MARK_126;p[1]=MARK_128;
 				}
 				else if (p[-step]==7)
 				{
-					if (abs(p[IM_DIM])<8) p[IM_DIM]=10300;p[0]=10100;
+					if (abs(p[IM_DIM])<8) p[IM_DIM]=MARK_126;p[0]=MARK_128;
 				}
 			}
 			else if (p[0]==8)
@@ -746,7 +746,7 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 		if (quality <= LOW8) {
 			count = count_threshold(pr, 12);
 
-			//if (count>15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
+			//if (count>MARK_15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
 			if      (count > 12500)      COPY_WVLT(wvlt, quality_special12500)
 			else if (count > 10000)      COPY_WVLT(wvlt, quality_special10000)
 			else if (count >= 7000)      COPY_WVLT(wvlt, quality_special7000)
@@ -841,7 +841,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					 _MOD_ASSIGN(12400, -2)
 				else if (quality>=LOW1)
 				{
-					res256[count]=12100;p[step]=r0;
+					res256[count]=CODE_12100;p[step]=r0;
 				}
 			}
 			else if (a==-4 && (res==2 || res==3) && (qd==2 || qd==3))
@@ -862,16 +862,16 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 				(a==3 ||
 				(a&65534)==4))
 			{
-				if ((res)>6) {res256[count]=12500;p[step]=r0;}
+				if ((res)>6) {res256[count]=CODE_12500;p[step]=r0;}
 				else if (quality>=LOW1) // REDUNDANT
 				{
-					res256[count]=12100;p[step]=r0;
+					res256[count]=CODE_12100;p[step]=r0;
 				}
 				else if (quality==LOW2) // DONE
 				{
-					if (res<5 && a==5) p[step] =14100;
-					else if (res>=5) res256[count]=14100;
-					else if (res==3 && a>=4) p[step] =14100;
+					if (res<5 && a==5)       p[step] = CODE_14100;
+					else if (res>=5)   res256[count] = CODE_14100;
+					else if (res==3 && a>=4) p[step] = CODE_14100;
 					
 					res256[count+IM_DIM] = p[step];
 				}
@@ -902,17 +902,17 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 			{
 				if (res<-7) 
 				{
-					res256[count]=12600;p[step]=r0;
+					res256[count]=CODE_12600;p[step]=r0;
 				}
 				else if (quality>=LOW1)
 				{
-					res256[count]=12200;p[step]=r0;
+					res256[count]=CODE_12200;p[step]=r0;
 				}
 				else if (quality==LOW2)
 				{
-					if (res>-5 && a==-5)       p[step]=14000;
-					else if (res<=-5) res256[count]=14000;
-					else if (res==-3 && a<=-4) p[step]=14000;
+					if (res>-5 && a==-5)       p[step]=CODE_14000;
+					else if (res<=-5) res256[count]=CODE_14000;
+					else if (res==-3 && a<=-4) p[step]=CODE_14000;
 					
 					res256[count+IM_DIM]=p[step];
 				}
@@ -924,7 +924,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					if(qd<0) _MOD_ASSIGN(12300, 2)
 					else if (res==-3 && quality>=HIGH1)
 					{
-						res256[count]=14500;
+						res256[count]=CODE_14500;
 					}
 					else if (qd == 0)
 					{
@@ -995,7 +995,7 @@ L_W2:
 			}
 			else if (res==-3) 
 			{
-L_W3:			if (quality>=HIGH1) {res256[count]=14500;} // Redundant
+L_W3:			if (quality>=HIGH1) {res256[count]=CODE_14500;} // Redundant
 				else if (q[0]<-14)
 				{
 					if (!((-q[0])&7) || ((-q[0])&7)==7)
@@ -1014,7 +1014,7 @@ L_W3:			if (quality>=HIGH1) {res256[count]=14500;} // Redundant
 			}
 			else if (res<(-res_setting))
 			{
-L_W5:			res256[count]=14000;
+L_W5:			res256[count]=CODE_14000;
 
 				if (res==-4)
 				{
@@ -1026,7 +1026,7 @@ L_W5:			res256[count]=14000;
 				}
 				else if (res<-6)
 				{
-					if (res<-7 && quality>=HIGH1) {res256[count]=14900;}
+					if (res<-7 && quality>=HIGH1) {res256[count]=CODE_14900;}
 					else
 					{
 						if (q[0]<-14)

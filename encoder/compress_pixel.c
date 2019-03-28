@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "codec.h"
 #include "tree.h"
@@ -67,7 +68,8 @@ struct compression_context {
 	unsigned short rle_tree[NUM_CODE_WORDS];
 };
 
-static void rle_histo(struct compression_context *ctx, int p1, int p2)
+static
+void rle_histo(struct compression_context *ctx, int p1, int p2)
 {
 	int i, e;
 	const unsigned char *nhw_comp = ctx->nhw_comp;
@@ -106,12 +108,14 @@ static void rle_histo(struct compression_context *ctx, int p1, int p2)
 
 }
 
-
 static
-int rle_weights(unsigned int *weight, unsigned int *weight2,
-	int *rle_buf, int *rle_128, unsigned short *rle_tree, int sel)
+int rle_weights(struct compression_context *ctx,
+	unsigned int *weight, unsigned int *weight2, int sel)
 {
 	int i, j, k;
+	int *rle_buf = ctx->rle_buf;
+	int *rle_128 = ctx->rle_128;
+	unsigned short *rle_tree = ctx->rle_tree;
 
 	for (i=0;i<109;i+=2) {
 		if (rle_buf[i]>0) {
@@ -192,6 +196,33 @@ int rle_weights(unsigned int *weight, unsigned int *weight2,
 	return k;
 }
 
+static code_occurence(unsigned char *codebook, int e, int cmp, unsigned char *tree)
+{
+	int i;
+	int c = 0;
+	int n = 0;
+
+	i = 0;
+	while (i < e) {
+		if (codebook[i] == cmp) {
+			c++;
+		} else {
+			if (c > 0) {
+				*tree++ = cmp; *tree++ = c;
+				*tree++ = codebook[i];
+				c = 0; n += 3;
+			} else {
+				*tree++ = codebook[i]; n++; }
+		}
+		i++;
+	}
+	// If all last codebook values are == cmp, flush last
+	// RLE word
+	if (c > 0) { *tree++ = cmp; *tree++ = c; n += 2; }
+
+	return n;
+}
+
 static
 int rle_tree_bitplane_code(struct compression_context *ctx,
 	int k, unsigned char *codebook, encode_state *enc)
@@ -232,22 +263,15 @@ int rle_tree_bitplane_code(struct compression_context *ctx,
 		}
 	}
 
-	for (i=0;i<e;i+=2) codebook[b++]=enc->tree1[i];
-	for (i=1;i<e;i+=2) codebook[b++]=enc->tree1[i];
+	unsigned char *cur = codebook;
 
-	for (i=0,b=0;i<e;i++)
-	{
-L_COD:	if (codebook[i]==3)
-		{
-			c++;i++;goto L_COD;
-		}
-		else
-		{
-			if (c>0) {enc->tree1[b++]=3;enc->tree1[b++]=c;c=0;i--;}
-			else {enc->tree1[b++]=codebook[i];}
-		}
-	}
+	for (i=0;i<e;i+=2) *cur++ = enc->tree1[i];
+	for (i=1;i<e;i+=2) *cur++ = enc->tree1[i];
 
+	printf("# Code words: %d\n", cur - codebook);
+	printf(" e: %d\n", e);
+
+	b = code_occurence(codebook, e, 3, enc->tree1);
 	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree1[i]);
 	return b;
 }
@@ -271,14 +295,23 @@ int rle_tree2_code(struct compression_context *ctx,
 
 	enc->tree_end=e;
 
-	for (i=0;i<e;i+=2) codebook[b++]=enc->tree2[i];
-	for (i=1;i<e;i+=2) codebook[b++]=enc->tree2[i];
+	unsigned char *cur = codebook;
+
+	for (i=0;i<e;i+=2) *cur++ = enc->tree2[i];
+	for (i=1;i<e;i+=2) *cur++ = enc->tree2[i];
 
 //	for (i=0;i<e;i++) printf("%d %d\n",i,codebook[i]);
+	printf("b: %d  e: %d\n", b, e);
 
+	b = code_occurence(codebook, e, 128, enc->tree2);
+
+	#if 0
 	for (i=0,b=0;i<e;i++)
 	{
-L_COD2:	if (codebook[i]==128)
+L_COD2:
+#warning "OUT_OF_BOUNDS access"
+		assert(i < e);
+		if (codebook[i]==128)
 		{
 			c++;i++;goto L_COD2;
 		}
@@ -288,6 +321,7 @@ L_COD2:	if (codebook[i]==128)
 			else {enc->tree2[b++]=codebook[i];}
 		}
 	}
+	#endif
 
 	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree2[i]);
 	enc->size_tree2=b;
@@ -449,7 +483,7 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 
 
 			// Set weights
-			k = rle_weights(weight, weight2, C.rle_buf, C.rle_128, C.rle_tree, sel);
+			k = rle_weights(&C, weight, weight2, sel);
 
 			if (k > parms[part].thresh)   
 			{
@@ -929,18 +963,15 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 	//for (i=0;i<300;i++) printf("%d %d\n",i,highres[i]);
 	e = 0; Y = 0; a = 0;
 
-	for (i = 1; i<(IM_SIZE>>2); i++)
-	{
-		// FIXME: ineffective comparison
-L11:	if (i<(IM_SIZE>>2) && highres[i]==highres[i-1])
-		{
+	// Count occurences of equal values in highres array:
+
+	for (i = 1; i<(IM_SIZE>>2); i++) {
+		if (highres[i] == highres[i-1]) {
 			e++;
 			if (e<16) {
 				if (e==8) a++;
-				i++;goto L11;
 			}
-			else if (e==16) {Y++;e = 0;}
-			else e = 0;
+			else {Y++; e = 0;}
 		} else {
 			e = 0;
 		}
@@ -961,37 +992,36 @@ L11:	if (i<(IM_SIZE>>2) && highres[i]==highres[i-1])
 
 	int quality = im->setup->quality_setting;
 
-
 	switch (im->setup->RES_LOW) {
 		case 2:
-			count = compress_res2(im->setup->quality_setting, highres, ch_comp, enc);
-			compress_pass2(im->setup->quality_setting,
-				count, highres, ch_comp, enc);
+			count = compress_res2(quality, highres, ch_comp, enc);
+			compress_pass2(quality, count, highres, ch_comp, enc);
 			break;
 		case 1:
-			count = compress_res1(im->setup->quality_setting, highres, ch_comp, enc);
-			compress_pass2(im->setup->quality_setting,
-				count, highres, ch_comp, enc);
+			count = compress_res1(quality, highres, ch_comp, enc);
+			compress_pass2(quality, count, highres, ch_comp, enc);
 			break;
 		default:
-			count = compress_res0(im->setup->quality_setting,
-				highres, ch_comp, enc);
-			compress_pass2(im->setup->quality_setting,
-				count, highres, ch_comp, enc);
+			count = compress_res0(quality, highres, ch_comp, enc);
+			compress_pass2(quality, count, highres, ch_comp, enc);
 
 	}
 
 }
 
-void highres_compression(image_buffer *im,encode_state *enc)
+void highres_compression(image_buffer *im, encode_state *enc)
 {
-	int i,j,e,Y,a,res,scan,count;
+	int i,j,e,Y,a,res,d0,d1;
 	unsigned char *highres,*ch_comp;
 
 	highres=(unsigned char*)enc->tree1;
 	ch_comp=(unsigned char*)enc->highres_comp;
 
-	for (i=(IM_SIZE>>2);i<(IM_SIZE>>2)+(IM_SIZE>>3);i++) highres[i]&=252;
+	// Null 2 LSBs:
+	for (i=(IM_SIZE>>2);i<(IM_SIZE>>2)+(IM_SIZE>>3);i++)
+		highres[i] &= ~3;
+
+
 	im->setup->RES_HIGH=im->setup->RES_LOW;
 
 	j=enc->Y_res_comp;
@@ -1000,10 +1030,10 @@ void highres_compression(image_buffer *im,encode_state *enc)
 
 	for (i=(IM_SIZE>>2)+1,a=0,e=0,res=0;i<(IM_SIZE>>2)+(IM_SIZE>>3);i++)
 	{
-		scan=highres[i]-highres[i-1];
-		count=highres[i+1]-highres[i];
+		d0=highres[i]-highres[i-1];
+		d1=highres[i+1]-highres[i];
 
-		if (scan==0 && count==0)
+		if (d0==0 && d1==0)
 		{
 RES_COMPR3:	if ((i+a+2)<((IM_SIZE>>2)+(IM_SIZE>>3)) && highres[i+a+2]==highres[i+a+1])
 			{
@@ -1059,16 +1089,16 @@ END_RES3:
 			a=0;res=0;
 			j++;
 		}
-		else if (abs(scan)<=4 && abs(count)<=4)
+		else if (abs(d0)<=4 && abs(d1)<=4)
 		{
-			if (!scan && count==4) res=0;
-			else if (!scan && count==-4) res=1;
-			else if (scan==4 && !count) res=2;
-			else if (scan==-4 && !count) res=3;
-			else if (scan==4 && count==4) res=4;
-			else if (scan==4 && count==-4) res=5;
-			else if (scan==-4 && count==4) res=6;
-			else if (scan==-4 && count==-4) res=7;
+			if (!d0 && d1==4) res=0;
+			else if (!d0 && d1==-4) res=1;
+			else if (d0==4 && !d1) res=2;
+			else if (d0==-4 && !d1) res=3;
+			else if (d0==4 && d1==4) res=4;
+			else if (d0==4 && d1==-4) res=5;
+			else if (d0==-4 && d1==4) res=6;
+			else if (d0==-4 && d1==-4) res=7;
 
 			if (!(highres[i+2]-highres[i+1])) 
 			{
@@ -1088,17 +1118,17 @@ END_RES3:
 			}
 			else 
 			{
-				scan+=16;count+=16;
-				ch_comp[j++]= (scan<<1) + (count>>2);
+				d0+=16;d1+=16;
+				ch_comp[j++]= (d0<<1) + (d1>>2);
 				i++;
 			}
 
 			res=0;
 		}
-		else if (abs(scan)<=16 && abs(count)<=16)
+		else if (abs(d0)<=16 && abs(d1)<=16)
 		{
-			scan+=16;count+=16;//e=(highres[i+1]>>2)&1;
-			if (scan==32 || count==32) 
+			d0+=16;d1+=16;//e=(highres[i+1]>>2)&1;
+			if (d0==32 || d1==32) 
 			{
 				ch_comp[j++]=(1<<7)+(highres[i]>>2);
 				//if (highres[i+1]==128) {ch_comp[j-1]+=(1<<6);i++;}
@@ -1106,11 +1136,11 @@ END_RES3:
 			}
 			/*else if (((highres[i+2]-highres[i+1])==0 && !e)|| ((highres[i+2]-highres[i+1])==4 && e==1))
 			{
-				ch_comp[j++]=128 + 64 + (scan<<1) + (count>>2);i+=2;
+				ch_comp[j++]=128 + 64 + (d0<<1) + (d1>>2);i+=2;
 			}*/
 			else 
 			{
-				ch_comp[j++]= (scan<<1) + (count>>2);
+				ch_comp[j++]= (d0<<1) + (d1>>2);
 				//if (highres[i+2]==highres[i+1] && i<12286) { ch_comp[j-1]+=1;i+=2;}
 				//else i++;
 				i++;
@@ -1125,10 +1155,9 @@ END_RES3:
 		}
 	}
 
-
-	enc->ch_res=(unsigned char*)calloc(j,sizeof(char));
-	enc->end_ch_res=j;
-	memcpy(enc->ch_res,ch_comp,enc->end_ch_res*sizeof(char));
+	enc->ch_res = (unsigned char*) calloc(j, sizeof(char));
+	enc->end_ch_res = j;
+	memcpy(enc->ch_res, ch_comp, enc->end_ch_res * sizeof(char));
 }
 
 

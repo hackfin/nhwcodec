@@ -188,11 +188,11 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 				if (d1 >2 && d1 <7)
 				{
 					if      (abs(p[0])  < 8)
-						{ p[0]=12400;     count++;scan++;j++; continue; }
+						{ p[0]=CODE_12400;     count++;scan++;j++; continue; }
 					else if (abs(q[0])  < 8 )
-						{ q[0]=12400;     count++;scan++;j++; continue;}
+						{ q[0]=CODE_12400;     count++;scan++;j++; continue;}
 					else if (abs(q1[0]) < 8 )
-						{ q1[0]=12400;    count++;scan++;j++; continue;}
+						{ q1[0]=CODE_12400;    count++;scan++;j++; continue;}
 				}
 			}
 			else if (d0 < -3 && d0 >-7)
@@ -200,36 +200,36 @@ void residual_coding_q2(short *pr, short *res256, int res_uv)
 				if (d1 < -2 && d1 > -8)
 				{
 					if      (abs(p[0])  < 8)
-						{  p[0] = 12600;count++;scan++;j++; continue;}
+						{  p[0] = CODE_12600;count++;scan++;j++; continue;}
 					else if (abs(q[0])  < 8)
-						{  q[0] = 12600;count++;scan++;j++; continue;}
+						{  q[0] = CODE_12600;count++;scan++;j++; continue;}
 					else if (abs(q1[0]) < 8)
-						{ q1[0] = 12600;count++;scan++;j++; continue;}
+						{ q1[0] = CODE_12600;count++;scan++;j++; continue;}
 				}
 			}
 
 			if (abs(d0) > res_uv) 
 			{
 				if (d0 > 0) {
-					if      (abs(p[0])  < 8 )  p[0] = 12900;
-					else if (abs(q[0])  < 8 )  q[0] = 12900; 
-					else if (abs(q1[0]) < 8 ) q1[0] = 12900; 
+					if      (abs(p[0])  < 8 )  p[0] = CODE_12900;
+					else if (abs(q[0])  < 8 )  q[0] = CODE_12900; 
+					else if (abs(q1[0]) < 8 ) q1[0] = CODE_12900; 
 				} else
 				if (d0 == -5)
 				{
 					if (d1 <0)
 					{
-						if      (abs(p[0])  < 8)  p[0] = 13000;
-						else if (abs(q[0])  < 8)  q[0] = 13000; 
-						else if (abs(q1[0]) < 8) q1[0] = 13000; 
+						if      (abs(p[0])  < 8)  p[0] = CODE_13000;
+						else if (abs(q[0])  < 8)  q[0] = CODE_13000; 
+						else if (abs(q1[0]) < 8) q1[0] = CODE_13000; 
 					}
 					
 				}
 				else
 				{
-					if      (abs( p[0]) < 8)  p[0] = 13000;
-					else if (abs( q[0]) < 8)  q[0] = 13000; 
-					else if (abs(q1[0]) < 8) q1[0] = 13000; 
+					if      (abs( p[0]) < 8)  p[0] = CODE_13000;
+					else if (abs( q[0]) < 8)  q[0] = CODE_13000; 
+					else if (abs(q1[0]) < 8) q1[0] = CODE_13000; 
 				}
 			}
 		}
