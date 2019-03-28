@@ -31,7 +31,7 @@ void shuffle_quadpacks(unsigned char *s, const short *pr, int step)
 
 void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 {
-	int i, j, count;
+	int i, count;
 
 	int step = 2 * IM_DIM;
 

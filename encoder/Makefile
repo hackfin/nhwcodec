@@ -6,7 +6,7 @@ OBJS += png_r.o png_w.o
 # Create this for local config:
 -include config.mk
 
-CFLAGS  += -I../include
+CFLAGS  += -I../include -Wall
 LDFLAGS += -lm -lpng 
 ifdef DEBUG
 	CFLAGS  += -g

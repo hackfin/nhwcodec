@@ -54,6 +54,19 @@
 #define ROUND_8(x)  ((x) & ~7)
 #define ROUND_2(x)  ((x) & ~1)
 
+// GLOBALS:
+//
+
+static unsigned char extra_words1[19]={10,12,14,18,20,22,26,28,30,34,36,38,42,44,46,50,52,54,58};
+static unsigned char extra_words2[19]={60,62,66,68,70,74,76,78,82,84,86,90,92,94,98,100,102,106,108};
+
+static char extra_table[109] = {
+0,0,0,0,0,0,0,0,0,0,1,0,2,0,3,0,0,0,4,0,5,0,6,0,0,0,7,0,8,0,9,0,0,0,10,0, 
+11,0,12,0,0,0,13,0,14,0,15,0,0,0,16,0,17,0,18,0,0,0,19,0, 
+-1,0,-2,0,0,0,-3,0,-4,0,-5,0,0,0,-6,0,-7,0,-8,0,0,0,-9,0,-10,0, 
+-11,0,0,0,-12,0,-13,0,-14,0,0,0,-15,0,-16,0,-17,0,0,0,-18,0,-19
+};
+
 void quantizationUV(image_buffer *im)
 {
 	int i,j,low,high;
@@ -327,8 +340,7 @@ void offsetY_LL_q4(short *pr, int step)
 
 void offsetY(image_buffer *im,encode_state *enc, int m1)
 {
-	int i,j,exw,a;
-	short *p;
+	int i,exw,a;
 	short *pr;
 
 	int step = 2 * IM_DIM;
@@ -449,7 +461,7 @@ void im_recons_wavelet_band(image_buffer *im)
 //
 void pre_processing(image_buffer *im)
 {
-	int i,j,scan,res,count,e=0,a=0,sharpness,n1;
+	int i,j,res,count,e=0,a=0,sharpness,n1;
 	short *nhw_process;
 	char lower_quality_setting_on;
 	int step = 2 * IM_DIM;
@@ -485,6 +497,7 @@ void pre_processing(image_buffer *im)
 	else if (im->setup->quality_setting<=LOW15 && im->setup->quality_setting>=LOW17) n1=36;
 	else if (im->setup->quality_setting==LOW18) n1=56;
 	else if (im->setup->quality_setting==LOW19) n1=60;
+	else    /* default */                       n1=36;
 
 	for (i=step;i<((4*IM_SIZE)-step);i+=step)
 	{
@@ -968,7 +981,8 @@ void offsetY_recons256_q4(short *pr, short *jp, int step, int part)
 
 }
 
-static inline round_offset_limit_m1(short a, short *q, int m1)
+static inline
+void round_offset_limit_m1(short a, short *q, int m1)
 {
 	if (a < m1 && a > (-m1)) {
 		q[0] = 0;
@@ -1033,7 +1047,7 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 //
 void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 {
-	int i,j,a,e,t;
+	int i,j,a,t;
 	short *nhw1,*highres_tmp;
 	int step = 2 * IM_DIM;
 	short thresh0, thresh1;
@@ -1049,7 +1063,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 		thresh1 = 32767;
 	}
 
-	for (i=0,a=0,e=0,t=0;i<(IM_SIZE);i+=step)
+	for (i=0,a=0,t=0;i<(IM_SIZE);i+=step)
 	{
 		short *p = &im->im_process[i];
 		short *q = &im->im_jpeg[i];
@@ -1288,7 +1302,7 @@ int offsetUV_fixup(short *p, short *q, int is_last, int comp, int m1)
 
 void offsetUV_recons256(image_buffer *im, int m1, int comp)
 {
-	int i,j,a;
+	int i,j;
 
 	int step = 2 * IM_DIM;
 	int step4 = step / 4;
