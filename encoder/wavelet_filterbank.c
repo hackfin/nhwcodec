@@ -48,6 +48,7 @@
 #include <string.h>
 
 #include "codec.h"
+#include "utils.h"
 
 // Temporary: Hack for remote function overlay
 #ifndef SWAPOUT_FUNCTION_X
@@ -180,7 +181,6 @@ void SWAPOUT_FUNCTION_X(wla_chroma)(short *dst, short *src, int norder, int high
 void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
 {
 	int i,j,a;
-	short *data,*res,*res2;
 	int n = IM_DIM; // Half the pixel line size
 	int halfno = norder >> 1;
 	short *qs;

@@ -746,22 +746,21 @@ int compress_q(short *pr, int step, encode_state *enc)
 
 		}
 	}
-	enc->exw_Y_end = e;
 	return e;
 }
 
 MAYBE_STATIC
 void compress1(int quality, short *pr, encode_state *enc)
 {
-	int Y, stage, res;
-	int i, j, scan;
+	int n;
 	int step = 2 * IM_DIM;
 
 	if (quality > LOW3)  {
-		compress_q3(pr, step, enc);
+		n = compress_q3(pr, step, enc);
 	} else {
-		compress_q(pr, step, enc);
+		n = compress_q(pr, step, enc);
 	}
+	enc->exw_Y_end = n;
 }
 
 
@@ -938,7 +937,7 @@ void process_hires_q8(unsigned char *highres, short *res256, encode_state *enc)
 MAYBE_STATIC
 void process_res3_q1(unsigned char *highres, short *res256, encode_state *enc)
 {
-	int i, j, scan, e, Y, stage, count;
+	int i, j, scan, e, Y, count;
 	int res;
 	unsigned char *ch_comp;
 	unsigned char *scan_run;
@@ -1195,7 +1194,7 @@ void process_res5_q1(unsigned char *highres, short *res256, encode_state *enc)
 MAYBE_STATIC
 void process_res_hq(int quality, short *wl_first_order, const short *res256)
 {
-	int i, j, count, scan;
+	int i, j;
 	int k = 0;
 
 	short *w;
@@ -1203,13 +1202,10 @@ void process_res_hq(int quality, short *wl_first_order, const short *res256)
 	for (i=0;i<IM_SIZE;i+=IM_DIM, res256 += 2)
 	{
 		// Walk the transposed way:
-		// w = &wl_first_order[0];
-		for (scan=i,j=0;j<IM_DIM-2;j++,scan++, w += IM_DIM)
+		w = &wl_first_order[k++];
+		for (j=0; j<IM_DIM-2; j++, w += IM_DIM)
 		{
 			short r = *res256++;
-
-				count=(j<<8)+(i>>8);
-			w = &wl_first_order[count];
 
 			if (r !=0) {
 				switch (r) {

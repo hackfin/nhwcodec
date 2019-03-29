@@ -480,10 +480,10 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 					}
 				}
 				
-				if (abs(p[0])<wvlt[1]
+				if (((abs(p[0])<wvlt[1]
 				 && (abs(p[-1])<ratio
-					 && abs(p[1])<ratio
-					 || abs(p[0])<(wvlt[1]-5))) {
+					 && abs(p[1])<ratio ) )
+					 || (abs(p[0])<(wvlt[1]-5)))) {
 						if      (p[0] >=  thr) p[0] = 7;
 						else if (p[0] <= -thr) p[0] = -7;
 						else     p[0]=0;							
@@ -721,9 +721,8 @@ void reduce_LH_q6(short *pr, short *resIII, int step, int ratio, char *wvlt)
 
 void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
 {
-	int i, j, scan, count;
-
 	int step = 2 * IM_DIM;
+	int count;
 
 	if (quality < NORM && quality > LOW5) {
 		reduce_LH_q5(pr, step, ratio);
@@ -779,7 +778,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 	if      (quality >= NORM) res_setting=3;
 	else if (quality >= LOW2) res_setting=4;
 	else if (quality >= LOW5) res_setting=6;
-	else if (quality >= LOW7) res_setting=8;
+	else                      res_setting=8;
 
 	// *LL*  HL
 	//  LH   HH
