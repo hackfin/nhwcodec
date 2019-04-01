@@ -7,7 +7,6 @@ OBJS += png_r.o png_w.o filters.o
 -include config.mk
 
 CFLAGS  += -I../include -Wall
-# CFLAGS  += -DDEPRECATED
 LDFLAGS += -lm -lpng 
 ifdef DEBUG
 	CFLAGS  += -g

@@ -7,11 +7,11 @@ void shuffle_quadpacks(unsigned char *s, const short *pr, int n, int step)
 
 	// Re-order coefficients in four-blocks:
 
-	int IM_DIM = step / 2;
+	int im_dim = step / 2;
 
-	for (j=0;j<(IM_DIM<<1);)
+	for (j=0;j<(im_dim<<1);)
 	{
-		for (i=0;i<IM_DIM;i++)
+		for (i=0;i<im_dim;i++)
 		{
 			*s++ = pr[0]; *s++ = pr[1]; *s++ = pr[2]; *s++ = pr[3];
 	
@@ -37,7 +37,6 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 	unsigned char *s = im->im_nhw;
 	const short *pr = im->im_process;
 
-	int IM_SIZE = im->fmt.end / 4;
 	int n = im->fmt.end;
 	int step = im->fmt.tile_size;
 
@@ -80,7 +79,7 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 	s[(n)-2]=128;
 	s[(n)-1]=128;
 
-	for (i=4,enc->nhw_select1=0,enc->nhw_select2=0,count=0;i<((4*IM_SIZE)-4);i++)
+	for (i=4,enc->nhw_select1=0,enc->nhw_select2=0,count=0;i<(n-4);i++)
 	{
 		if (s[i]==136)
 		{
@@ -143,7 +142,7 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 	}
 
 
-	for (i=0,count=0;i<(4*IM_SIZE);i++)
+	for (i=0,count=0;i<n;i++)
 	{
 		while (s[i]==128 && s[i+1]==128)   
 		{

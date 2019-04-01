@@ -54,14 +54,6 @@
 
 #define LOSSY  
 
-// IMAGE SIZE (PER COMPONENT)
-#ifdef DEPRECATED
-#define IM_SIZE 65536
-
-// IMAGE DIMENSION 
-#define IM_DIM 256
-#endif
-
 //QUALITY SETTINGS
 #define HIGH3 23
 #define HIGH2 22

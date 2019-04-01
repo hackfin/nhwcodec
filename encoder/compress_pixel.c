@@ -48,7 +48,6 @@
 #include <string.h>
 #include <assert.h>
 
-#define DEPRECATED
 #include "codec.h"
 #include "utils.h"
 #include "tree.h"
@@ -532,7 +531,9 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 
 	C.enc_ptr = 0; // Encoded output pointer index
 
-	part=0;p1=0;p2=(4*IM_SIZE);color=im->im_nhw[4*IM_SIZE];im->im_nhw[4*IM_SIZE]=3;
+	int n = im->fmt.end;
+	part=0;p1=0;p2=n;
+	color=im->im_nhw[n];im->im_nhw[n]=3;
 
 	struct local_parameters {
 		int sel;
@@ -635,10 +636,10 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 			b = rle_tree_bitplane_code(&C, k, codebook, enc);
 			enc->size_tree1=b;
 			C.enc_ptr++; 
-			p1=4*IM_SIZE;
-			p2=6*IM_SIZE;
-			im->im_nhw[4*IM_SIZE]=color;
-			im->im_nhw[6*IM_SIZE-1]=im->im_nhw[6*IM_SIZE-2];
+			p1=im->fmt.end;
+			p2=im->fmt.end * 3 / 2;
+			im->im_nhw[p1]=color;
+			im->im_nhw[p2-1]=im->im_nhw[p2-2];
 
 		} else {
 			enc->size_data2= C.enc_ptr+1;
@@ -652,21 +653,24 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 }
 
 //FIXME:
-#define LOOP_VAR_CONDITION(i) (i < ((IM_SIZE>>2))-2)
+#define LOOP_VAR_CONDITION(i, n) (i < (n)-2)
 
 // These three functions are all similar and could possibly be
 // squashed into one.
 
 
 static
-int compress_res0(int quality,
+int compress_res0(image_buffer *im,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
 	int i, j, a, e, mem;
 
+	int im_size = im->fmt.end / 4;
+	int n = im_size / 4;
+	int quality = im->setup->quality_setting;
 	mem = 0;
 
-	for (i=1,j=1;i<(IM_SIZE>>2);i++)
+	for (i=1,j=1;i<(im_size>>2);i++)
 	{
 		int dh0 = highres[i]-highres[i-1];
 		int dh1 = highres[i+1]-highres[i];
@@ -717,7 +721,7 @@ int compress_res0(int quality,
 			{
 				int d2 = highres[i+2]-highres[i+1];
 
-				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i)) 
+				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i, n)) 
 				{
 					e = d2 + 32; dh0 += 26; dh1 += 8; goto COMP3;
 				} else {
@@ -748,7 +752,7 @@ int compress_res0(int quality,
 			}
 		}
 		else if (abs(dh0)<=32 && abs(dh1)<=16
-		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i, n))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
 COMP3:
@@ -795,14 +799,17 @@ COMP3:
 }
 
 static
-int compress_res1(int quality,
+int compress_res1(image_buffer *im,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
 	int i, j, a, e, mem;
+	int quality = im->setup->quality_setting;
+	int im_size = im->fmt.end / 4;
+	int n = im_size / 4;
 
 	mem = 0;
 
-	for (i=1,j=1;i<(IM_SIZE>>2);i++)
+	for (i=1,j=1;i<(im_size>>2);i++)
 	{
 		int dh0 = highres[i]-highres[i-1];
 		int dh1 = highres[i+1]-highres[i];
@@ -844,7 +851,7 @@ int compress_res1(int quality,
 			{
 				int d2 = highres[i+2]-highres[i+1];
 
-				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i)) 
+				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i, n)) 
 				{
 					e = d2 + 32; dh0 += 28; dh1 += 8; goto COMP4;
 				} else {
@@ -866,7 +873,7 @@ int compress_res1(int quality,
 			}
 		}
 		else if (abs(dh0)<=32 && abs(dh1)<=16
-		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i, n))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
 COMP4:
@@ -914,14 +921,17 @@ COMP4:
 
 
 static
-int compress_res2(int quality,
+int compress_res2(image_buffer *im,
 	const unsigned char *highres, unsigned char *ch_comp, encode_state *enc)
 {
 	int i, j, a, e, mem;
-
+	int quality = im->setup->quality_setting;
 	mem = 0;
 
-	for (i=1,j=1;i<(IM_SIZE>>2);i++)
+	int im_size = im->fmt.end / 4;
+	int n = im_size / 4;
+
+	for (i=1,j=1;i<(im_size>>2);i++)
 	{
 		int dh0 = highres[i]-highres[i-1];
 		int dh1 = highres[i+1]-highres[i];
@@ -936,7 +946,7 @@ int compress_res2(int quality,
 			ch_comp[j++]=a;
 		}
 		else if (abs(dh0)<=32 && abs(dh1)<=16
-		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i))
+		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i, n))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
 		if (dh0==64 || dh1==32 || e==64) 
@@ -1035,18 +1045,19 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 	int i, e, Y, a,count;
 	unsigned char *ch_comp;
 
+	int im_size = im->fmt.end / 4;
 	const unsigned char *highres;
 
 	highres=(unsigned char*)enc->tree1;
 
-	enc->highres_word=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+	enc->highres_word=(unsigned char*)calloc((im_size>>2),sizeof(char));
 
 	//for (i=0;i<300;i++) printf("%d %d\n",i,highres[i]);
 	e = 0; Y = 0; a = 0;
 
 	// Count occurences of equal values in highres array:
 
-	for (i = 1; i<(IM_SIZE>>2); i++) {
+	for (i = 1; i<(im_size>>2); i++) {
 		if (highres[i] == highres[i-1]) {
 			e++;
 			if (e<16) {
@@ -1061,8 +1072,8 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 	a+=Y;
 
 	enc->highres_mem_len=0;
-	enc->highres_comp=(unsigned char*)calloc((IM_SIZE>>1),sizeof(char));
-	enc->highres_mem=(unsigned short*)calloc((IM_SIZE>>2),sizeof(short));
+	enc->highres_comp=(unsigned char*)calloc((im_size>>1),sizeof(char));
+	enc->highres_mem=(unsigned short*)calloc((im_size>>2),sizeof(short));
 	ch_comp=(unsigned char*)enc->highres_comp;
 
 	ch_comp[0]=highres[0];
@@ -1075,15 +1086,15 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 
 	switch (im->setup->RES_LOW) {
 		case 2:
-			count = compress_res2(quality, highres, ch_comp, enc);
+			count = compress_res2(im, highres, ch_comp, enc);
 			compress_pass2(quality, count, highres, ch_comp, enc);
 			break;
 		case 1:
-			count = compress_res1(quality, highres, ch_comp, enc);
+			count = compress_res1(im, highres, ch_comp, enc);
 			compress_pass2(quality, count, highres, ch_comp, enc);
 			break;
 		default:
-			count = compress_res0(quality, highres, ch_comp, enc);
+			count = compress_res0(im, highres, ch_comp, enc);
 			compress_pass2(quality, count, highres, ch_comp, enc);
 
 	}
@@ -1098,8 +1109,10 @@ void highres_compression(image_buffer *im, encode_state *enc)
 	highres=(unsigned char*)enc->tree1;
 	ch_comp=(unsigned char*)enc->highres_comp;
 
+	int im_size = im->fmt.end / 4;
+
 	// Null 2 LSBs:
-	for (i=(IM_SIZE>>2);i<(IM_SIZE>>2)+(IM_SIZE>>3);i++)
+	for (i=(im_size>>2);i<(im_size>>2)+(im_size>>3);i++)
 		highres[i] &= ~3;
 
 
@@ -1107,16 +1120,16 @@ void highres_compression(image_buffer *im, encode_state *enc)
 
 	j=enc->Y_res_comp;
 
-	ch_comp[j++]=highres[(IM_SIZE>>2)];
+	ch_comp[j++]=highres[(im_size>>2)];
 
-	for (i=(IM_SIZE>>2)+1,a=0,res=0;i<(IM_SIZE>>2)+(IM_SIZE>>3);i++)
+	for (i=(im_size>>2)+1,a=0,res=0;i<(im_size>>2)+(im_size>>3);i++)
 	{
 		d0=highres[i]-highres[i-1];
 		d1=highres[i+1]-highres[i];
 
 		if (d0==0 && d1==0)
 		{
-RES_COMPR3:	if ((i+a+2)<((IM_SIZE>>2)+(IM_SIZE>>3)) && highres[i+a+2]==highres[i+a+1])
+RES_COMPR3:	if ((i+a+2)<((im_size>>2)+(im_size>>3)) && highres[i+a+2]==highres[i+a+1])
 			{
 				a++;
 				if (a<7) goto RES_COMPR3;

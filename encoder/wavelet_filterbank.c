@@ -70,7 +70,7 @@ void transpose(short *dst, const short *src, int n, int step)
 	}
 }
 
-void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int n, int IM_SIZE, int highres)
+void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int n, int im_size, int highres)
 {
 	int i;
 	const short *data;
@@ -92,7 +92,7 @@ void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int n
 	transpose(src, dst, norder, n);
 
 	if (qs_storage) {
-		for (i=0;i<(2*IM_SIZE);i++) qs_storage[i]=src[i];
+		for (i=0;i<(2*im_size);i++) qs_storage[i]=src[i];
 	}
 
 	data=src;
@@ -392,19 +392,19 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 	data=(short*)im->im_wavelet_first_order;
 	data2=(short*)im->im_wavelet_band;
 
-	int IM_DIM = im->fmt.tile_size / 2;
-	int IM_SIZE = im->fmt.end / 4;
+	int im_dim = im->fmt.tile_size / 2;
+	int im_size = im->fmt.end / 4;
 	
-	for (i=0;i<IM_DIM;i++)
+	for (i=0;i<im_dim;i++)
 	{
-		upfilter53I(data,IM_DIM,res_w);upfilter53III(data2,IM_DIM,res_w);	
-		data +=(IM_DIM);res_w +=(2*IM_DIM);data2 +=(IM_DIM);
+		upfilter53I(data,im_dim,res_w);upfilter53III(data2,im_dim,res_w);	
+		data +=(im_dim);res_w +=(2*im_dim);data2 +=(im_dim);
 	}
 
 	if (im->setup->quality_setting>HIGH2) wavelet_half_synth_res=30;
 	else wavelet_half_synth_res=34;
 
-	for (i=0,count=0,scan=0,e=0;i<(2*IM_SIZE);i++) 
+	for (i=0,count=0,scan=0,e=0;i<(2*im_size);i++) 
 	{
 		if (abs(im->im_quality_setting[i]-wavelet_half_synthesis[i])>wavelet_half_synth_res)
 		{
@@ -435,7 +435,7 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 	{
 		enc->high_qsetting3=(unsigned int*)malloc(e*sizeof(int));
 
-		for (i=0,e=0;i<(2*IM_SIZE);i++) 
+		for (i=0,e=0;i<(2*im_size);i++) 
 		{
 			if (wavelet_half_synthesis[i]==32000)
 			{
@@ -450,20 +450,20 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 		enc->qsetting3_len=e;
 	}
 
-	highres=(unsigned char*) malloc((count+(2*IM_DIM))*sizeof(char));
+	highres=(unsigned char*) malloc((count+(2*im_dim))*sizeof(char));
 	nhw_res6I_word = (unsigned char*) calloc(count , sizeof(char));
 
 	enc->nhw_char_res1=(unsigned short*)malloc(256*sizeof(short));
 
-	for (i=0,count=0,e=0,res=0;i<(2*IM_SIZE);i+=(2*IM_DIM)) 
+	for (i=0,count=0,e=0,res=0;i<(2*im_size);i+=(2*im_dim)) 
 	{
-		for (scan=i,j=0;j<(2*IM_DIM);j++,scan++)
+		for (scan=i,j=0;j<(2*im_dim);j++,scan++)
 		{
-			if (j==(IM_DIM-2) || j==((2*IM_DIM)-2))
+			if (j==(im_dim-2) || j==((2*im_dim)-2))
 			{
-				highres[count++]=IM_DIM-2;
+				highres[count++]=im_dim-2;
 
-				if (j==(IM_DIM-2))
+				if (j==(im_dim-2))
 				{
 					if (wavelet_half_synthesis[scan]==30000)
 					{
@@ -507,9 +507,9 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 
 	for (i=1,res=1;i<count-1;i++)
 	{
-		if (ch_comp[i]==(IM_DIM-2))
+		if (ch_comp[i]==(im_dim-2))
 		{
-			if (ch_comp[i-1]!=(IM_DIM-2) && ch_comp[i+1]!=(IM_DIM-2))
+			if (ch_comp[i-1]!=(im_dim-2) && ch_comp[i+1]!=(im_dim-2))
 			{
 				if (ch_comp[i-1]<=ch_comp[i+1]) highres[res++]=ch_comp[i];
 			}
@@ -554,7 +554,7 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 
 	for (i=0,scan=0;i<enc->nhw_res6_len;i++) 
 	{
-		if (enc->nhw_res6[i]!=(IM_DIM-2)) scan_run[scan++]=enc->nhw_res6[i];
+		if (enc->nhw_res6[i]!=(im_dim-2)) scan_run[scan++]=enc->nhw_res6[i];
 	}
 
 	// CHECK:
