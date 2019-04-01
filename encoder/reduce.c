@@ -9,23 +9,23 @@
 #define RESIII_GETXY(x, y, off)  \
 					(((((y) >> 1) + (x)) >> 1) + (off))
 
-inline void reduce(short *q, int s, char w0, char w1)
+inline void reduce(short *q, int s, char w0, char w1, int im_size, int im_dim)
 {
 
-	short *q1= &q[IM_DIM];
+	short *q1= &q[im_dim];
 
 	REDUCE(q1[0], w0); REDUCE(q1[1], w0);
 	q1 += s;
 	REDUCE(q1[0], w0); REDUCE(q1[1], w0);
 	
 	w0 += 6;
-	q += 2 * IM_SIZE;
+	q += 2 * im_size;
 
 	REDUCE(q[0], w0); REDUCE(q[1], w0);
 	q += s;
 	REDUCE(q[0], w0); REDUCE(q[1], w0);
 	
-	q -= IM_DIM;
+	q -= im_dim;
 	REDUCE(q[0], w1); REDUCE(q[1], w1);
 	q += s;
 	REDUCE(q[0], w1); REDUCE(q[1], w1);
@@ -45,21 +45,27 @@ inline void reduce(short *q, int s, char w0, char w1)
 	&& abs(p[3]-p[1]) < v \
 	&& abs(p[3]-p[2]) < v
 
-void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
+void reduce_LL_q7(image_buffer *im, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
 	int e;
 	char w, v;
 
-	int s = 2 * IM_DIM;
+	short *pr = im->im_process;
+	int quality = im->setup->quality_setting;
+
+	int s = im->fmt.tile_size;
+	int im_dim = s / 2;
+	int half = im_dim / 2;
+	int im_size = im->fmt.end / 4;
 	int s2 = 2 * s;
 
 	// *LL*  HL
 	//  LH   HH
 
-	for (i=0,scan=0;i<(IM_SIZE);i+=s)
+	for (i=0,scan=0;i<(im_size);i+=s)
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-4;j++,scan++)
+		for (scan=i,j=0;j<half-4;j++,scan++)
 		{
 			short *p = &pr[scan];
 			w = wvlt[0];
@@ -79,7 +85,7 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 				for (count=1;count<4;count++)
 				{
 					short *q = &pr[((scan+count)<<1)];
-					reduce(q, s, wvlt[5], wvlt[4]);
+					reduce(q, s, wvlt[5], wvlt[4], im_size, im_dim);
 				}
 					
 				if (quality<=LOW9)
@@ -87,9 +93,9 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 					for (count=1;count<4;count++)
 					{
 						short *q = &p[count];
-						REDUCE(q[IM_DIM>>1], 11);
-						REDUCE(q[IM_SIZE], 12);
-						REDUCE(q[IM_SIZE+(IM_DIM>>1)],13);
+						REDUCE(q[half], 11);
+						REDUCE(q[im_size], 12);
+						REDUCE(q[im_size+half],13);
 					}
 				}
 			}
@@ -105,7 +111,7 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 						
 						for (count=1;count<4;count++) {
 							short *q = &pr[((scan+count)<<1)];
-							reduce(q, s, wvlt[5], wvlt[4]);
+							reduce(q, s, wvlt[5], wvlt[4], im_size, im_dim);
 						}
 						
 						if (quality<=LOW9)
@@ -113,9 +119,9 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 							for (count=1;count<4;count++)
 							{
 								short *q = &p[count];
-								REDUCE(q[IM_DIM>>1], 11);
-								REDUCE(q[IM_SIZE], 12);
-								REDUCE(q[IM_SIZE+(IM_DIM>>1)],13);
+								REDUCE(q[half], 11);
+								REDUCE(q[im_size], 12);
+								REDUCE(q[im_size+half],13);
 							}
 						}
 					}
@@ -130,9 +136,9 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 	// *LL*  HL
 	//  LH   HH
 	
-	for (i=0,scan=0;i<(IM_SIZE)-s2;i+=s)
+	for (i=0,scan=0;i<(im_size)-s2;i+=s)
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
+		for (scan=i,j=0;j<half-2;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[1]-p[s2+1]) < w
@@ -150,17 +156,17 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 				count=scan+s+1;
 
 				short *q = &pr[(count<<1)];
-				reduce(q, s, wvlt[5], 32);
+				reduce(q, s, wvlt[5], 32, im_size, im_dim);
 
 				if (quality<=LOW9)
 				{
 					for (e=count-1;e<count+2;e++)
 					{
 						q = &pr[e];
-						REDUCE(q[(IM_DIM>>1)], 11);
-						q += IM_SIZE;
+						REDUCE(q[half], 11);
+						q += im_size;
 						REDUCE(q[0], 12);
-						REDUCE(q[(IM_DIM>>1)],13);
+						REDUCE(q[half],13);
 					}
 				}
 			}
@@ -170,9 +176,9 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 	// *LL*  HL
 	//  LH   HH
 	
-	for (i=0,scan=0;i<(IM_SIZE)-s2;i+=s)
+	for (i=0,scan=0;i<im_size-s2;i+=s)
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
+		for (scan=i,j=0;j<half-2;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[2]-p[1])  <w
@@ -193,7 +199,7 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 
 					short *q = &pr[(count<<1)];
 
-					reduce(q, s, wvlt[5], 32);
+					reduce(q, s, wvlt[5], 32, im_size, im_dim);
 				}
 				
 				if (quality<=LOW9)
@@ -201,10 +207,10 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 					for (e=count-1;e<count+2;e++)
 					{
 						short *q = &pr[e];
-						REDUCE(q[(IM_DIM>>1)], 11);
-						q += IM_SIZE;
+						REDUCE(q[half], 11);
+						q += im_size;
 						REDUCE(q[0], 12);
-						REDUCE(q[(IM_DIM>>1)],13);
+						REDUCE(q[half],13);
 					}
 				}
 			}
@@ -212,14 +218,19 @@ void reduce_LL_q7(int quality, short *pr, const unsigned char *wvlt)
 	}
 }
 
-void reduce_LL_q9(short *pr, const unsigned char *wvlt, int s)
+void reduce_LL_q9(image_buffer *im, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
 	char w;
+	int im_size = im->fmt.end / 4;
+	short *pr = im->im_process;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+	int half = im_dim / 2;
 
-	for (i=0,scan=0;i<(IM_SIZE);i+=s)
+	for (i=0,scan=0;i<(im_size);i+=step)
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
+		for (scan=i,j=0;j<half-2;j++,scan++)
 		{
 			w = wvlt[6];
 			short *p = &pr[scan];
@@ -229,30 +240,36 @@ void reduce_LL_q9(short *pr, const unsigned char *wvlt, int s)
 			{
 				count=scan+1;
 
-				reduce(&pr[(count<<1)], s, wvlt[5], 34);
+				reduce(&pr[(count<<1)], step, wvlt[5], 34, im_size, im_dim);
 					
 				short *q = &pr[count];
-				REDUCE(q[(IM_DIM>>1)], 11);
-				q += IM_SIZE;
+				REDUCE(q[half], 11);
+				q += im_size;
 				REDUCE(q[0], 12);
-				REDUCE(q[(IM_DIM>>1)],13);
+				REDUCE(q[half],13);
 			}
 		}
 	}
 }
 
-void reduce_LH_q9(short *pr, const unsigned char *wvlt, int ratio, int s)
+void reduce_LH_q9(image_buffer *im, const unsigned char *wvlt, int ratio)
 {
 	int i, j, scan;
-		
-	//  LL    HL
-	// *LH*   HH
 
-	for (i=IM_SIZE;i<(2*IM_SIZE);i+=s)
+	int step = im->fmt.tile_size;
+	int im_size = im->fmt.end / 4;
+
+	// upper left quadrant:
+	//  LL    HL    ..    ..
+	// *LH*   HH    ..    ..
+	//  ..    ..    ..    ..
+	//  ..    ..    ..    ..
+
+	for (i=im_size;i<(2*im_size);i+=step)
 	{
-		for (scan=i,j=0;j<(s>>1);j++,scan++)
+		for (scan=i,j=0;j<(step>>1);j++,scan++)
 		{
-			short *p = &pr[scan];
+			short *p = &im->im_process[scan];
 			if ((abs(p[0]) >= ratio && abs(p[0]) < wvlt[0]
 				  && abs(p[-1]) < ratio
 				  && abs(p[1])<ratio)
@@ -266,102 +283,6 @@ void reduce_LH_q9(short *pr, const unsigned char *wvlt, int ratio, int s)
 	}
 }
 
-
-#if 0
-
-// PROTOTYPE, unused.
-// Possible replacement for the above if() inside loop
-
-void reduce_lq9(short *pr, const char *wvlt)
-{
-	int i, j, count, scan;
-	int s = 2 * IM_DIM;
-	int s2 = 2 * s;
-	char w, v;
-	int e;
-
-
-	for (i=0,scan=0;i<(IM_SIZE);i+=s)
-	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-4;j++,scan++)
-		{
-			short *p = &pr[scan];
-
-			w = wvlt[0];
-			v = wvlt[1];
-
-			if (CONDITION_A(p, w, v)) {
-				for (count=1;count<4;count++)
-				{
-					short *q = &p[count];
-					REDUCE(q[IM_DIM>>1], 11);
-					REDUCE(q[IM_SIZE], 12);
-					REDUCE(q[IM_SIZE+(IM_DIM>>1)],13);
-				}
-			} else {
-				w = v + 1;
-				v += 6;
-				if (CONDITION_B(p, w, v))
-				{
-					if (((p[3]-p[2])>=0 && (p[2]-p[1])>=0) ||
-						((p[3]-p[2])<=0 && (p[2]-p[1])<=0)) 
-					{
-						for (count=1;count<4;count++)
-						{
-							short *q = &p[count];
-							REDUCE(q[IM_DIM>>1], 11);
-							REDUCE(q[IM_SIZE], 12);
-							REDUCE(q[IM_SIZE+(IM_DIM>>1)],13);
-						}
-					}
-				}
-			}
-
-		}
-	}
-
-	w = wvlt[2];
-	v = wvlt[3];
-
-	for (i=0,scan=0;i<(IM_SIZE)-s2;i+=s)
-	{
-		for (scan=i,j=0;j<(IM_DIM>>1)-2;j++,scan++)
-		{
-			short *p = &pr[scan];
-			if (abs(p[1]-p[s2+1]) < w
-			 && abs(p[s]-p[s+2])  < w
-			 && abs(p[s+1]-p[s]) < (v-1)
-			 && abs(p[1]-p[s+1]) <  v)
-			{
-				for (e=count-1;e<count+2;e++)
-				{
-					short *q = &pr[e];
-					REDUCE(q[(IM_DIM>>1)], 11);
-					q += IM_SIZE;
-					REDUCE(q[0], 12);
-					REDUCE(q[(IM_DIM>>1)],13);
-				}
-			} else
-			if (abs(p[2]-p[1])  <w
-			 && abs(p[1]-p[0])  <w
-			 && abs(p[0]-p[s])  <w
-			 && abs(p[2]-p[s+2])<w)
-			{
-				for (e=count-1;e<count+2;e++)
-				{
-					short *q = &pr[e];
-					REDUCE(q[(IM_DIM>>1)], 11);
-					q += IM_SIZE;
-					REDUCE(q[0], 12);
-					REDUCE(q[(IM_DIM>>1)],13);
-				}
-			}
-		}
-	}
-
-}
-
-#endif
 
 #define COPY_WVLT(dst, src) \
 	{ \
@@ -411,23 +332,27 @@ int configure_wvlt(int quality, char *wvlt)
 	return 0;
 }
 
-void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *wvlt, int thr)
+void reduce_generic_LH_HH(image_buffer *im, short *resIII, int ratio, char *wvlt, int thr)
 {
 	int i, scan, j, res3=0;
 	short tmp;
+	int im_size = im->fmt.end / 4;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+	short *pr = im->im_process;
 	//  LL    HL 
 	// *LH*   HH
 
-	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	for (i=im->fmt.half;i<im->fmt.end;i+=step)
 	{
-		for (scan=i,j=0;j<(IM_DIM);j++,scan++)
+		for (scan=i,j=0;j<(im_dim);j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio &&  abs(p[0])<(wvlt[0]+2)) 
 			{	
-				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				if (i<(im->fmt.end-(2*im_dim)))
 				{
-					tmp = resIII[RESIII_GETXY(j, (i-(2*IM_SIZE)), IM_SIZE >> 1)];
+					tmp = resIII[RESIII_GETXY(j, (i-im->fmt.half), im_size >> 1)];
 					res3=1;
 				}
 				else res3=0;
@@ -452,13 +377,13 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 	//  LL    HL 
 	//  LH   *HH*
 
-		for (scan=i+(IM_DIM),j=(IM_DIM);j<(step-1);j++,scan++)
+		for (scan=i+(im_dim),j=(im_dim);j<(step-1);j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio) {
-				if (i<((4*IM_SIZE)-(2*IM_DIM)))
+				if (i<(im->fmt.end-step))
 				{
-					int index = RESIII_GETXY(j-IM_DIM, i-(2*IM_SIZE), (IM_SIZE>>1)+(IM_DIM>>1));
+					int index = RESIII_GETXY(j-im_dim, i-im->fmt.half, (im_size>>1)+(im_dim>>1));
 					tmp = resIII[index];
 					
 					res3=1;
@@ -495,16 +420,21 @@ void reduce_generic_LH_HH(short *pr, short *resIII, int step, int ratio, char *w
 
 }
 
-void reduce_LH_q5(short *pr, int step, int ratio)
+void reduce_LH_q5(image_buffer *im, int ratio)
 {
 	int i, j, scan;
 
+	short *pr = im->im_process;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+
+		//  Full tile:
 		//  LL    HL
 		// *LH*   HH
 
-	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	for (i=im->fmt.half;i<im->fmt.end;i+=step)
 	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan++)
+		for (scan=i,j=0;j<im_dim;j++,scan++)
 		{
 			short *p = &pr[scan];
 
@@ -514,7 +444,7 @@ void reduce_LH_q5(short *pr, int step, int ratio)
 			}
 		}
 
-		for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
+		for (scan=i+(im_dim),j=(im_dim);j<step;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio && abs(p[0])<=14) 
@@ -525,21 +455,25 @@ void reduce_LH_q5(short *pr, int step, int ratio)
 	}
 }
 
-void reduce_LH_q56(short *pr, int step, int ratio, char *wvlt)
+void reduce_LH_q56(image_buffer *im, int ratio, char *wvlt)
 {
 	int i, j, scan;
 	//  LL    HL
 	// *LH*   HH
 
-	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=step)
+	short *pr = im->im_process;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+
+	for (i=im->fmt.half;i<im->fmt.end;i+=step)
 	{
-		for (scan=i,j=0;j<(IM_DIM);j++,scan++)
+		for (scan=i,j=0;j< im_dim; j++,scan++)
 		{		
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) { p[0] = 0; }
 		}
 
-		for (scan=i+(IM_DIM),j=(IM_DIM);j<step;j++,scan++)
+		for (scan=i+ im_dim,j= im_dim;j<step;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[0])>=ratio && abs(p[0]) < wvlt[1]) {	
@@ -551,26 +485,29 @@ void reduce_LH_q56(short *pr, int step, int ratio, char *wvlt)
 	}
 }
 
-int count_threshold(short *pr, int thresh)
+int count_threshold(short *pr, int from, int to, int thresh)
 {
 	int count;
 	int i;
-	for (i = (2*IM_SIZE),count=0;i < (4*IM_SIZE); i++) {
+	for (i = from,count=0;i < to; i++) {
 		if (abs(pr[i]) >= thresh) count++;
 	}
 	return count;
 }
 
-void reduce_HL_q4(short *pr, int step)
+void reduce_HL_q4(image_buffer *im)
 {
 	int i, j, scan;
+	short *pr = im->im_process;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
 
 //  LL   *HL*
 //  LH    HH 
 	
-	for (i=step; i<((2*IM_SIZE)-step);i+=step)
+	for (i=step; i<(im->fmt.half-step);i+=step)
 	{
-		for (scan=i+(IM_DIM+1),j=(IM_DIM+1);j<(step-1);j++,scan++)
+		for (scan=i+ im_dim+1,j= im_dim+1;j<(step-1);j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (p[0]>4 && p[0]<8)
@@ -617,9 +554,9 @@ void reduce_HL_q4(short *pr, int step)
 	//  LL    HL 
 	// *LH*   HH 
 
-	for (i=((2*IM_SIZE)+step);i<((4*IM_SIZE)-step);i+=step)
+	for (i=(im->fmt.half+step);i<(im->fmt.end-step);i+=step)
 	{
-		for (scan=i+1,j=1;j<(IM_DIM-1);j++,scan++)
+		for (scan=i+1,j=1;j< im_dim-1;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (p[0]>4 && p[0]<8)
@@ -650,7 +587,7 @@ void reduce_HL_q4(short *pr, int step)
 				}
 				else if (p[-step]==-7)
 				{
-					if (abs(p[IM_DIM])<8) p[IM_DIM]=MARK_125;p[0]=MARK_128;
+					if (abs(p[im_dim])<8) p[im_dim]=MARK_125;p[0]=MARK_128;
 				}
 				
 			}
@@ -662,7 +599,7 @@ void reduce_HL_q4(short *pr, int step)
 				}
 				else if (p[-step]==7)
 				{
-					if (abs(p[IM_DIM])<8) p[IM_DIM]=MARK_126;p[0]=MARK_128;
+					if (abs(p[im_dim])<8) p[im_dim]=MARK_126;p[0]=MARK_128;
 				}
 			}
 			else if (p[0]==8)
@@ -679,26 +616,30 @@ void reduce_HL_q4(short *pr, int step)
 }
 
 
-void reduce_LH_q6(short *pr, short *resIII, int step, int ratio, char *wvlt)
+void reduce_LH_q6(image_buffer *im, short *resIII, int ratio, char *wvlt)
 {
 	int i, j, scan;
-
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+	short *pr = im->im_process;
+	//  Full tile, first stage:
+	//
 	//  LL   *HL*
 	//  LH    HH 
 	
-	for (i=0;i<(2*IM_SIZE);i+=step)
+	for (i=0;i < im->fmt.half;i+=step)
 	{
-		for (scan=i+IM_DIM,j=IM_DIM;j<step;j++,scan++)
+		for (scan=i+im_dim,j=im_dim;j<step;j++,scan++)
 		{
 			short *p = &pr[scan];
 			if (abs(p[0]) >= ratio) {
 				if (abs(p[0]) < (wvlt[2]+2)) 
 				{	
-					short tmp = resIII[RESIII_GETXY(j-IM_DIM, i, IM_DIM >> 1)];
+					short tmp = resIII[RESIII_GETXY(j-im_dim, i, im_dim >> 1)];
 
 					if (abs(tmp) < wvlt[3])
 						p[0] = 0;
-					// if (abs(resIII[(((i>>1)+(j-IM_DIM))>>1)+(IM_DIM>>1)])<wvlt[3]) p[0]=0;
+					// if (abs(resIII[(((i>>1)+(j-im_dim))>>1)+(im_dim>>1)])<wvlt[3]) p[0]=0;
 					else if (abs(p[0]+p[-1]) < wvlt[4] && abs(p[1]) < wvlt[4]) {
 						p[0] = 0; p[-1] = 0;
 					}
@@ -719,24 +660,25 @@ void reduce_LH_q6(short *pr, short *resIII, int step, int ratio, char *wvlt)
 	}
 }
 
-void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
+void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
-	int step = 2 * IM_DIM;
 	int count;
+	int quality = im->setup->quality_setting;
+	short *pr = im->im_process;
 
 	if (quality < NORM && quality > LOW5) {
-		reduce_LH_q5(pr, step, ratio);
+		reduce_LH_q5(im, ratio);
 	} else if (quality <= LOW5 && quality >= LOW6) { 
 		wvlt[0] = 11;
 
 		if      (quality == LOW5) wvlt[1]=19;
 		else if (quality == LOW6) wvlt[1]=20;
 		
-		reduce_LH_q56(pr, step, ratio, wvlt);
+		reduce_LH_q56(im, ratio, wvlt);
 
 	} else if (quality < LOW6) { 
 		if (quality <= LOW8) {
-			count = count_threshold(pr, 12);
+			count = count_threshold(pr, im->fmt.half, im->fmt.end, 12);
 
 			//if (count>MARK_15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
 			if      (count > 12500)      COPY_WVLT(wvlt, quality_special12500)
@@ -753,26 +695,30 @@ void reduce_generic(int quality, short *resIII, short *pr, char *wvlt, encode_st
 			}
 		}
 	
-		reduce_LH_q6(pr, resIII, step, ratio, wvlt);
+		reduce_LH_q6(im, resIII, ratio, wvlt);
 
 		if (quality > LOW10) {
-			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 16);
+			reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);
 		} else {
-			reduce_generic_LH_HH(pr, resIII, step, ratio, wvlt, 0xffff);
+			reduce_generic_LH_HH(im, resIII, ratio, wvlt, 0xffff);
 		}
 
 	}
 
 	if (quality > LOW4) { 
-		reduce_HL_q4(pr, step);
+		reduce_HL_q4(im);
 	}
 }
 
-void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
+void process_res_q8(image_buffer *im, short *res256, encode_state *enc)
 {
 	int i, j, count, res, stage, scan;
 	int res_setting;
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
+	int im_dim = step / 2;
+
+	int quality = im->setup->quality_setting;
+	short *pr = im->im_process;
 
 	// Put into LUT:
 	if      (quality >= NORM) res_setting=3;
@@ -785,11 +731,12 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 
 	// TODO: Pad last 2 lines with something sensible
 
-	for (j=0,count=0,res=0,stage=0;j<IM_DIM;j++)
+	for (j=0,count=0,res=0,stage=0;j<im_dim;j++)
 	{
-		for (scan=j,count=j,i=0;i<((2*IM_SIZE)-step);i+=step,scan+=step,count+=IM_DIM)
+		for (scan=j,count=j,i=0;
+			i<(im->fmt.half-step);i+=step,scan+=step,count+=im_dim)
 		{
-			int r0 = res256[count+IM_DIM];
+			int r0 = res256[count+im_dim];
 			int rcs = res256[count+step]; // This is stepping out of image bounds on the last line
 
 			int k = (i >> 9) + (j << 9);
@@ -798,7 +745,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 
 			int a;
 
-			stage = k + IM_DIM;
+			stage = k + im_dim;
 
 			short *q = &pr[stage];
 			
@@ -846,7 +793,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 				// FIXME: No compare of loop variable inside loop
 				if (i>0) 
 				{
-					if ((p[-step]-res256[count-IM_DIM])>=0) 
+					if ((p[-step]-res256[count-im_dim])>=0) 
 						_MOD_ASSIGN(12400, -2)
 				}
 			}
@@ -865,7 +812,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					else if (res>=5)   res256[count] = CODE_14100;
 					else if (res==3 && a>=4) p[step] = CODE_14100;
 					
-					res256[count+IM_DIM] = p[step];
+					res256[count+im_dim] = p[step];
 				}
 			}
 			else if ((res==2 || res==3) && (a==2 || a==3))
@@ -874,9 +821,9 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 				{
 					if ((p[1]-res256[count+1])==2 || (p[1]-res256[count+1])==3)
 					{
-						if ((p1[1]-res256[count+(IM_DIM+1)])==2 || (p1[1]-res256[count+(IM_DIM+1)])==3)
+						if ((p1[1]-res256[count+im_dim+1])==2 || (p1[1]-res256[count+im_dim+1])==3)
 						{
-							if ((p2[1]-res256[count+(2*IM_DIM+1)])>0)
+							if ((p2[1]-res256[count+2*im_dim+1])>0)
 							{
 								 _MOD_ASSIGN(12400, -2)
 							}
@@ -906,7 +853,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					else if (res<=-5) res256[count]=CODE_14000;
 					else if (res==-3 && a<=-4) p[step]=CODE_14000;
 					
-					res256[count+IM_DIM]=p[step];
+					res256[count+im_dim]=p[step];
 				}
 			}
 			else if (a==-2 || a==-3)
@@ -922,10 +869,10 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					{
 						if ((p[1]-res256[count+1])==-2 || (p[1]-res256[count+1])==-3)
 						{
-							if ((p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-2
-							 || (p[(2*IM_DIM+1)]-res256[count+(IM_DIM+1)])==-3)
+							if ((p[(2*im_dim+1)]-res256[count+(im_dim+1)])==-2
+							 || (p[(2*im_dim+1)]-res256[count+(im_dim+1)])==-3)
 							{
-								if ((p2[(1)]-res256[count+(2*IM_DIM+1)])<0)
+								if ((p2[(1)]-res256[count+(2*im_dim+1)])<0)
 									_MOD_ASSIGN(12300, 2)
 							}
 						}
@@ -938,7 +885,7 @@ void process_res_q8(int quality, short *pr, short *res256, encode_state *enc)
 					// FIXME: No compare of loop variable inside loop
 					if (i>0) 
 					{
-						if ((p[-step]-res256[count-IM_DIM])<=0) 
+						if ((p[-step]-res256[count-im_dim])<=0) 
 							_MOD_ASSIGN(12300, 2)
 					}
 				}
@@ -1036,17 +983,19 @@ L_W5:			res256[count]=CODE_14000;
 		}	
 	}
 
-	enc->nhw_res1_word_len=0;enc->nhw_res3_word_len=0;enc->nhw_res5_word_len=0;
+	enc->nhw_res1_word_len=0;
+	enc->nhw_res3_word_len=0;
+	enc->nhw_res5_word_len=0;
 
-	for (i=0,count=0,stage=0,res=0;i<((4*IM_SIZE)>>1);i+=step)
+	for (i=0,count=0,stage=0,res=0;i<(im->fmt.half);i+=step)
 	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan++,count++)
+		for (scan=i,j=0;j<im_dim;j++,scan++,count++)
 		{
 			short r = res256[count];
 			if (r < CODE_12000)
 			{
 				// Transposed check pointer:
-				short *p = &pr[(j<<9)+(i>>9)+(IM_DIM)];
+				short *p = &pr[(j<<9)+(i>>9)+(im_dim)];
 
 				res= pr[scan]-res256[count];res256[count]=0;
 
@@ -1117,36 +1066,36 @@ L_W5:			res256[count]=CODE_14000;
 			} else {
 				switch (r) {
 					case CODE_14000:
-						r=140; enc->nhw_res1_word_len++; 
+						r = 140; enc->nhw_res1_word_len++; 
 						break;
 					case CODE_14500:
-						r=145; enc->nhw_res5_word_len++;
+						r = 145; enc->nhw_res5_word_len++;
 						break;
 					case CODE_12200:
-						r=122; enc->nhw_res3_word_len++; 
+						r = 122; enc->nhw_res3_word_len++; 
 						break;
 					case CODE_12100:
-						r=121; enc->nhw_res3_word_len++;
+						r = 121; enc->nhw_res3_word_len++;
 						break;
 					case CODE_12300:
-						r=123; enc->nhw_res3_word_len++; 
+						r = 123; enc->nhw_res3_word_len++; 
 						break;
 					case CODE_12400:
-						r=124; enc->nhw_res3_word_len++;
+						r = 124; enc->nhw_res3_word_len++;
 						break;
 					case CODE_14100:
-						r=141; enc->nhw_res1_word_len++; 
+						r = 141; enc->nhw_res1_word_len++; 
 						break;
 					case CODE_12500:
-						r=125; enc->nhw_res3_word_len++;
+						r = 125; enc->nhw_res3_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
 					case CODE_12600:
-						r=126;enc->nhw_res3_word_len++;
+						r = 126;enc->nhw_res3_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
 					case CODE_14900:
-						r=149;enc->nhw_res5_word_len++;
+						r = 149;enc->nhw_res5_word_len++;
 						enc->nhw_res1_word_len++;
 						break;
 					default:

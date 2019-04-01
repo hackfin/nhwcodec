@@ -53,6 +53,13 @@
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
+void imgbuf_init(image_buffer *im, int tile_power)
+{
+	im->fmt.tile_power = tile_power;
+	im->fmt.tile_size = 1 << tile_power;
+	im->fmt.end = im->fmt.tile_size * im->fmt.tile_size;
+	im->fmt.half = im->fmt.end / 2;
+}
 
 
 int main(int argc, char **argv)
@@ -72,6 +79,12 @@ int main(int argc, char **argv)
 		printf("\n-> nhw_decoder.exe filename.nhw\n");
 		exit(-1);
 	}
+
+
+	imgbuf_init(&im, 9);
+
+	int IM_SIZE = im.fmt.end / 4;
+	int IM_DIM = im.fmt.tile_size / 2;
 
 	/* Decode Image */
 	decode_image(&im,&dec,argv);
@@ -252,6 +265,10 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 	unsigned short *nhwres1,*nhwres2,*nhwres1I,*nhwres3I,*nhwres3,*nhwres4,*nhwres4I,*nhwres5,*nhwres6;
 
 	wavelet_order=parse_file(im,os,argv);
+
+	int IM_SIZE = im->fmt.end / 4;
+	int IM_DIM = im->fmt.tile_size / 2;
+
 	retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,im->im_process);
 	free(os->packet1);
 	im->im_jpeg=(short*)malloc(4*IM_SIZE*sizeof(short));
@@ -1642,6 +1659,9 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	FILE *compressed_file;
 	int i,j,ch,e,a=0,mem,run,nhw;
 	char uv_small_dc_offset[8][2]={{0,4},{0,-4},{4,0},{-4,0},{4,4},{4,-4},{-4,4},{-4,-4}};
+
+	int IM_SIZE = imd->fmt.end / 4;
+	int IM_DIM = imd->fmt.tile_size / 2;
 
 	imd->setup=(codec_setup*)malloc(sizeof(codec_setup));
 

@@ -60,7 +60,7 @@ int set_buffer(DEVICE d, TOKEN t, void  *buf, int len)
 
 void break_handler(int n)
 {
-	int i;
+	int i = 0;
 	int val = 1;
 	printf("Hit Ctrl-C, cleaning up...\n");
 
@@ -78,7 +78,6 @@ int virtfb_init(int width, int height)
 {
 	DEVICE d;
 	int error;
-	void *buf;
 	int bpp = 16;
 	const char port[] = "TCP:localhost:2008";
 	short i, type = VIDEOMODE_INDEXED;
@@ -150,4 +149,5 @@ int virtfb_close(void)
 {
 	FBuffer *fb = &g_context.fb;
 	dcDeviceClose(fb->device);
+	return 0;
 }

@@ -59,13 +59,16 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 	unsigned char *colors,*colorsU,*colorsV;
 	float color_balance,Y_quant;
 
+	int im_size = im->fmt.end / 4;
+	int im_dim = im->fmt.tile_size / 2;
+
 	colors=(unsigned char*)im->im_buffer4;
-	im->im_jpeg=(short*)malloc(4*IM_SIZE*sizeof(short));
+	im->im_jpeg=(short*)malloc(im->fmt.end*sizeof(short));
 	colorsY=(short*)im->im_jpeg;
 
 	if (im->setup->quality_setting>=NORM)
 	{
-		for (i=0,j=0;i<12*IM_SIZE;i+=3,j++)
+		for (i=0,j=0;i<3*im->fmt.end;i+=3,j++)
 		{
 
 		Y = (int)(0.299*colors[i] + 0.587*colors[i+1] +  0.114*colors[i+2]+0.5f);
@@ -104,7 +107,7 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 		if (im->setup->quality_setting==LOW1) Y_quant=0.975;
 		else if (im->setup->quality_setting==LOW2) Y_quant=0.93;
 
-		for (i=0,j=0;i<12*IM_SIZE;i+=3,j++)
+		for (i=0,j=0;i<3*im->fmt.end;i+=3,j++)
 		{
 
 			Y = (int)( (0.299*colors[i] + 0.587*colors[i+1] +  0.114*colors[i+2])*Y_quant+0.5f);
@@ -137,7 +140,7 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 	}
 	else if (im->setup->quality_setting==LOW3)
 	{
-		for (i=0,j=0;i<12*IM_SIZE;i+=3,j++)
+		for (i=0,j=0;i<3*im->fmt.end;i+=3,j++)
 		{
 
 		Y = (int)((0.299*colors[i] + 0.587*colors[i+1] +  0.114*colors[i+2])*0.94+0.5f);
@@ -190,7 +193,7 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 		else   /* default */                        Qtz=32375;
 
 
-		for (i=0,j=0;i<12*IM_SIZE;i+=3,j++)
+		for (i=0,j=0;i<3*im->fmt.end;i+=3,j++)
 		{
 			//Convert RGB to YCbCr or YUV
 			colorsY[j] = ((( 66*colors[i] + 129*colors[i+1] +  25*colors[i+2])*Qtz + 4194304)>>23)+ 16;
@@ -218,7 +221,9 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 	mu >>=18; if (mu>255) mu=255;else if (mu<0) mu=0; enc->m_u=mu;
 	mv >>=18; if (mv>255) mv=255;else if (mv<0) mv=0; enc->m_v=mv;*/
 
-	for (;colors<(im->im_buffer4+(12*IM_SIZE));colors+=(3*IM_DIM*2))
+	int step = 3*im->fmt.tile_size;
+
+	for (;colors<(im->im_buffer4+(3*im->fmt.end));colors += step)
 	{
 		//im->im_buffer[i]=colors[i];
 		//im->im_buffer[i+1]=colors[1+i];
@@ -226,7 +231,7 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 		colors[1]=(colors[1]+colors[4]+1)>>1;
 		colors[2]=(colors[2]+colors[5]+1)>>1;
 
-		for (j=6;j<(3*IM_DIM*2);j+=6)
+		for (j = 6; j < step;j += 6)
 		{
 			//im->im_buffer[j+i]=(colors[j-3+i]+colors[j+i]*2+colors[j+3+i]+2)>>2;
 			colors[j+1]=(colors[j-2]+colors[j+1]*2+colors[j+4]+2)>>2;
@@ -234,24 +239,24 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 		}
 	}
 
-	im->im_bufferU=(unsigned char*)malloc(IM_SIZE*sizeof(char));
-	im->im_bufferV=(unsigned char*)malloc(IM_SIZE*sizeof(char));
+	im->im_bufferU=(unsigned char*)malloc(im_size*sizeof(char));
+	im->im_bufferV=(unsigned char*)malloc(im_size*sizeof(char));
 	colorsU=(unsigned char*)im->im_bufferU;
 	colorsV=(unsigned char*)im->im_bufferV;
 
-	for (j=0,V=0;j<(3*IM_DIM*2);j+=6,V++)
+	for (j=0,V=0;j<step;j+=6,V++)
 	{
 		//im->im_buffer[j+1]=colors[j+1+i];
 		//im->im_buffer[j+2]=colors[j+2+i];
 		colors=im->im_buffer4;
-		colorsU[V]=(colors[j+1]+colors[j+1+(3*IM_DIM*2)]+1)>>1;
-		colorsV[V]=(colors[j+2]+colors[j+2+(3*IM_DIM*2)]+1)>>1;
+		colorsU[V]=(colors[j+1]+colors[j+1+step]+1)>>1;
+		colorsV[V]=(colors[j+2]+colors[j+2+step]+1)>>1;
 
-		for (colors=(im->im_buffer4+(3*IM_DIM*4)),U=(IM_DIM);U<(IM_SIZE);colors+=(3*IM_DIM*4),U+=(IM_DIM))
+		for (colors=(im->im_buffer4+(2 * step)),U=(im_dim);U<(im_size);colors+=(2 * step),U+=(im_dim))
 		{
-			//im->im_buffer[j+i-(3*IM_DIM*2)]=(colors[j+i-(3*IM_DIM*2)]+colors[j+i]*2+colors[j+i+(3*IM_DIM*2)]+2)>>2;
-			colorsU[V+U]=(colors[j+1-(3*IM_DIM*2)]+colors[j+1]*2+colors[j+1+(3*IM_DIM*2)]+2)>>2;
-			colorsV[V+U]=(colors[j+2-(3*IM_DIM*2)]+colors[j+2]*2+colors[j+2+(3*IM_DIM*2)]+2)>>2;
+			//im->im_buffer[j+i-(3*im_dim*2)]=(colors[j+i-(3*im_dim*2)]+colors[j+i]*2+colors[j+i+(3*im_dim*2)]+2)>>2;
+			colorsU[V+U]=(colors[j+1-step]+colors[j+1]*2+colors[j+1+step]+2)>>2;
+			colorsV[V+U]=(colors[j+2-step]+colors[j+2]*2+colors[j+2+step]+2)>>2;
 		}
 
 	}

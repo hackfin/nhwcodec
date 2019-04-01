@@ -1,5 +1,7 @@
 #include <getopt.h>
 #include <stdint.h>
+#include "utils.h"
+#include "imgio.h"
 #include "codec.h"
 #include "remote.h"
 
@@ -28,7 +30,7 @@ void Y_highres_compression(image_buffer *im,encode_state *enc);
 
 const short *lookup_ywlthreshold(int quality);
 
-void write_image(const char *filename, const uint8_t *buf)
+void write_image(const char *filename, uint8_t *buf)
 {
 	FILE *out = fopen(filename, "wb");
 	int s = 1 << g_encconfig.tilepower;
@@ -88,18 +90,17 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int n
 void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
-	int res;
 	short *res256, *resIII;
-	unsigned char *highres;
 	short *pr;
 	char wvlt[7];
 	pr = im->im_process;
+	int IM_SIZE = im->fmt.end / 4;
 
-	int n = 2 * IM_DIM; // line size Y
+	int n = im->fmt.tile_size; // line size Y
 	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
 	resIII = (short*) malloc(IM_SIZE*sizeof(short));
-	enc->tree1 = (unsigned char*) calloc(((96*IM_DIM)+4),sizeof(char));
-	enc->exw_Y = (unsigned char*) malloc(32*IM_DIM*sizeof(short)); // CHECK: short??
+	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
+	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
 	enc->ch_res=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
 
 	init_lut(g_lut, 0.7);
@@ -116,14 +117,14 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	configure_wvlt(quality, wvlt);                  // CAN_HW
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 
-	compress_q(pr, 2 * IM_DIM, enc);                // CAN_HW (< LOW3)
+	compress_q(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
-	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
+	reduce_generic(im, resIII, wvlt, enc, ratio);
 
-	copy_thresholds(pr, resIII, n);                 // CAN_HW
-	ywl(pr, ratio, lookup_ywlthreshold(quality));   // CAN_HW, complex
+	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
+	ywl(im, ratio, lookup_ywlthreshold(quality));
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();
@@ -157,12 +158,12 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int res;
 	int end_transform;
 	short *res256, *resIII;
-	unsigned char *highres;
+	// unsigned char *highres;
 	short *pr;
 	char wvlt[7];
 	pr=(short*)im->im_process;
 
-	int n = 2 * IM_DIM; // line size Y
+	int n = im->fmt.tile_size; // line size Y
 
 	init_lut(g_lut, 0.7);
 	virtfb_init(512, 512);
@@ -174,10 +175,12 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	write_image16("/tmp/wl1.png", im->im_process, 512, 0);
 
-	virtfb_set(im->im_process);
+	virtfb_set((unsigned short *) im->im_process);
 
-	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
-	resIII = (short*) malloc(IM_SIZE*sizeof(short));
+	int quad_size = im->fmt.end / 4;
+
+	res256 = (short*) calloc((quad_size + n), sizeof(short));
+	resIII = (short*) malloc(quad_size*sizeof(short));
 
 	// copy upper left LL1 tile into res256 array
 	copy_from_quadrant(res256, im->im_jpeg, n, n);
@@ -226,19 +229,19 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	
 	copy_from_quadrant(resIII, pr, n, n);
 	
-	enc->tree1=(unsigned char*) calloc(((96*IM_DIM)+4),sizeof(char));
-	enc->exw_Y=(unsigned char*) malloc(32*IM_DIM*sizeof(short)); // CHECK: short??
+	enc->tree1=(unsigned char*) calloc(((48*im->fmt.tile_size)+4),sizeof(char));
+	enc->exw_Y=(unsigned char*) malloc(16*im->fmt.tile_size*sizeof(short)); // CHECK: short??
 	
 	if (quality > LOW3)
 	{
-		res = process_res_q3(pr);
+		res = process_res_q3(im);
 		enc->nhw_res4_len=res;
 		enc->nhw_res4=(unsigned char*)calloc(enc->nhw_res4_len,sizeof(char));
 	}
 
-	enc->ch_res=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+	enc->ch_res=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
-	compress1(quality, pr, enc);
+	compress1(im, enc);
 
 	Y_highres_compression(im, enc);
 
@@ -254,7 +257,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		wavelet_synthesis(im,n>>1,end_transform-1,1);
 
 		if (quality>HIGH1) {
-			im->im_wavelet_first_order=(short*)malloc(IM_SIZE*sizeof(short));
+			im->im_wavelet_first_order=(short*)malloc(quad_size*sizeof(short));
 			copy_from_quadrant(im->im_wavelet_first_order, im->im_jpeg, n, n);
 		}
 	}
@@ -268,7 +271,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 ////////////////////////////////////////////////////////////////////////////
 
-	reduce_generic(quality, resIII, pr, wvlt, enc, ratio);
+	reduce_generic(im, resIII, wvlt, enc, ratio);
 	
 #ifdef CRUCIAL
 	if (quality > LOW8) {
@@ -303,14 +306,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 #endif
 	free(res256);
 
-	copy_thresholds(pr, resIII, n);
+	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 
 	free(resIII);
-	ywl(quality, pr, ratio);
+	ywl(im, ratio, lookup_ywlthreshold(quality));
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
-		im->im_wavelet_band=(short*)calloc(IM_SIZE,sizeof(short));
+		im->im_wavelet_band=(short*)calloc(quad_size,sizeof(short));
 		// These two functions use .im_wavelet_band:
 		im_recons_wavelet_band(im);
 		wavelet_synthesis_high_quality_settings(im,enc);
@@ -355,7 +358,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	else                                   res_uv=5;
 
 
-	im->im_process=(short*) calloc(4*IM_SIZE,sizeof(short));
+	im->im_process=(short*) calloc(im->fmt.end,sizeof(short));
 
 	//if (im->setup->quality_setting<=LOW6) block_variance_avg(im);
 
@@ -368,16 +371,18 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	encode_y_simplified(im, enc, ratio);
 	// encode_y(im, enc, ratio);
 
-	im->im_nhw=(unsigned char*)calloc(6*IM_SIZE,sizeof(char));
+	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 
-	scan_run_code(im->im_nhw, im->im_process, enc);
+	scan_run_code(im, enc);
 
 	free(im->im_process);
 	
 ////////////////////////////////////////////////////////////////////////////	
 
-	im->im_process=(short*)calloc(IM_SIZE,sizeof(short)); // {
-	im->im_jpeg=(short*)calloc(IM_SIZE,sizeof(short)); // Work buffer {
+	int uv_size = im->fmt.end / 4;
+
+	im->im_process=(short*)calloc(uv_size,sizeof(short)); // {
+	im->im_jpeg=(short*)calloc(uv_size,sizeof(short)); // Work buffer {
 
 	encode_uv(im, enc, ratio, res_uv, 0);
 	free(im->im_bufferU); // Previously reserved buffer XXX
@@ -415,6 +420,9 @@ int main(int argc, char **argv)
 
 	im.setup = &setup;
 	setup.quality_setting=NORM;
+
+	imgbuf_init(&im, 9);
+
 
 	while (1) {
 		int c;
@@ -459,7 +467,7 @@ int main(int argc, char **argv)
 	setup.RES_LOW = 3;
 	setup.wvlts_order = 2;
 
-	im.im_buffer4 = (unsigned char*) malloc(4*3*IM_SIZE*sizeof(char));
+	im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
 
 	if ((image = fopen(input_filename, "rb")) == NULL ) {
 		fprintf(stderr, "\n Could not open file \n");
