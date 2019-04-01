@@ -5,6 +5,7 @@
 #include "codec.h"
 #include "remote.h"
 
+#define SIMPLIFIED
 
 enum {
 	OPT_HELP,
@@ -26,7 +27,7 @@ struct config {
 
 void init_lut(uint8_t *lut, float gamma);
 
-void Y_highres_compression(image_buffer *im,encode_state *enc);
+void origY_highres_compression(image_buffer *im,encode_state *enc);
 
 const short *lookup_ywlthreshold(int quality);
 
@@ -94,14 +95,14 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	short *pr;
 	char wvlt[7];
 	pr = im->im_process;
-	int IM_SIZE = im->fmt.end / 4;
+	int quad_size = im->fmt.end / 4;
 
 	int n = im->fmt.tile_size; // line size Y
-	res256 = (short*) calloc((IM_SIZE + n), sizeof(short));
-	resIII = (short*) malloc(IM_SIZE*sizeof(short));
+	res256 = (short*) calloc((quad_size + n), sizeof(short));
+	resIII = (short*) malloc(quad_size*sizeof(short));
 	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
 	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
-	enc->ch_res=(unsigned char*)calloc((IM_SIZE>>2),sizeof(char));
+	enc->ch_res=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
 	init_lut(g_lut, 0.7);
 	virtfb_init(512, 512);
@@ -118,7 +119,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 
 	compress_q(im, enc);                // CAN_HW (< LOW3)
-	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
+	origY_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
 	reduce_generic(im, resIII, wvlt, enc, ratio);
@@ -150,6 +151,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
  *      STAGE1                           STAGE2
  *
  */
+
 
 void encode_y(image_buffer *im, encode_state *enc, int ratio)
 {
@@ -368,8 +370,12 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 		pre_processing(im);
 	}
 #endif
+
+#ifdef SIMPLIFIED
 	encode_y_simplified(im, enc, ratio);
-	// encode_y(im, enc, ratio);
+#else
+	encode_y(im, enc, ratio);
+#endif
 
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 

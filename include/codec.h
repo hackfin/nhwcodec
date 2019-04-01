@@ -330,8 +330,8 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 int process_res_q3(image_buffer *im);
 void compress1(image_buffer *im, encode_state *enc);
 void copy_thresholds(short *process, const short *resIII, int size, int step);
-int compress_q(image_buffer *im, encode_state *enc);
-int compress_q3(image_buffer *im,  encode_state *enc);
+void compress_q(image_buffer *im, encode_state *enc);
+void compress_q3(image_buffer *im,  encode_state *enc);
 
 int configure_wvlt(int quality, char *wvlt);
 void reduce_generic(image_buffer *im, short *resIII, char *wvlt,

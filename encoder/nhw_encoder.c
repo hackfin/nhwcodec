@@ -546,7 +546,7 @@ inline void cond_modify0(short scan, int step, short *q)
 }
 
 MAYBE_STATIC
-int compress_q3(image_buffer *im,  encode_state *enc)
+void compress_q3(image_buffer *im,  encode_state *enc)
 {
 	int i, j, scan;
 	int stage, res;
@@ -742,11 +742,9 @@ int compress_q3(image_buffer *im,  encode_state *enc)
 
 
 	enc->exw_Y_end = e;
-
-	return e;
 }
 
-int compress_q(image_buffer *im, encode_state *enc)
+void compress_q(image_buffer *im, encode_state *enc)
 {
 	int i, j, scan;
 	int a, e;
@@ -772,21 +770,19 @@ int compress_q(image_buffer *im, encode_state *enc)
 
 		}
 	}
-	return e;
+	enc->exw_Y_end = e;
 }
 
 MAYBE_STATIC
 void compress1(image_buffer *im, encode_state *enc)
 {
-	int n;
 	int quality = im->setup->quality_setting;
 
 	if (quality > LOW3)  {
-		n = compress_q3(im,  enc);
+		compress_q3(im,  enc);
 	} else {
-		n = compress_q(im, enc);
+		compress_q(im, enc);
 	}
-	enc->exw_Y_end = n;
 }
 
 MAYBE_STATIC
