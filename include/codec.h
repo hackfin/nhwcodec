@@ -55,10 +55,12 @@
 #define LOSSY  
 
 // IMAGE SIZE (PER COMPONENT)
+#ifdef DEPRECATED
 #define IM_SIZE 65536
 
 // IMAGE DIMENSION 
 #define IM_DIM 256
+#endif
 
 //QUALITY SETTINGS
 #define HIGH3 23
@@ -112,6 +114,19 @@ typedef struct{
 	unsigned char quality_setting;
 }codec_setup;
 
+typedef struct
+{
+	unsigned int tile_power; // Tile power [5..9]
+#ifdef TILE_SUPPORT // would allow to use arbitrary image dimensions. NOT YET.
+	unsigned int width;      // Full image width
+	unsigned int height;     // Full image height, arbitrary
+#endif
+	// cached/precalced values:
+	unsigned int tile_size;  // Size of tile: 2**tile_power
+	unsigned int half;       // Lower half offset of tile
+	unsigned int end;        // End of buffer address, non-inclusive
+} img_format;
+
 typedef struct{
 	short *im_process;
 	short *im_jpeg;
@@ -126,6 +141,7 @@ typedef struct{
 	short *im_nhw3;
 	unsigned char *scale;
 	codec_setup *setup;
+	img_format  fmt;
 }image_buffer;
 
 typedef struct{

@@ -52,7 +52,9 @@
 void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 {
 	short *data,*res,*data2;
-	int i,j,IM_SYNTH=IM_DIM,a;
+	int i,j,n=im->fmt.tile_size,a;
+
+	int halfn = n / 2;
 
 	if (Y==1)
 	{
@@ -66,7 +68,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	else if (last_stage==1)
@@ -75,13 +77,13 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 
-	data=im->im_jpeg + norder*((2*IM_SYNTH)>>1);
-	res=im->im_process + norder*((2*IM_SYNTH)>>1);
-	data2=im->im_jpeg + norder*((2*IM_SYNTH)>>1) + norder/2;
+	data=im->im_jpeg + norder*(halfn);
+	res=im->im_process + norder*(halfn);
+	data2=im->im_jpeg + norder*(halfn) + norder/2;
 
 	if (last_stage==1)
 	{
@@ -89,7 +91,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	else if (last_stage==0)
@@ -98,22 +100,22 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 
 	//image transposition
 	/*for (i=0;i<norder;i++)
 	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(2*IM_SYNTH)+j]=im->im_process[i+j*(2*IM_SYNTH)];
+		for (j=0;j<norder;j++) im->im_jpeg[i*n+j]=im->im_process[i+j*n];
 	}*/
 
 	//faster version
 	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(2*IM_DIM))
+	for (i=0;i<norder;i++,res+=im->fmt.tile_size)
 	{
 		a=i;
-		for (j=0;j<norder;j++,a+=(2*IM_DIM)) res[j]=data[a];
+		for (j=0;j<norder;j++,a+=im->fmt.tile_size) res[j]=data[a];
 	}
 	}
 	
@@ -129,7 +131,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);	
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	else
@@ -138,7 +140,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	}
@@ -153,7 +155,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		for (i=0;i<norder/2;i++)
 		{
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(IM_SYNTH);res +=(IM_SYNTH);data2 +=(IM_SYNTH);
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 	else
@@ -161,20 +163,20 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		for (i=0;i<norder/2;i++)
 		{
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 
-	data=im->im_jpeg + norder*(IM_SYNTH>>1);
-	res=im->im_process + norder*(IM_SYNTH>>1);
-	data2=im->im_jpeg + norder*(IM_SYNTH>>1) + norder/2;
+	data=im->im_jpeg + norder*(halfn>>1);
+	res=im->im_process + norder*(halfn>>1);
+	data2=im->im_jpeg + norder*(halfn>>1) + norder/2;
 
 	if (last_stage==0)
 	{
 		for (i=norder/2;i<norder;i++)
 		{
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 	else
@@ -182,21 +184,21 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		for (i=norder/2;i<norder;i++)
 		{
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 
 	//image transposition
 	/*for (i=0;i<norder;i++)
 	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(IM_SYNTH)+j]=im->im_process[i+j*(IM_SYNTH)];
+		for (j=0;j<norder;j++) im->im_jpeg[i*halfn+j]=im->im_process[i+j*halfn];
 	}*/
 	//faster version
 	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(IM_DIM))
+	for (i=0;i<norder;i++,res+=halfn)
 	{
 		a=i;
-		for (j=0;j<norder;j++,a+=(IM_DIM)) res[j]=data[a];
+		for (j=0;j<norder;j++,a+=halfn) res[j]=data[a];
 	}
 
 	data=im->im_jpeg;
@@ -209,7 +211,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		{
 			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);	
 			//upfilter53(data,norder/2,res);upfilter53IV(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 	else
@@ -217,7 +219,7 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 		for (i=0;i<norder;i++)
 		{
 			upfilter53I(data,norder/2,res);upfilter53VI(data2,norder/2,res);
-			data +=IM_SYNTH;res +=IM_SYNTH;data2 +=IM_SYNTH;
+			data +=halfn;res +=halfn;data2 +=halfn;
 		}
 	}
 
@@ -225,10 +227,10 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 	{//image transposition
 		//faster version
 		res=im->im_jpeg;data=im->im_process;
-		for (i=0;i<norder;i++,res+=(IM_DIM))
+		for (i=0;i<norder;i++,res+=halfn)
 		{
 			a=i;
-			for (j=0;j<norder;j++,a+=(IM_DIM)) res[j]=data[a];
+			for (j=0;j<norder;j++,a+=halfn) res[j]=data[a];
 		}
 	}*/
 	}
@@ -237,7 +239,12 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y)
 {
 	short *data,*res,*data2;
-	int i,j,IM_SYNTH=IM_DIM,a;
+	int i,j,a;
+
+	int n, halfn;
+
+	n = im->fmt.tile_size;
+	halfn = n / 2;
 
 	data=im->im_jpeg;
 	res=im->im_process;
@@ -249,7 +256,7 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	else if (last_stage==1)
@@ -258,13 +265,13 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);	
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 
-	data=im->im_jpeg + norder*((2*IM_SYNTH)>>1);
-	res=im->im_process + norder*((2*IM_SYNTH)>>1);
-	data2=im->im_jpeg + norder*((2*IM_SYNTH)>>1) + norder/2;
+	data=im->im_jpeg + norder*halfn;
+	res=im->im_process + norder*halfn;
+	data2=im->im_jpeg + norder*halfn + norder/2;
 
 	if (last_stage==1)
 	{
@@ -272,7 +279,7 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);	
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 	else if (last_stage==0)
@@ -281,14 +288,14 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 		{
 			//upfilter97(data,norder/2,1,res);upfilter97(data2,norder/2,0,res);
 			upfilter53I(data,norder/2,res);upfilter53III(data2,norder/2,res);
-			data +=(2*IM_SYNTH);res +=(2*IM_SYNTH);data2 +=(2*IM_SYNTH);
+			data +=n;res +=n;data2 +=n;
 		}
 	}
 
 	//image transposition
 	/*for (i=0;i<norder;i++)
 	{
-		for (j=0;j<norder;j++) im->im_jpeg[i*(2*IM_SYNTH)+j]=im->im_process[i+j*(2*IM_SYNTH)];
+		for (j=0;j<norder;j++) im->im_jpeg[i*n+j]=im->im_process[i+j*n];
 	}*/
 
 	data=(short*)im->im_process;
@@ -311,19 +318,19 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 		{
 			if ((os->nhw_char_res1[i]&3)==0)
 			{
-				data[((os->nhw_char_res1[i]<<1)+IM_DIM-2)]+=32;
+				data[((os->nhw_char_res1[i]<<1)+halfn-2)]+=32;
 			}
 			else if ((os->nhw_char_res1[i]&3)==1)
 			{
-				data[(((os->nhw_char_res1[i]-1)<<1)+IM_DIM-2)]-=32;
+				data[(((os->nhw_char_res1[i]-1)<<1)+halfn-2)]-=32;
 			}
 			else if ((os->nhw_char_res1[i]&3)==2)
 			{
-				data[(((os->nhw_char_res1[i]-2)<<1)+IM_DIM-1)]+=32;
+				data[(((os->nhw_char_res1[i]-2)<<1)+halfn-1)]+=32;
 			}
 			else
 			{
-				data[(((os->nhw_char_res1[i]-3)<<1)+IM_DIM-1)]-=32;
+				data[(((os->nhw_char_res1[i]-3)<<1)+halfn-1)]-=32;
 			}
 		}
 
@@ -349,10 +356,10 @@ void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_st
 
 	//faster version
 	res=im->im_jpeg;data=im->im_process;
-	for (i=0;i<norder;i++,res+=(2*IM_DIM))
+	for (i=0;i<norder;i++,res+=n)
 	{
 		a=i;
-		for (j=0;j<norder;j++,a+=(2*IM_DIM)) res[j]=data[a];
+		for (j=0;j<norder;j++,a+=n) res[j]=data[a];
 	}
 }
 
