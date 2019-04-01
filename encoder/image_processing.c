@@ -70,7 +70,8 @@ static char extra_table[109] = {
 void quantizationUV(image_buffer *im)
 {
 	int i,j,low,high;
-	int step2 = IM_DIM;
+	int step2 = im->fmt.tile_size / 2;
+	int IM_SIZE = im->fmt.end / 4;
 
 	low=(0xFF)^((1<<im->setup->RES_LOW)-1);
 	high=(0xFF)^((1<<im->setup->RES_HIGH)-1);
@@ -98,10 +99,11 @@ void quantizationUV(image_buffer *im)
 void quantizationY(image_buffer *im)
 {
 	int i,j,low,high;
+	int IM_SIZE = im->fmt.end / 4;
 
 	low=(0xFF)^((1<<im->setup->RES_LOW)-1);
 	high=(0xFF)^((1<<im->setup->RES_HIGH)-1);
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
 
 	for (i=0;i<((4*IM_SIZE)>>3);i+=(step))
 	{
@@ -127,7 +129,10 @@ void quantizationY(image_buffer *im)
 void offsetUV(image_buffer *im,encode_state *enc,int m2)
 {
 	int i,exw,a;
-	int step2 = IM_DIM;
+
+	int step = im->fmt.tile_size;
+	int step2 = step / 2;
+	int IM_SIZE = im->fmt.end / 4;
 
 	for (i=0;i<IM_SIZE;i++)
 	{
@@ -212,7 +217,7 @@ void offset_fixup_neighbours(short *p, int i, short p2)
 }
 
 /* Process all subbands except LL */
-void offsetY_non_LL(short *pr, int step)
+void offsetY_non_LL(short *pr, int IM_SIZE, int step)
 {
 	int i;
 	short *p;
@@ -252,7 +257,7 @@ void offsetY_non_LL(short *pr, int step)
 }
 
 
-void offsetY_LL_q4(short *pr, int step)
+void offsetY_LL_q4(short *pr, int IM_SIZE, int step)
 {
 	int i, a, j;
 	int step2 = step / 2;
@@ -342,16 +347,17 @@ void offsetY(image_buffer *im,encode_state *enc, int m1)
 {
 	int i,exw,a;
 	short *pr;
+	int IM_SIZE = im->fmt.end / 4;
 
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
 
 	pr = (short*) im->im_process;
 
-	offsetY_non_LL(pr, step);
+	offsetY_non_LL(pr, IM_SIZE, step);
 	
 	if (im->setup->quality_setting>LOW4)
 	{
-		offsetY_LL_q4(pr, step);
+		offsetY_LL_q4(pr, IM_SIZE, step);
 	}
 
 	for (i=0;i<(4*IM_SIZE);i++)
@@ -417,7 +423,8 @@ void offsetY(image_buffer *im,encode_state *enc, int m1)
 void im_recons_wavelet_band(image_buffer *im)
 {
 	int i,j,a,r,scan;
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
+	int IM_SIZE = im->fmt.end / 4;
 
 	for (i=0,r=0;i<(2*IM_SIZE);i+=(step))
 	{ 
@@ -464,7 +471,8 @@ void pre_processing(image_buffer *im)
 	int i,j,res,count,e=0,a=0,sharpness,n1;
 	short *nhw_process;
 	char lower_quality_setting_on;
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
+	int IM_SIZE = im->fmt.end / 4;
 
 	nhw_process=(short*)im->im_process;
 	memcpy(im->im_process,im->im_jpeg,4*IM_SIZE*sizeof(short));
@@ -666,7 +674,8 @@ void pre_processing_UV(image_buffer *im)
 {
 	int i,j,scan,res;
 	short *nhw_process;
-	int step = IM_DIM;
+	int step = im->fmt.tile_size / 2;
+	int IM_SIZE = im->fmt.end / 4;
 
 	nhw_process=(short*)im->im_process;
 	memcpy(im->im_process,im->im_jpeg,IM_SIZE*sizeof(short));
@@ -847,7 +856,8 @@ static
 void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 {
 	int i,j;
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
+	int IM_SIZE = im->fmt.end / 4;
 
 #define Q3_CONDITION(n) \
 	IS_ODD((n)[0]) && IS_ODD((n)[1]) && IS_ODD((n)[2]) && IS_ODD((n)[3]) && (abs((n)[0]-(n)[3]) > 1)
@@ -932,12 +942,12 @@ int tag_thresh_neighbour(short *p)
 	return 0;
 }
 
-void offsetY_recons256_q4(short *pr, short *jp, int step, int part)
+void offsetY_recons256_q4(short *pr, short *jp, int size, int step, int part)
 {
 	int i, j;
 	int a;
 
-	for (i=0;i<(IM_SIZE);i+=(step))
+	for (i=0;i<(size);i+=(step))
 	{
 		a = i + (step/4) + 1;
 		short *p = &pr[a];
@@ -949,7 +959,7 @@ void offsetY_recons256_q4(short *pr, short *jp, int step, int part)
 		}
 	}
 
-	for (i=(IM_SIZE);i<((2*IM_SIZE)-(step));i+=(step))
+	for (i=(size);i<((2*size)-(step));i+=(step))
 	{
 		short *p = &pr[i+1];
 		short *q = &jp[i+1];
@@ -962,7 +972,7 @@ void offsetY_recons256_q4(short *pr, short *jp, int step, int part)
 
 	if (!part)
 	{
-		for (i=0;i<(IM_SIZE);i+=(step)) {
+		for (i=0;i<(size);i+=(step)) {
 			short *p = &pr[i + step/4];
 			for (j=(step/4);j<(step/2-1);j++,p++) {
 				// If one got tagged, skip next.
@@ -970,7 +980,7 @@ void offsetY_recons256_q4(short *pr, short *jp, int step, int part)
 			}
 		}
 
-		for (i=IM_SIZE;i<(2*IM_SIZE);i+=(step)) {
+		for (i=size;i<(2*size);i+=(step)) {
 			short *p = &pr[i];
 			for (j=0;j<(step/2-1);j++,p++) {
 				if (tag_thresh_neighbour(p)) { j++; p++; }
@@ -1049,7 +1059,8 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 {
 	int i,j,a,t;
 	short *nhw1,*highres_tmp;
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
+	int IM_SIZE = im->fmt.end / 4;
 	short thresh0, thresh1;
 
 	nhw1=(short*)im->im_process;
@@ -1105,11 +1116,11 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 					if (p[step]<thresh0) p[step]++;
 				}
 			}
-			else if ((p[0]&1)==1 && i>=step && i<(IM_SIZE-(6*IM_DIM)))
+			else if ((p[0]&1)==1 && i>=step && i<(IM_SIZE-(3*step)))
 			{
-				if ((p[step]&1)==1 && (p[(2*IM_DIM+1)]&1)==1)
+				if ((p[step]&1)==1 && (p[(step+1)]&1)==1)
 				{
-					if ((p[(4*IM_DIM)]&1)==1 && !(p[(6*IM_DIM)]&1)) 
+					if ((p[(2*step)]&1)==1 && !(p[(3*step)]&1)) 
 					{
 						if (p[step]<thresh0) p[step]++;
 					}
@@ -1132,7 +1143,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 		{
 			short *p = &nhw1[i];
 			short *q = &im->im_jpeg[i];
-			for (j=0;j<(IM_DIM>>1);j++,p++, q++) 
+			for (j=0;j<(step / 4);j++,p++, q++) 
 			{
 				if (p[0]<10000)
 				{
@@ -1187,7 +1198,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 	
 	if (im->setup->quality_setting>LOW4)
 	{
-		offsetY_recons256_q4(im->im_process, im->im_jpeg, step, part);
+		offsetY_recons256_q4(im->im_process, im->im_jpeg, im->fmt.end / 4, step, part);
 	}
 
 	for (i=0;i<(IM_SIZE);i+=(step))
@@ -1250,11 +1261,11 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 }
 
 static
-void offsetUV_recons256_q5(short *dst, const short *src, int step)
+void offsetUV_recons256_q5(short *dst, const short *src, int size, int step)
 {
 	int i;
 
-	for (i=0;i<(IM_SIZE>>2);i++)
+	for (i=0;i<(size>>2);i++)
 	{
 		// TODO: Check boundary conditions
 		if ((i&255)<(step))
@@ -1304,15 +1315,16 @@ void offsetUV_recons256(image_buffer *im, int m1, int comp)
 {
 	int i,j;
 
-	int step = 2 * IM_DIM;
+	int step = im->fmt.tile_size;
 	int step4 = step / 4;
 	int step8 = step / 8;
+	int IM_SIZE = im->fmt.end / 4;
 
 	if (comp)
 	{	
 		if (im->setup->quality_setting>LOW5) 
 		{
-			offsetUV_recons256_q5(im->im_jpeg, im->im_process, step8);
+			offsetUV_recons256_q5(im->im_jpeg, im->im_process, IM_SIZE, step8);
 		} else {
 			short *p = im->im_process;
 			short *q = im->im_jpeg;

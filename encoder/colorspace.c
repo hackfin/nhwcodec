@@ -59,6 +59,9 @@ void downsample_YUV420(image_buffer *im,encode_state *enc,int rate)
 	unsigned char *colors,*colorsU,*colorsV;
 	float color_balance,Y_quant;
 
+	int IM_SIZE = im->fmt.end / 4;
+	int IM_DIM = im->fmt.tile_size / 2;
+
 	colors=(unsigned char*)im->im_buffer4;
 	im->im_jpeg=(short*)malloc(4*IM_SIZE*sizeof(short));
 	colorsY=(short*)im->im_jpeg;

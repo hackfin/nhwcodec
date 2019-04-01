@@ -48,6 +48,7 @@
 #include <string.h>
 #include <assert.h>
 
+#define DEPRECATED
 #include "codec.h"
 #include "utils.h"
 #include "tree.h"

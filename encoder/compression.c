@@ -1,12 +1,13 @@
 #include "codec.h"
 
 static
-void shuffle_quadpacks(unsigned char *s, const short *pr, int step)
+void shuffle_quadpacks(unsigned char *s, const short *pr, int n, int step)
 {
 	int i, j;
 
 	// Re-order coefficients in four-blocks:
 
+	int IM_DIM = step / 2;
 
 	for (j=0;j<(IM_DIM<<1);)
 	{
@@ -24,20 +25,25 @@ void shuffle_quadpacks(unsigned char *s, const short *pr, int step)
 			pr += step;
 		}
 
-		j-=((4*IM_SIZE)-4);
-		pr-=((4*IM_SIZE)-4);
+		j-=(n-4);
+		pr-=(n-4);
 	}
 }
 
-void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
+void scan_run_code(image_buffer *im, encode_state *enc)
 {
 	int i, count;
 
-	int step = 2 * IM_DIM;
+	unsigned char *s = im->im_nhw;
+	const short *pr = im->im_process;
 
-	shuffle_quadpacks(s, pr, step);
+	int IM_SIZE = im->fmt.end / 4;
+	int n = im->fmt.end;
+	int step = im->fmt.tile_size;
 
-	for (i=0;i<4*IM_SIZE-4;i++)
+	shuffle_quadpacks(s, pr, n, step);
+
+	for (i=0;i<n-4;i++)
 	{
 		if (s[i]!=128 && s[i+1]==128)
 		{
@@ -69,10 +75,10 @@ void scan_run_code(unsigned char *s, const short *pr, encode_state *enc)
 	}
 
 	s[0]=128;s[1]=128;s[2]=128;s[3]=128;
-	s[(4*IM_SIZE)-4]=128;
-	s[(4*IM_SIZE)-3]=128;
-	s[(4*IM_SIZE)-2]=128;
-	s[(4*IM_SIZE)-1]=128;
+	s[(n)-4]=128;
+	s[(n)-3]=128;
+	s[(n)-2]=128;
+	s[(n)-1]=128;
 
 	for (i=4,enc->nhw_select1=0,enc->nhw_select2=0,count=0;i<((4*IM_SIZE)-4);i++)
 	{

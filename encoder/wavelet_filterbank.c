@@ -70,10 +70,9 @@ void transpose(short *dst, const short *src, int n, int step)
 	}
 }
 
-void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int highres)
+void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int n, int IM_SIZE, int highres)
 {
 	int i;
-	int n = 2 * IM_DIM; // Line length
 	const short *data;
 	short *res, *res2;
 	int offset;
@@ -127,12 +126,11 @@ void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int n
 	}
 }
 
-void SWAPOUT_FUNCTION(wla_chroma)(short *dst, short *src, int norder, int highres)
+void SWAPOUT_FUNCTION(wla_chroma)(short *dst, short *src, int norder, int n, int highres)
 {
 	// Chroma processing:
 	int i;
 	short *data,*res,*res2;
-	int n = IM_DIM; // Half the pixel line size for chroma
 	int offset;
 	int halfno = norder >> 1;
 
@@ -181,27 +179,28 @@ void SWAPOUT_FUNCTION(wla_chroma)(short *dst, short *src, int norder, int highre
 void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
 {
 	int i,j,a;
-	int n = IM_DIM; // Half the pixel line size
+	int n = im->fmt.tile_size; // Line size
 	int halfno = norder >> 1;
 	short *qs;
 
-	for (i=0;i<(norder*n);i+=(2*n)) {
+	for (i=0;i<(halfno*n);i+=n) {
 		for (a=i,j=0;j<(halfno);j++,a++) im->im_process[a]=0; 
 	}
 
 	if (is_luma) {
 		if (im->setup->quality_setting>HIGH1 && !last_stage) {
 			// FIXME: move outside
-			im->im_quality_setting=(short*)malloc(2*IM_SIZE*sizeof(short));
+			im->im_quality_setting=(short*)malloc(im->fmt.half*sizeof(short));
 			qs = im->im_quality_setting;
 		} else {
 			qs = (short *) NULL;
 		}
 		// Always places result in im_process but uses im_jpeg as work buffer
-		wla_luma(im->im_process, im->im_jpeg, qs, norder, im->setup->RES_HIGH);
-		n *= 2; // For transpose() below
+		wla_luma(im->im_process, im->im_jpeg, qs, norder, n, im->fmt.end / 4, im->setup->RES_HIGH);
 	} else {
-		wla_chroma(im->im_process, im->im_jpeg, norder, im->setup->RES_HIGH);
+		n /= 2;
+		wla_chroma(im->im_process, im->im_jpeg, norder, n, im->setup->RES_HIGH);
+		
 	}
 
 	if (last_stage!=im->setup->wvlts_order-1)
@@ -215,8 +214,8 @@ void wls_luma(image_buffer *im, int norder, int last_stage)
 {
 	const short *data,*data2;
 	short *res;
-	int i, IM_SYNTH=IM_DIM;
-	int s = 2 * IM_SYNTH;
+	int i;
+	int s = im->fmt.tile_size;
 	int halfno = norder >> 1;
 
 	data = im->im_jpeg;
@@ -296,8 +295,8 @@ void wls_chroma(image_buffer *im, int norder, int last_stage)
 {
 	const short *data,*data2;
 	short *res;
-	int i, IM_SYNTH=IM_DIM;
-	int s = IM_SYNTH; // half line size for 420 chroma buffer
+	int i;
+	int s = im->fmt.tile_size / 2; // half line size for 420 chroma buffer
 
 	int halfno = norder >> 1;
 
@@ -387,11 +386,14 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 	short *wavelet_half_synthesis,*data,*res_w,*data2;
 	unsigned char *nhw_res6I_word,*ch_comp,*highres,*scan_run;
 
-	wavelet_half_synthesis=(short*)malloc(2*IM_SIZE*sizeof(short));
+	wavelet_half_synthesis=(short*)malloc(im->fmt.half*sizeof(short));
 
 	res_w=(short*)wavelet_half_synthesis;
 	data=(short*)im->im_wavelet_first_order;
 	data2=(short*)im->im_wavelet_band;
+
+	int IM_DIM = im->fmt.tile_size / 2;
+	int IM_SIZE = im->fmt.end / 4;
 	
 	for (i=0;i<IM_DIM;i++)
 	{

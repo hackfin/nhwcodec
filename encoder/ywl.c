@@ -33,15 +33,16 @@ inline void reduce_yterms(short *p, short e, short f, int step, int condition)
 	p[0] = e; p[1] = f;
 }
 
-void ywl(short *pr, int ratio, const short *y_wl)
+void ywl(image_buffer *im, int ratio, const short *y_wl)
 {
 	int i, j, scan;
 	int e, f;
 	int a;
+	short *pr = im->im_process;
 
-	int step = 2 * IM_DIM;
-	int halfs = IM_DIM;
-	int im_size = 4*IM_SIZE;
+	int step = im->fmt.tile_size;
+	int halfs = step / 2;
+	int im_size = im->fmt.end;
 
 	// Notation:
 	//
