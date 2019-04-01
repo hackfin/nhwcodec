@@ -1,7 +1,7 @@
 CSRCS = $(wildcard *.c)
 
 OBJS = $(CSRCS:%.c=%.o)
-OBJS += png_w.o
+OBJS += png_w.o filters.o
 
 CFLAGS = -O3 -I../include
 
@@ -14,5 +14,8 @@ clean:
 	rm -f nhwdec $(OBJS)
 
 %.o: ../utils/%.c
+	$(CC) -c -o $@ $(CFLAGS) $<
+
+%.o: ../common/%.c
 	$(CC) -c -o $@ $(CFLAGS) $<
 
