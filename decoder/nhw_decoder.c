@@ -53,7 +53,7 @@
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
-void imgbuf_init(image_buffer *im, int tile_power)
+void SWAPOUT_FUNCTION(imgbuf_init)(image_buffer *im, int tile_power)
 {
 	im->fmt.tile_power = tile_power;
 	im->fmt.tile_size = 1 << tile_power;
@@ -61,55 +61,21 @@ void imgbuf_init(image_buffer *im, int tile_power)
 	im->fmt.half = im->fmt.end / 2;
 }
 
-
-int main(int argc, char **argv)
+void yuv_to_rgb(image_buffer *im)
 {
-	image_buffer im;
-	decode_state dec;
-	FILE *res_image;
-	int i,Y,U,V,R,G,B,len,m,t;
+	int i,Y,U,V,R,G,B,m,t;
 	unsigned char *icolorY,*icolorU,*icolorV,*iNHW;
 	float Y_q_setting,Y_inv;
-	char OutputFile[200];
 
+	iNHW = im->im_buffer4;
+    icolorY = (unsigned char*) im->im_bufferY;
+	icolorU = (unsigned char*) im->im_bufferU;
+	icolorV = (unsigned char*) im->im_bufferV;
 
-	if (argv[1]==NULL || argv[1]==0)
-	{
-		printf("\n Copyright (C) 2007-2013 NHW Project (Raphael C.)\n");
-		printf("\n-> nhw_decoder.exe filename.nhw\n");
-		exit(-1);
-	}
+	int IM_SIZE = im->fmt.end / 4;
+	int quality = im->setup->quality_setting;
 
-
-	imgbuf_init(&im, 9);
-
-	int IM_SIZE = im.fmt.end / 4;
-	int IM_DIM = im.fmt.tile_size / 2;
-
-	/* Decode Image */
-	decode_image(&im,&dec,argv);
-
-	// here to work on Windows Vista
-    icolorY=(unsigned char*)im.im_bufferY;
-	icolorU=(unsigned char*)im.im_bufferU;
-	icolorV=(unsigned char*)im.im_bufferV;
-	im.im_buffer4=(unsigned char*)malloc(4 * 3*IM_SIZE*sizeof(char));
-	iNHW=(unsigned char*)im.im_buffer4;
-
-	// Create the Output Decompressed .BMP File
-	len=strlen(argv[1]);
-	memset(argv[1]+len-4,0,4);
-	sprintf(OutputFile,"%sDEC.png",argv[1]);
-
-	res_image = fopen(OutputFile,"wb");
-
-	if( NULL == res_image )
-	{
-		printf("Failed to open output decompressed file %s\n",OutputFile);
-		return -1;
-	}
-
-	if (im.setup->quality_setting>=NORM)
+	if (quality>=NORM)
 	{
 		for (m=0;m<4;m++)
 		{
@@ -138,10 +104,10 @@ int main(int argc, char **argv)
 
 		}
 	}
-	else if (im.setup->quality_setting==LOW1 || im.setup->quality_setting==LOW2)
+	else if (quality==LOW1 || quality==LOW2)
 	{
-		if (im.setup->quality_setting==LOW1) Y_inv=1.025641; // 1/0.975
-		else if (im.setup->quality_setting==LOW2) Y_inv=1.075269; // 1/0.93
+		if (quality==LOW1) Y_inv=1.025641; // 1/0.975
+		else if (quality==LOW2) Y_inv=1.075269; // 1/0.93
 
 		for (m=0;m<4;m++)
 		{
@@ -170,7 +136,7 @@ int main(int argc, char **argv)
 
 		}
 	}
-	else if (im.setup->quality_setting==LOW3) 
+	else if (quality==LOW3) 
 	{
 		Y_inv=1.063830; // 1/0.94
 
@@ -201,24 +167,24 @@ int main(int argc, char **argv)
 
 		}
 	}
-	else if (im.setup->quality_setting<LOW3) 
+	else if (quality<LOW3) 
 	{
-		if (im.setup->quality_setting==LOW4) Y_inv=1.012139; // 1/0.94
-		else if (im.setup->quality_setting==LOW5) Y_inv=1.048174; // 1/0.906
-		else if (im.setup->quality_setting==LOW6) Y_inv=1.138331; // 1/0.8
-		else if (im.setup->quality_setting==LOW7) Y_inv=1.186945; 
-		else if (im.setup->quality_setting==LOW8) Y_inv=1.177434;
-		else if (im.setup->quality_setting==LOW9) Y_inv=1.190611; 
-		else if (im.setup->quality_setting==LOW10) Y_inv=1.281502; 
-		else if (im.setup->quality_setting==LOW11) Y_inv=1.392014;
-		else if (im.setup->quality_setting==LOW12) Y_inv=1.521263;
-		else if (im.setup->quality_setting==LOW13) Y_inv=1.587597;
-		else if (im.setup->quality_setting==LOW14) Y_inv=1.665887;
-		else if (im.setup->quality_setting==LOW15) Y_inv=1.741126;
-		else if (im.setup->quality_setting==LOW16) Y_inv=1.820444;
-		else if (im.setup->quality_setting==LOW17) Y_inv=1.916257;
-		else if (im.setup->quality_setting==LOW18) Y_inv=1.985939;
-		else if (im.setup->quality_setting==LOW19) Y_inv=2.060881;
+		if (quality==LOW4) Y_inv=1.012139; // 1/0.94
+		else if (quality==LOW5) Y_inv=1.048174; // 1/0.906
+		else if (quality==LOW6) Y_inv=1.138331; // 1/0.8
+		else if (quality==LOW7) Y_inv=1.186945; 
+		else if (quality==LOW8) Y_inv=1.177434;
+		else if (quality==LOW9) Y_inv=1.190611; 
+		else if (quality==LOW10) Y_inv=1.281502; 
+		else if (quality==LOW11) Y_inv=1.392014;
+		else if (quality==LOW12) Y_inv=1.521263;
+		else if (quality==LOW13) Y_inv=1.587597;
+		else if (quality==LOW14) Y_inv=1.665887;
+		else if (quality==LOW15) Y_inv=1.741126;
+		else if (quality==LOW16) Y_inv=1.820444;
+		else if (quality==LOW17) Y_inv=1.916257;
+		else if (quality==LOW18) Y_inv=1.985939;
+		else if (quality==LOW19) Y_inv=2.060881;
 
 
 		for (m=0;m<4;m++)
@@ -245,38 +211,840 @@ int main(int argc, char **argv)
 		}
 	}
 
-	write_png(res_image, im.im_buffer4, 2*IM_DIM, 2*IM_DIM, 1);
+}
+
+int process_highres(image_buffer *imd, decode_state *os)
+{
+	int i,j,ch,e, a, run,nhw;
+	char uv_small_dc_offset[8][2]={{0,4},{0,-4},{4,0},{-4,0},{4,4},{4,-4},{-4,4},{-4,-4}};
+	int IM_SIZE = imd->fmt.end / 4;
+	int IM_DIM = imd->fmt.tile_size / 2;
+
+	os->res_comp[0]=os->res_ch[0];
+
+	if ((imd->setup->RES_HIGH&3)==1) goto L6; 
+	if ((imd->setup->RES_HIGH&3)==2) goto L8;
+
+	for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5)
+				os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<16)
+			{
+				run=(os->res_ch[i]>>3)&1;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				if ((os->res_ch[i]&7)==0) continue;
+				else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
+				else if ((os->res_ch[i]&7)==2) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+				}
+				else if ((os->res_ch[i]&7)==3) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					os->res_comp[j]=os->res_comp[j-1];j++;
+					//os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==4) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					//os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==5) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+					os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==6) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+				}
+				else if ((os->res_ch[i]&7)==7) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+4;j++;
+				}
+			}
+			else if (os->res_ch[i]<32)
+			{
+				if (os->res_ch[i]>=24)
+				{
+					os->res_comp[j]=os->res_comp[j-1]+4;
+					j++;
+
+					ch = ((os->res_ch[i])&7);
+					ch <<=1;
+					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+					j++;
+				}
+				else
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;
+					j++;
+
+					ch = ((os->res_ch[i])&7);
+					ch <<=1;
+					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+					j++;
+				}
+			}
+			else if (os->res_ch[i]<64)
+			{
+				os->res_ch[i]-=32;
+				ch = (os->res_ch[i])>>3;
+				ch <<=1;
+				os->res_comp[j]= (ch-6)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=1;
+				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+				j++;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+	goto L7;
+
+L6: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<32)
+			{
+				run=(os->res_ch[i]>>2)&7;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				if ((os->res_ch[i]&3)==0) continue;
+				else if ((os->res_ch[i]&3)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
+				else if ((os->res_ch[i]&3)==2) {os->res_comp[j]=os->res_comp[j-1]-2;j++;}
+				else if ((os->res_ch[i]&3)==3) {os->res_comp[j]=os->res_comp[j-1];j++;}
+			}
+			else if (os->res_ch[i]<64)
+			{
+				os->res_ch[i]-=32;
+				ch = (os->res_ch[i])>>3;
+				ch <<=1;
+				os->res_comp[j]= (ch-4)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=1;
+				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+				j++;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+	goto L7;
+
+L8: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<64)
+			{
+				run=os->res_ch[i]&63;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
+
+	if (imd->setup->quality_setting>LOW5) free(os->highres_comp);
+
+	//for (i=0;i<1200;i+=4) printf("%d %d %d %d\n",os->res_comp[i],os->res_comp[i+1],os->res_comp[i+2],os->res_comp[i+3]);
+
+	for (j=((IM_SIZE>>2)+1);j<((IM_SIZE>>2)+(IM_SIZE>>3));i++)
+	{
+		if (os->res_ch[i]>=192)
+		{
+			os->res_ch[i]-=192;
+
+			ch = (os->res_ch[i])>>2;
+			os->res_comp[j]= uv_small_dc_offset[ch][0]+ os->res_comp[j-1];
+			j++;
+			os->res_comp[j]= uv_small_dc_offset[ch][1]+ os->res_comp[j-1];
+			j++;
+
+			ch=os->res_ch[i]&3;
+
+			if (!ch)
+			{
+				os->res_comp[j]=os->res_comp[j-1];j++;
+			}
+			else if (ch==1)
+			{
+				os->res_comp[j]=os->res_comp[j-1]+4;j++;
+			}
+			else if (ch==2)
+			{
+				os->res_comp[j]=os->res_comp[j-1]-4;j++;
+			}
+			else
+			{
+				os->res_comp[j]=os->res_comp[j-1]+8;j++;
+			}
+		}
+		else if (os->res_ch[i]>=128)
+		{
+			os->res_comp[j++]=(os->res_ch[i]-128)<<2;
+		}
+		else
+		{
+			if (os->res_ch[i]>=64)
+			{
+				run=(os->res_ch[i]>>3)&7;
+				nhw=os->res_comp[j-1];
+				if (run==7)
+				{
+					run=(os->res_ch[i]&7)+7;
+					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				}
+				else
+				{
+					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+					if ((os->res_ch[i]&7)==0) continue;
+					else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+4;j++;}
+					else if ((os->res_ch[i]&7)==2) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+					}
+					else if ((os->res_ch[i]&7)==3) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1];j++;
+					}
+					else if ((os->res_ch[i]&7)==4) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1];j++;
+					}
+					else if ((os->res_ch[i]&7)==5) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+					}
+					else if ((os->res_ch[i]&7)==6) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+					}
+					else if ((os->res_ch[i]&7)==7) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+8;j++;
+					}
+				}
+			}
+			else
+			{
+				ch = (os->res_ch[i])>>3;
+				ch <<=2;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=2;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				//if (os->res_ch[i]&1) { os->res_comp[j]=os->res_comp[j-1];j++;}
+			}
+		}
+	}
+
+	free(os->res_ch);
+
+	if (imd->setup->quality_setting>LOW5)
+	{
+	for (i=0,e=(IM_SIZE>>2);i<(IM_DIM<<1);i++)
+	{
+		ch=(os->res_U_64[i]>>7);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_U_64[i])&1);os->res_comp[e++]+=(ch<<1);
+	}
+
+	free(os->res_U_64);
+
+	for (i=0,e=((IM_SIZE>>2)+(IM_SIZE>>4));i<(IM_DIM<<1);i++)
+	{
+		ch=(os->res_V_64[i]>>7);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
+
+		ch=((os->res_V_64[i])&1);os->res_comp[e++]+=(ch<<1);
+	}
+
+	free(os->res_V_64);
+	}
+
+	// IMAGE MEMORY ALLOCATION FOR DECODING
+
+	return imd->setup->wvlts_order;
+}
+
+int SWAPOUT_FUNCTION(main)(int argc, char **argv)
+{
+	image_buffer im;
+	decode_state dec;
+	FILE *res_image;
+	char OutputFile[200];
+	int len;
+	codec_setup setup;
+
+	im.setup = &setup;
+
+	if (argv[1]==NULL || argv[1]==0)
+	{
+		printf("\n Copyright (C) 2007-2013 NHW Project (Raphael C.)\n");
+		printf("\n-> nhw_decoder.exe filename.nhw\n");
+		exit(-1);
+	}
+
+
+	imgbuf_init(&im, 9);
+
+	im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
+
+	parse_file(&im, &dec,argv);
+	process_hrcomp(&im, &dec);
+
+	/* Decode Image */
+	decode_image(&im, &dec);
+
+	free(dec.packet1);
+	free(dec.packet2);
+
+	im.im_buffer4=(unsigned char*)malloc(3*im.fmt.end*sizeof(char));
+
+	yuv_to_rgb(&im);
+
+	// Create the Output Decompressed .BMP File
+	len=strlen(argv[1]);
+	memset(argv[1]+len-4,0,4);
+	sprintf(OutputFile,"%sDEC.png",argv[1]);
+
+	res_image = fopen(OutputFile,"wb");
+
+	if( NULL == res_image )
+	{
+		printf("Failed to open output decompressed file %s\n",OutputFile);
+		return -1;
+	}
+
+	int s = im.fmt.tile_size;
+
+	write_png(res_image, im.im_buffer4, s, s, 1);
 
 	fclose(res_image);
 	free(im.im_bufferY);
 	free(im.im_bufferU);
 	free(im.im_bufferV);
 	free(im.im_buffer4);
+	return 0;
 }
 
-void decode_image(image_buffer *im,decode_state *os,char **argv)
+int process_hrcomp(image_buffer *imd, decode_state *os)
 {
-	int nhw,stage,wavelet_order,end_transform,i,j,e=0,count,scan,*res_decompr,exw1,res,nhw_selectII;
+	int i,j,ch,e,a=0,run,nhw;
+	char uv_small_dc_offset[8][2]={{0,4},{0,-4},{4,0},{-4,0},{4,4},{4,-4},{-4,4},{-4,-4}};
+
+	int IM_SIZE = imd->fmt.end / 4;
+	int IM_DIM = imd->fmt.tile_size / 2;
+
+	os->res_comp[0]=os->res_ch[0];
+
+	if ((imd->setup->RES_HIGH&3)==1) goto L6; 
+	if ((imd->setup->RES_HIGH&3)==2) goto L8;
+
+	for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<16)
+			{
+				run=(os->res_ch[i]>>3)&1;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				if ((os->res_ch[i]&7)==0) continue;
+				else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
+				else if ((os->res_ch[i]&7)==2) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+				}
+				else if ((os->res_ch[i]&7)==3) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					os->res_comp[j]=os->res_comp[j-1];j++;
+					//os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==4) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+					os->res_comp[j]=os->res_comp[j-1]+2;j++;
+					//os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==5) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+					os->res_comp[j]=os->res_comp[j-1];j++;
+				}
+				else if ((os->res_ch[i]&7)==6) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]-2;j++;
+				}
+				else if ((os->res_ch[i]&7)==7) 
+				{
+					os->res_comp[j]=os->res_comp[j-1]+4;j++;
+				}
+			}
+			else if (os->res_ch[i]<32)
+			{
+				if (os->res_ch[i]>=24)
+				{
+					os->res_comp[j]=os->res_comp[j-1]+4;
+					j++;
+
+					ch = ((os->res_ch[i])&7);
+					ch <<=1;
+					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+					j++;
+				}
+				else
+				{
+					os->res_comp[j]=os->res_comp[j-1]+2;
+					j++;
+
+					ch = ((os->res_ch[i])&7);
+					ch <<=1;
+					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+					j++;
+				}
+			}
+			else if (os->res_ch[i]<64)
+			{
+				os->res_ch[i]-=32;
+				ch = (os->res_ch[i])>>3;
+				ch <<=1;
+				os->res_comp[j]= (ch-6)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=1;
+				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+				j++;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+	goto L7;
+
+L6: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<32)
+			{
+				run=(os->res_ch[i]>>2)&7;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				if ((os->res_ch[i]&3)==0) continue;
+				else if ((os->res_ch[i]&3)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
+				else if ((os->res_ch[i]&3)==2) {os->res_comp[j]=os->res_comp[j-1]-2;j++;}
+				else if ((os->res_ch[i]&3)==3) {os->res_comp[j]=os->res_comp[j-1];j++;}
+			}
+			else if (os->res_ch[i]<64)
+			{
+				os->res_ch[i]-=32;
+				ch = (os->res_ch[i])>>3;
+				ch <<=1;
+				os->res_comp[j]= (ch-4)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=1;
+				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
+				j++;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+	goto L7;
+
+L8: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
+	{
+		if (os->res_ch[i]>=128)
+		{
+			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
+			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
+		}
+		else
+		{
+			if (os->res_ch[i]<64)
+			{
+				run=os->res_ch[i]&63;
+				nhw=os->res_comp[j-1];
+				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+			}
+			else
+			{
+				os->res_ch[i]-=64;
+				ch = ((os->res_ch[i])>>1)&31;
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&1);
+				ch<<=3;
+				i++;
+				ch |= ((os->res_ch[i])>>5);
+				ch <<=1;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				
+				ch = ((os->res_ch[i])&31);
+				ch <<=1;
+				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
+				j++;
+			}
+		}
+	}
+
+L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
+
+	if (imd->setup->quality_setting>LOW5) free(os->highres_comp);
+
+	//for (i=0;i<1200;i+=4) printf("%d %d %d %d\n",os->res_comp[i],os->res_comp[i+1],os->res_comp[i+2],os->res_comp[i+3]);
+
+	for (j=((IM_SIZE>>2)+1);j<((IM_SIZE>>2)+(IM_SIZE>>3));i++)
+	{
+		if (os->res_ch[i]>=192)
+		{
+			os->res_ch[i]-=192;
+
+			ch = (os->res_ch[i])>>2;
+			os->res_comp[j]= uv_small_dc_offset[ch][0]+ os->res_comp[j-1];
+			j++;
+			os->res_comp[j]= uv_small_dc_offset[ch][1]+ os->res_comp[j-1];
+			j++;
+
+			ch=os->res_ch[i]&3;
+
+			if (!ch)
+			{
+				os->res_comp[j]=os->res_comp[j-1];j++;
+			}
+			else if (ch==1)
+			{
+				os->res_comp[j]=os->res_comp[j-1]+4;j++;
+			}
+			else if (ch==2)
+			{
+				os->res_comp[j]=os->res_comp[j-1]-4;j++;
+			}
+			else
+			{
+				os->res_comp[j]=os->res_comp[j-1]+8;j++;
+			}
+		}
+		else if (os->res_ch[i]>=128)
+		{
+			os->res_comp[j++]=(os->res_ch[i]-128)<<2;
+		}
+		else
+		{
+			if (os->res_ch[i]>=64)
+			{
+				run=(os->res_ch[i]>>3)&7;
+				nhw=os->res_comp[j-1];
+				if (run==7)
+				{
+					run=(os->res_ch[i]&7)+7;
+					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+				}
+				else
+				{
+					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
+					if ((os->res_ch[i]&7)==0) continue;
+					else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+4;j++;}
+					else if ((os->res_ch[i]&7)==2) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+					}
+					else if ((os->res_ch[i]&7)==3) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1];j++;
+					}
+					else if ((os->res_ch[i]&7)==4) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+						os->res_comp[j]=os->res_comp[j-1];j++;
+					}
+					else if ((os->res_ch[i]&7)==5) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+						os->res_comp[j]=os->res_comp[j-1]+4;j++;
+					}
+					else if ((os->res_ch[i]&7)==6) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]-4;j++;
+					}
+					else if ((os->res_ch[i]&7)==7) 
+					{
+						os->res_comp[j]=os->res_comp[j-1]+8;j++;
+					}
+				}
+			}
+			else
+			{
+				ch = (os->res_ch[i])>>3;
+				ch <<=2;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+
+				ch = ((os->res_ch[i])&7);
+				ch <<=2;
+				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
+				j++;
+				//if (os->res_ch[i]&1) { os->res_comp[j]=os->res_comp[j-1];j++;}
+			}
+		}
+	}
+
+	free(os->res_ch);
+
+	if (imd->setup->quality_setting>LOW5)
+	{
+		for (i=0,e=(IM_SIZE>>2);i<(IM_DIM<<1);i++)
+		{
+			ch=(os->res_U_64[i]>>7);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_U_64[i])&1);os->res_comp[e++]+=(ch<<1);
+		}
+
+		free(os->res_U_64);
+
+		for (i=0,e=((IM_SIZE>>2)+(IM_SIZE>>4));i<(IM_DIM<<1);i++)
+		{
+			ch=(os->res_V_64[i]>>7);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
+
+			ch=((os->res_V_64[i])&1);os->res_comp[e++]+=(ch<<1);
+		}
+
+		free(os->res_V_64);
+	}
+
+	return(imd->setup->wvlts_order);
+
+}
+
+
+void decode_image(image_buffer *im,decode_state *os)
+{
+	int nhw,stage,end_transform,i,j,e=0,count,scan,exw1,res,nhw_selectII;
 	short *im_nhw,*im_nhw2;
-	char *res256;
 	unsigned char *nhw_scale,*nhw_chr;
 	unsigned short *nhwresH1,*nhwresH2,*nhwresH1I;
 	unsigned int *nhwresH3I;
-	unsigned short *nhwres1,*nhwres2,*nhwres1I,*nhwres3I,*nhwres3,*nhwres4,*nhwres4I,*nhwres5,*nhwres6;
-
-	wavelet_order=parse_file(im,os,argv);
+	unsigned short *nhwres1,*nhwres2,*nhwres1I,*nhwres3I,*nhwres3,*nhwres4,*nhwres5,*nhwres6;
 
 	int IM_SIZE = im->fmt.end / 4;
 	int IM_DIM = im->fmt.tile_size / 2;
 
 	retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,im->im_process);
-	free(os->packet1);
 	im->im_jpeg=(short*)malloc(4*IM_SIZE*sizeof(short));
 	im_nhw=(short*)im->im_jpeg;
 	im_nhw2=(short*)im->im_process;
 
 	// Y
-	for (j=0,count=0;j<(IM_DIM<<1);)
+	for (j=0,count=0;j<im->fmt.tile_size;)
 	{
 		for (i=0;i<IM_DIM;i++)
 		{
@@ -285,17 +1053,17 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 			im_nhw[j+2]=im_nhw2[count+2];
 			im_nhw[j+3]=im_nhw2[count+3];
 	
-			j+=(2*IM_DIM);
+			j+=im->fmt.tile_size;
 			im_nhw[j+3]=im_nhw2[count+4];
 			im_nhw[j+2]=im_nhw2[count+5];
 			im_nhw[j+1]=im_nhw2[count+6];
 			im_nhw[j]=im_nhw2[count+7];
 
-			j+=(2*IM_DIM);
+			j+=im->fmt.tile_size;
 			count+=8;
 		}
 
-		j-=((4*IM_SIZE)-4);
+		j-=(im->fmt.end-4);
 	}
 
 	if (im->setup->quality_setting>LOW8)
@@ -891,11 +1659,11 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 
 	end_transform=0;
 	im->setup->wavelet_type=WVLTS_53;
-	wavelet_order=im->setup->wvlts_order;
-	//for (stage=wavelet_order-1;stage>=0;stage--) wavelet_synthesis(im,(2*IM_DIM)>>stage,end_transform++,1);
+	// wavelet_order=im->setup->wvlts_order;
+	//for (stage=wavelet_order-1;stage>=0;stage--) dec_wavelet_synthesis(im,(2*IM_DIM)>>stage,end_transform++,1);
 	im_nhw2=(short*)im->im_process;
 
-	wavelet_synthesis(im,(2*IM_DIM)>>1,end_transform++,1);
+	dec_wavelet_synthesis(im,(2*IM_DIM)>>1,end_transform++,1);
 
 	if (im->setup->quality_setting>=HIGH1)
 	{
@@ -1022,7 +1790,7 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 		for (scan=i,j=0;j<IM_DIM;j++,scan+=(2*IM_DIM)) im_nhw[j]=im_nhw2[scan];
 	}
 
-	wavelet_synthesis2(im,os,(2*IM_DIM),end_transform,1);
+	dec_wavelet_synthesis2(im,os,(2*IM_DIM),end_transform,1);
 
 	im_nhw=(short*)im->im_jpeg;
 
@@ -1047,7 +1815,7 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 
 	free(nhwres1);
 
-	wavelet_synthesis(im,(2*IM_DIM),end_transform,3);
+	dec_wavelet_synthesis(im,(2*IM_DIM),end_transform,3);
 	
 	free(im->im_jpeg);
 
@@ -1074,7 +1842,6 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 	// U
 	im->im_nhw3=(short*)calloc(2*IM_SIZE,sizeof(short));
 	retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
-	free(os->packet2);
 
 	im->im_jpeg=(short*)malloc(IM_SIZE*sizeof(short));
 	im_nhw=(short*)im->im_jpeg;
@@ -1160,9 +1927,9 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 	im->im_process=(short*)malloc(IM_SIZE*sizeof(short));
 
 	end_transform=0;
-	//for (stage=wavelet_order-1;stage>=0;stage--) wavelet_synthesis(im,IM_DIM>>stage,end_transform++,0);
+	//for (stage=wavelet_order-1;stage>=0;stage--) dec_wavelet_synthesis(im,IM_DIM>>stage,end_transform++,0);
 
-	wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
+	dec_wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
 
 	im_nhw2=(short*)im->im_process;
 	im_nhw=(short*)im->im_jpeg;
@@ -1252,7 +2019,7 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=im_nhw2[scan];
 	}
 
-	wavelet_synthesis(im,IM_DIM,end_transform,0);
+	dec_wavelet_synthesis(im,IM_DIM,end_transform,0);
 
 	free(im->im_jpeg);
 
@@ -1451,9 +2218,9 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 	im->im_process=(short*)malloc(IM_SIZE*sizeof(short));
 
 	end_transform=0;
-	//for (stage=wavelet_order-1;stage>=0;stage--) wavelet_synthesis(im,IM_DIM>>stage,end_transform++,0);
+	//for (stage=wavelet_order-1;stage>=0;stage--) dec_wavelet_synthesis(im,IM_DIM>>stage,end_transform++,0);
 
-	wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
+	dec_wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
 
 	im_nhw2=(short*)im->im_process;
 	im_nhw=(short*)im->im_jpeg;
@@ -1544,7 +2311,7 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=im_nhw2[scan];
 	}
 
-	wavelet_synthesis(im,IM_DIM,end_transform,0);
+	dec_wavelet_synthesis(im,IM_DIM,end_transform,0);
 
 	free(im->im_jpeg);
 
@@ -1657,13 +2424,8 @@ void decode_image(image_buffer *im,decode_state *os,char **argv)
 int parse_file(image_buffer *imd,decode_state *os,char** argv)
 {
 	FILE *compressed_file;
-	int i,j,ch,e,a=0,mem,run,nhw;
-	char uv_small_dc_offset[8][2]={{0,4},{0,-4},{4,0},{-4,0},{4,4},{4,-4},{-4,4},{-4,-4}};
 
-	int IM_SIZE = imd->fmt.end / 4;
 	int IM_DIM = imd->fmt.tile_size / 2;
-
-	imd->setup=(codec_setup*)malloc(sizeof(codec_setup));
 
 	compressed_file=fopen(argv[1],"rb");
 
@@ -1775,7 +2537,7 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	{
 		os->res_U_64=(unsigned char*)malloc((IM_DIM<<1)*sizeof(char));
 		os->res_V_64=(unsigned char*)malloc((IM_DIM<<1)*sizeof(char));
-		os->highres_comp=(unsigned char*)malloc(os->highres_comp_len*sizeof(char));
+		os->highres_comp=(unsigned char*)calloc(os->highres_comp_len,sizeof(char));
 	}
 
 	
@@ -1842,372 +2604,5 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	fread(os->packet2,(os->d_size_data2-os->d_size_data1)*4,1,compressed_file);
 
 	fclose(compressed_file);
-
-	os->res_comp[0]=os->res_ch[0];
-
-	if ((imd->setup->RES_HIGH&3)==1) goto L6; 
-	if ((imd->setup->RES_HIGH&3)==2) goto L8;
-
-	for (j=1,i=1,a=0,mem=0;j<(IM_SIZE>>2);i++)
-	{
-		if (os->res_ch[i]>=128)
-		{
-			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
-			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
-		}
-		else
-		{
-			if (os->res_ch[i]<16)
-			{
-				run=(os->res_ch[i]>>3)&1;
-				nhw=os->res_comp[j-1];
-				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
-				if ((os->res_ch[i]&7)==0) continue;
-				else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
-				else if ((os->res_ch[i]&7)==2) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]+2;j++;
-					os->res_comp[j]=os->res_comp[j-1]-2;j++;
-				}
-				else if ((os->res_ch[i]&7)==3) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]+2;j++;
-					os->res_comp[j]=os->res_comp[j-1];j++;
-					//os->res_comp[j]=os->res_comp[j-1];j++;
-				}
-				else if ((os->res_ch[i]&7)==4) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]-2;j++;
-					os->res_comp[j]=os->res_comp[j-1]+2;j++;
-					//os->res_comp[j]=os->res_comp[j-1];j++;
-				}
-				else if ((os->res_ch[i]&7)==5) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]-2;j++;
-					os->res_comp[j]=os->res_comp[j-1];j++;
-				}
-				else if ((os->res_ch[i]&7)==6) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]-2;j++;
-				}
-				else if ((os->res_ch[i]&7)==7) 
-				{
-					os->res_comp[j]=os->res_comp[j-1]+4;j++;
-				}
-			}
-			else if (os->res_ch[i]<32)
-			{
-				if (os->res_ch[i]>=24)
-				{
-					os->res_comp[j]=os->res_comp[j-1]+4;
-					j++;
-
-					ch = ((os->res_ch[i])&7);
-					ch <<=1;
-					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
-					j++;
-				}
-				else
-				{
-					os->res_comp[j]=os->res_comp[j-1]+2;
-					j++;
-
-					ch = ((os->res_ch[i])&7);
-					ch <<=1;
-					os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
-					j++;
-				}
-			}
-			else if (os->res_ch[i]<64)
-			{
-				os->res_ch[i]-=32;
-				ch = (os->res_ch[i])>>3;
-				ch <<=1;
-				os->res_comp[j]= (ch-6)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&7);
-				ch <<=1;
-				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
-				j++;
-			}
-			else
-			{
-				os->res_ch[i]-=64;
-				ch = ((os->res_ch[i])>>1)&31;
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&1);
-				ch<<=3;
-				i++;
-				ch |= ((os->res_ch[i])>>5);
-				ch <<=1;
-				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
-				j++;
-				
-				ch = ((os->res_ch[i])&31);
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-			}
-		}
-	}
-
-	goto L7;
-
-L6: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
-	{
-		if (os->res_ch[i]>=128)
-		{
-			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
-			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
-		}
-		else
-		{
-			if (os->res_ch[i]<32)
-			{
-				run=(os->res_ch[i]>>2)&7;
-				nhw=os->res_comp[j-1];
-				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
-				if ((os->res_ch[i]&3)==0) continue;
-				else if ((os->res_ch[i]&3)==1) {os->res_comp[j]=os->res_comp[j-1]+2;j++;}
-				else if ((os->res_ch[i]&3)==2) {os->res_comp[j]=os->res_comp[j-1]-2;j++;}
-				else if ((os->res_ch[i]&3)==3) {os->res_comp[j]=os->res_comp[j-1];j++;}
-			}
-			else if (os->res_ch[i]<64)
-			{
-				os->res_ch[i]-=32;
-				ch = (os->res_ch[i])>>3;
-				ch <<=1;
-				os->res_comp[j]= (ch-4)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&7);
-				ch <<=1;
-				os->res_comp[j]= (ch-8)+ os->res_comp[j-1];
-				j++;
-			}
-			else
-			{
-				os->res_ch[i]-=64;
-				ch = ((os->res_ch[i])>>1)&31;
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&1);
-				ch<<=3;
-				i++;
-				ch |= ((os->res_ch[i])>>5);
-				ch <<=1;
-				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
-				j++;
-				
-				ch = ((os->res_ch[i])&31);
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-			}
-		}
-	}
-
-	goto L7;
-
-L8: for (j=1,i=1,a=0;j<(IM_SIZE>>2);i++)
-	{
-		if (os->res_ch[i]>=128)
-		{
-			if (imd->setup->quality_setting>LOW5) os->res_comp[j++]=os->highres_comp[a++];
-			os->res_comp[j++]=((os->res_ch[i]-128)<<1);
-		}
-		else
-		{
-			if (os->res_ch[i]<64)
-			{
-				run=os->res_ch[i]&63;
-				nhw=os->res_comp[j-1];
-				for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
-			}
-			else
-			{
-				os->res_ch[i]-=64;
-				ch = ((os->res_ch[i])>>1)&31;
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&1);
-				ch<<=3;
-				i++;
-				ch |= ((os->res_ch[i])>>5);
-				ch <<=1;
-				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
-				j++;
-				
-				ch = ((os->res_ch[i])&31);
-				ch <<=1;
-				os->res_comp[j]= (ch-32)+ os->res_comp[j-1];
-				j++;
-			}
-		}
-	}
-
-L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
-
-	if (imd->setup->quality_setting>LOW5) free(os->highres_comp);
-
-	//for (i=0;i<1200;i+=4) printf("%d %d %d %d\n",os->res_comp[i],os->res_comp[i+1],os->res_comp[i+2],os->res_comp[i+3]);
-
-	for (j=((IM_SIZE>>2)+1);j<((IM_SIZE>>2)+(IM_SIZE>>3));i++)
-	{
-		if (os->res_ch[i]>=192)
-		{
-			os->res_ch[i]-=192;
-
-			ch = (os->res_ch[i])>>2;
-			os->res_comp[j]= uv_small_dc_offset[ch][0]+ os->res_comp[j-1];
-			j++;
-			os->res_comp[j]= uv_small_dc_offset[ch][1]+ os->res_comp[j-1];
-			j++;
-
-			ch=os->res_ch[i]&3;
-
-			if (!ch)
-			{
-				os->res_comp[j]=os->res_comp[j-1];j++;
-			}
-			else if (ch==1)
-			{
-				os->res_comp[j]=os->res_comp[j-1]+4;j++;
-			}
-			else if (ch==2)
-			{
-				os->res_comp[j]=os->res_comp[j-1]-4;j++;
-			}
-			else
-			{
-				os->res_comp[j]=os->res_comp[j-1]+8;j++;
-			}
-		}
-		else if (os->res_ch[i]>=128)
-		{
-			os->res_comp[j++]=(os->res_ch[i]-128)<<2;
-		}
-		else
-		{
-			if (os->res_ch[i]>=64)
-			{
-				run=(os->res_ch[i]>>3)&7;
-				nhw=os->res_comp[j-1];
-				if (run==7)
-				{
-					run=(os->res_ch[i]&7)+7;
-					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
-				}
-				else
-				{
-					for (e=0;e<(run+2);e++) os->res_comp[j++]=nhw;
-					if ((os->res_ch[i]&7)==0) continue;
-					else if ((os->res_ch[i]&7)==1) {os->res_comp[j]=os->res_comp[j-1]+4;j++;}
-					else if ((os->res_ch[i]&7)==2) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]+4;j++;
-						os->res_comp[j]=os->res_comp[j-1]-4;j++;
-					}
-					else if ((os->res_ch[i]&7)==3) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]+4;j++;
-						os->res_comp[j]=os->res_comp[j-1]-4;j++;
-						os->res_comp[j]=os->res_comp[j-1];j++;
-					}
-					else if ((os->res_ch[i]&7)==4) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]-4;j++;
-						os->res_comp[j]=os->res_comp[j-1]+4;j++;
-						os->res_comp[j]=os->res_comp[j-1];j++;
-					}
-					else if ((os->res_ch[i]&7)==5) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]-4;j++;
-						os->res_comp[j]=os->res_comp[j-1]+4;j++;
-					}
-					else if ((os->res_ch[i]&7)==6) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]-4;j++;
-					}
-					else if ((os->res_ch[i]&7)==7) 
-					{
-						os->res_comp[j]=os->res_comp[j-1]+8;j++;
-					}
-				}
-			}
-			else
-			{
-				ch = (os->res_ch[i])>>3;
-				ch <<=2;
-				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
-				j++;
-
-				ch = ((os->res_ch[i])&7);
-				ch <<=2;
-				os->res_comp[j]= (ch-16)+ os->res_comp[j-1];
-				j++;
-				//if (os->res_ch[i]&1) { os->res_comp[j]=os->res_comp[j-1];j++;}
-			}
-		}
-	}
-
-	free(os->res_ch);
-
-	if (imd->setup->quality_setting>LOW5)
-	{
-	for (i=0,e=(IM_SIZE>>2);i<(IM_DIM<<1);i++)
-	{
-		ch=(os->res_U_64[i]>>7);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_U_64[i])&1);os->res_comp[e++]+=(ch<<1);
-	}
-
-	free(os->res_U_64);
-
-	for (i=0,e=((IM_SIZE>>2)+(IM_SIZE>>4));i<(IM_DIM<<1);i++)
-	{
-		ch=(os->res_V_64[i]>>7);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>6)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>5)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>4)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>3)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>2)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i]>>1)&1);os->res_comp[e++]+=(ch<<1);
-
-		ch=((os->res_V_64[i])&1);os->res_comp[e++]+=(ch<<1);
-	}
-
-	free(os->res_V_64);
-	}
-
-	// IMAGE MEMORY ALLOCATION FOR DECODING
-	imd->im_process=(short*)calloc(4*IM_SIZE,sizeof(short));
-
-	return(imd->setup->wvlts_order);
+	return 0;
 }

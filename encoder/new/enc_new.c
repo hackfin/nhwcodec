@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <getopt.h>
 #include <stdint.h>
 #include "utils.h"
@@ -5,7 +6,7 @@
 #include "codec.h"
 #include "remote.h"
 
-#define SIMPLIFIED
+// #define SIMPLIFIED
 
 enum {
 	OPT_HELP,
@@ -21,13 +22,15 @@ static struct option long_options[] = {
 struct config {
 	char *outfilename;
 	int tilepower;
+	char loopback;
 } g_encconfig = {
-	.tilepower = 9
+	.tilepower = 9,
+	.loopback = 0,
 };
 
 void init_lut(uint8_t *lut, float gamma);
 
-void origY_highres_compression(image_buffer *im,encode_state *enc);
+void Y_highres_compression(image_buffer *im,encode_state *enc);
 
 const short *lookup_ywlthreshold(int quality);
 
@@ -102,7 +105,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	resIII = (short*) malloc(quad_size*sizeof(short));
 	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
 	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
-	enc->ch_res=(unsigned char*)calloc((quad_size>>2),sizeof(char));
+	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
 	init_lut(g_lut, 0.7);
 	virtfb_init(512, 512);
@@ -119,7 +122,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 
 	compress_q(im, enc);                // CAN_HW (< LOW3)
-	origY_highres_compression(im, enc);  // Very complex. TODO: Simplify
+	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
 	reduce_generic(im, resIII, wvlt, enc, ratio);
@@ -129,7 +132,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();
-	free(enc->ch_res);
+	free(enc->res_ch);
 }
 
 
@@ -241,13 +244,13 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		enc->nhw_res4=(unsigned char*)calloc(enc->nhw_res4_len,sizeof(char));
 	}
 
-	enc->ch_res=(unsigned char*)calloc((quad_size>>2),sizeof(char));
+	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
 	compress1(im, enc);
 
 	Y_highres_compression(im, enc);
 
-	free(enc->ch_res);
+	free(enc->res_ch);
 
 	copy_to_quadrant(pr, resIII, n, n);
 
@@ -282,7 +285,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 #endif
 
 #ifdef CRUCIAL
-	highres=(unsigned char*)calloc(((96*IM_DIM)+1),sizeof(char));
+	highres=(unsigned char*)calloc(((48*im->fmt.tile_size)+1),sizeof(char));
 
 	if (quality > HIGH1) {
 		process_res_hq(quality, im->im_wavelet_first_order, res256);
@@ -401,6 +404,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(im->im_process); // }
 
 	// This frees previously allocated enc->tree[1,2]:
+	// ..and creates a new im->res_ch buffer (FIXME):
 	highres_compression(im, enc);
 	free(enc->tree1);
 	free(enc->highres_comp);
@@ -411,6 +415,59 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(im->im_nhw);
 }
 
+void init_decoder(decode_state *dec, encode_state *enc)
+{
+	memset(dec, 0, sizeof(decode_state));
+	dec->d_size_tree1 = enc->size_tree1;
+	dec->d_size_tree2 = enc->size_tree2;
+	dec->d_size_data1 = enc->size_data1;
+	dec->d_size_data2 = enc->size_data2;
+	dec->d_tree1 = enc->tree1;
+	dec->d_tree2 = enc->tree2;
+
+	dec->tree_end = enc->tree_end;
+	dec->exw_Y_end = enc->exw_Y_end;
+	dec->nhw_res1_len = enc->nhw_res1_len;
+	dec->nhw_res3_len = enc->nhw_res3_len;
+	dec->nhw_res3_bit_len = enc->nhw_res3_bit_len;
+	dec->nhw_res4_len = enc->nhw_res4_len;
+	dec->nhw_res1_bit_len = enc->nhw_res1_bit_len;
+	dec->nhw_res5_len = enc->nhw_res5_len;
+	dec->nhw_res5_bit_len = enc->nhw_res5_bit_len;
+	dec->nhw_res6_len = enc->nhw_res6_len;
+	dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
+	dec->nhw_char_res1_len = enc->nhw_char_res1_len;
+	dec->qsetting3_len = enc->qsetting3_len;
+	dec->nhw_select1 = enc->nhw_select1;
+	dec->nhw_select2 = enc->nhw_select2;
+	dec->highres_comp_len = enc->highres_comp_len;
+	dec->end_ch_res = enc->end_ch_res;
+	dec->exw_Y = enc->exw_Y;
+	dec->nhw_res1 = enc->nhw_res1;
+	dec->nhw_res1_bit = enc->nhw_res1_bit;
+	dec->nhw_res1_word = enc->nhw_res1_word;
+	dec->nhw_res4 = enc->nhw_res4;
+	dec->nhw_res3 = enc->nhw_res3;
+	dec->nhw_res3_bit = enc->nhw_res3_bit;
+	dec->nhw_res3_word = enc->nhw_res3_word;
+	dec->nhw_res5 = enc->nhw_res5;
+	dec->nhw_res5_bit = enc->nhw_res5_bit;
+	dec->nhw_res5_word = enc->nhw_res5_word;
+	dec->nhw_res6 = enc->nhw_res6;
+	dec->nhw_res6_bit = enc->nhw_res6_bit;
+	dec->nhw_res6_word = enc->nhw_res6_word;
+	dec->nhw_char_res1 = enc->nhw_char_res1;
+	dec->high_qsetting3 = enc->high_qsetting3;
+	dec->nhw_select_word1 = enc->nhw_select_word1;
+	dec->nhw_select_word2 = enc->nhw_select_word2;
+	dec->res_U_64 = enc->res_U_64;
+	dec->res_V_64 = enc->res_V_64;
+	dec->highres_comp = enc->highres_word;
+	dec->res_ch = enc->res_ch;
+	dec->packet1 = enc->encode;
+	dec->packet2 = &enc->encode[enc->size_data1];
+}
+
 int main(int argc, char **argv) 
 {
 	FILE *image;
@@ -418,6 +475,7 @@ int main(int argc, char **argv)
 	const char *str;
 	image_buffer im;
 	encode_state enc;
+	decode_state dec;
 	codec_setup setup;
 	int rate = 8;
 	const char *output_filename = NULL;
@@ -433,7 +491,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:s:no:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-l:h:s:Lno:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -452,6 +510,9 @@ int main(int argc, char **argv)
 				break;
 			case 'l':
 				ret = set_quality(optarg, &setup, 0);
+				break;
+			case 'L':
+				g_encconfig.loopback = 1;
 				break;
 			case 's':
 				g_encconfig.tilepower = atoi(optarg);
@@ -501,10 +562,37 @@ int main(int argc, char **argv)
 
 		encode_image(&im, &enc, rate);
 
-		write_compressed_file(&im, &enc, output_filename);
+		if (g_encconfig.loopback) {
+			FILE *png_out;
+			// Initialize decoder with encoder values:
+			init_decoder(&dec, &enc);
+			dec.res_comp=(unsigned char*)malloc((48*im.fmt.tile_size+1)*sizeof(char));
+			im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
 
-		free(enc.tree1);
-		free(enc.tree2);
+			process_hrcomp(&im, &dec);
+			decode_image(&im, &dec);
+			im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
+			yuv_to_rgb(&im);
+
+			png_out = fopen(output_filename, "wb");
+			int s = im.fmt.tile_size;
+			if (png_out != NULL) {
+				write_png(png_out, im.im_buffer4, s, s, 1);
+				fclose(png_out);
+			} else {
+				perror("opening file for writing");
+			}
+			free(im.im_bufferY); // malloced by decode_image()
+			free(im.im_bufferU);
+			free(im.im_bufferV);
+			free(im.im_buffer4);
+			free(dec.highres_comp); // HACK
+			free(dec.packet1); // HACK
+		} else {
+			write_compressed_file(&im, &enc, output_filename);
+			free(enc.tree1);
+			free(enc.tree2);
+		}
 
 	} else {
 		fprintf(stderr, "Error: %s\n", str);

@@ -3,7 +3,8 @@ CSRCS = $(wildcard *.c)
 OBJS = $(CSRCS:%.c=%.o)
 OBJS += png_w.o filters.o
 
-CFLAGS = -O3 -I../include
+CFLAGS = -I../include
+CFLAGS += -Wall -g
 
 all: nhwdec
 

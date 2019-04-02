@@ -10,8 +10,12 @@ ifdef SWAP
 CFLAGS += -DSWAPOUT
 CFLAGS += -I$(NETPP)/devices
 CFLAGS += -I.
-OBJS += new/enc_new.o new/remote.o new/compress.o
+OBJS += new/enc_new.o new/remote.o
+OBJS += dec_compress_pixel.o dec_wavelet_filterbank.o dec_nhw_decoder.o
 endif
 
 LDFLAGS += -L$(NETPP)/devices/libmaster/Debug -lmaster
 
+
+dec_%.o: ../decoder/%.c
+	$(CC) -c -o $@ $(CFLAGS) $<
