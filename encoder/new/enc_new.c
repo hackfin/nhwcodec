@@ -6,7 +6,7 @@
 #include "codec.h"
 #include "remote.h"
 
-// #define SIMPLIFIED
+#define SIMPLIFIED
 
 enum {
 	OPT_HELP,
@@ -108,7 +108,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
 	init_lut(g_lut, 0.7);
-	virtfb_init(512, 512);
+	virtfb_init(n, n);
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, 0, 1);                  // CAN_HW
@@ -171,14 +171,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int n = im->fmt.tile_size; // line size Y
 
 	init_lut(g_lut, 0.7);
-	virtfb_init(512, 512);
+	virtfb_init(n, n);
 
 	end_transform=0;
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, end_transform++, 1);
 
-	write_image16("/tmp/wl1.png", im->im_process, 512, 0);
+	write_image16("/tmp/wl1.png", im->im_process, n, 0);
 
 	virtfb_set((unsigned short *) im->im_process);
 
@@ -194,7 +194,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	wavelet_analysis(im, n >> 1, end_transform,1);
 
-	write_image16("/tmp/wl2.png", im->im_process, 512, 0);
+	write_image16("/tmp/wl2.png", im->im_process, n, 0);
 
 #ifdef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
@@ -205,7 +205,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 		offsetY_recons256(im,enc,ratio,1);
 		wavelet_synthesis(im, n>>1, end_transform-1,1);
-		write_image16("/tmp/syn_stage1.png", im->im_process, 512, 0);
+		write_image16("/tmp/syn_stage1.png", im->im_process, n, 0);
 		// Modifies all 3 buffers:
 		postprocess14(im->im_jpeg, pr, res256);
 		wavelet_analysis(im, n >> 1, end_transform,1);
@@ -348,9 +348,11 @@ int set_quality(const char *optarg, codec_setup *setup, char high)
 	n--;
 	if (n < 0) return -1;
 	if (high) {
-		if (n < sizeof(hq_table)) { setup->quality_setting = hq_table[n]; return 0; }
+		if (n < sizeof(hq_table))
+			{ setup->quality_setting = hq_table[n]; return 0; }
 	} else {
-		if (n < sizeof(lq_table)) { setup->quality_setting = lq_table[n]; return 0; }
+		if (n < sizeof(lq_table))
+			{ setup->quality_setting = lq_table[n]; return 0; }
 	}
 	return -1;
 }
@@ -483,10 +485,6 @@ int main(int argc, char **argv)
 	char outfile[256];
 
 	im.setup = &setup;
-	setup.quality_setting=NORM;
-
-	imgbuf_init(&im, 9);
-
 
 	while (1) {
 		int c;
@@ -528,11 +526,14 @@ int main(int argc, char **argv)
 		output_filename = outfile;
 	}
 
+	setup.quality_setting=NORM;
 	setup.colorspace = YUV;
 	setup.wavelet_type=WVLTS_53;
 	setup.RES_HIGH = 0;
 	setup.RES_LOW = 3;
 	setup.wvlts_order = 2;
+
+	imgbuf_init(&im, g_encconfig.tilepower);
 
 	im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
 
@@ -541,7 +542,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	ret = read_png(image, im.im_buffer4, 1 << g_encconfig.tilepower); 
+	ret = read_png(image, im.im_buffer4, im.fmt.tile_size); 
 	fclose(image);
 
 	switch (ret) {

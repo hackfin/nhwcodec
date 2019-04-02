@@ -61,7 +61,8 @@ int read_png(FILE *fp, unsigned char *imagebuf, int square_size)
 
 	if (width != height || width != square_size) {
 		ret = -1;
-		fprintf(stderr, "Img size %ux%u\n", width, height);
+		fprintf(stderr, "Img size %ux%u, requested %ux%u\n",
+			width, height, square_size, square_size );
 	} else {
 		n = png_set_interlace_handling(pngp);
 		printf("Number of passes: %d\n", n);
