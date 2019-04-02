@@ -46,6 +46,9 @@
 #ifndef _CODEC_H
 #define _CODEC_H
 
+// API tricks, temporary
+#include "debug_api.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -134,7 +137,7 @@ typedef struct{
 	unsigned char *scale;
 	codec_setup *setup;
 	img_format  fmt;
-}image_buffer;
+} image_buffer;
 
 typedef struct{
 	unsigned int *encode;
@@ -190,7 +193,7 @@ typedef struct{
 	unsigned char *res_U_64;
 	unsigned char *res_V_64;
 	unsigned char *exw_Y;
-	unsigned char *ch_res;
+	unsigned char *res_ch;
 	unsigned int *high_res;
 }encode_state;
 
@@ -265,6 +268,11 @@ extern void downsample_YUV420(image_buffer *im,encode_state *enc,int rate);
 
 extern void wavelet_analysis(image_buffer *im,int norder,int last_stage,int Y);
 extern void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y);
+
+
+void dec_wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y);
+void dec_wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y);
+
 extern void downfilter53(const short *x,int N,int decalage,short *res);
 extern void downfilter53II(const short *x,int N,int decalage,short *res);
 extern void downfilter53IV(const short *x,int N,int decalage,short *res);
@@ -296,10 +304,13 @@ extern int wavlts2packet(image_buffer *im,encode_state *enc);
 
 /* DECODER */
 
-extern void decode_image(image_buffer *im,decode_state *os,char **argv);
+extern void decode_image(image_buffer *im,decode_state *os);
 
 extern int parse_file(image_buffer *imd,decode_state *os,char **argv);
 extern int write_image_decompressed(char **argv,image_buffer *im);
+
+void yuv_to_rgb(image_buffer *im);
+int process_hrcomp(image_buffer *imd, decode_state *os);
 
 // extern void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y);
 extern void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y);
@@ -318,6 +329,20 @@ extern void upfilter53V(short *_X,int M,short *_RES);
 extern void retrieve_pixel_Y_comp(image_buffer *imd,decode_state *os,int p1,unsigned int *d1,short *im3);
 extern void retrieve_pixel_UV_comp(image_buffer *imd,decode_state *os,int p1,unsigned int *d1,short *im3);
 
+
+void imgbuf_init(image_buffer *im, int tile_power);
+void ywl(image_buffer *im, int ratio, const short *y_wl);
+void scan_run_code(image_buffer *im, encode_state *enc);
+void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv);
+int process_res_q3(image_buffer *im);
+void compress1(image_buffer *im, encode_state *enc);
+void copy_thresholds(short *process, const short *resIII, int size, int step);
+void compress_q(image_buffer *im, encode_state *enc);
+void compress_q3(image_buffer *im,  encode_state *enc);
+
+int configure_wvlt(int quality, char *wvlt);
+void reduce_generic(image_buffer *im, short *resIII, char *wvlt,
+	encode_state *enc, int ratio);
 
 
 #endif

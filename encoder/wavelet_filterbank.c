@@ -51,8 +51,8 @@
 #include "utils.h"
 
 // Temporary: Hack for remote function overlay
-#ifndef SWAPOUT_FUNCTION
-#define SWAPOUT_FUNCTION(x) x
+#ifndef SWAPOUT_FUNCTION_netpp
+#define SWAPOUT_FUNCTION_netpp(x) x
 #endif
 
 /* The wavelet transform works in-place
@@ -70,7 +70,7 @@ void transpose(short *dst, const short *src, int n, int step)
 	}
 }
 
-void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int n, int im_size, int highres)
+void SWAPOUT_FUNCTION_netpp(wla_luma)(short *dst, short *src, short *qs_storage, int norder, int n, int im_size, int highres)
 {
 	int i;
 	const short *data;
@@ -126,7 +126,7 @@ void SWAPOUT_FUNCTION(wla_luma)(short *dst, short *src, short *qs_storage, int n
 	}
 }
 
-void SWAPOUT_FUNCTION(wla_chroma)(short *dst, short *src, int norder, int n, int highres)
+void SWAPOUT_FUNCTION_netpp(wla_chroma)(short *dst, short *src, int norder, int n, int highres)
 {
 	// Chroma processing:
 	int i;

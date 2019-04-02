@@ -49,7 +49,7 @@
 
 #include "codec.h"
 
-void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
+void dec_wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 {
 	short *data,*res,*data2;
 	int i,j,n=im->fmt.tile_size,a;
@@ -236,7 +236,8 @@ void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y)
 	}
 }
 
-void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y)
+
+void dec_wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y)
 {
 	short *data,*res,*data2;
 	int i,j,a;

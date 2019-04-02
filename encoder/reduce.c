@@ -660,10 +660,11 @@ void reduce_LH_q6(image_buffer *im, short *resIII, int ratio, char *wvlt)
 	}
 }
 
-void reduce_generic(image_buffer *im, short *resIII, short *pr, char *wvlt, encode_state *enc, int ratio)
+void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
 	int count;
 	int quality = im->setup->quality_setting;
+	short *pr = im->im_process;
 
 	if (quality < NORM && quality > LOW5) {
 		reduce_LH_q5(im, ratio);

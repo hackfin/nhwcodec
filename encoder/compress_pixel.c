@@ -730,7 +730,7 @@ int compress_res0(image_buffer *im,
 					if (quality>LOW5)
 					{
 						ch_comp[j++]=128+(highres[i+1]>>1);
-						enc->highres_word[mem++]=enc->ch_res[i];
+						enc->highres_word[mem++]=enc->res_ch[i];
 						enc->highres_mem[enc->highres_mem_len++]=i;
 						i++;
 					}
@@ -764,7 +764,7 @@ COMP3:
 				if (quality>LOW5)
 				{
 					ch_comp[j++]=128+(highres[i+1]>>1);
-					enc->highres_word[mem++]=enc->ch_res[i];
+					enc->highres_word[mem++]=enc->res_ch[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
@@ -786,7 +786,7 @@ COMP3:
 
 			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
-				enc->highres_word[mem++]=enc->ch_res[i];
+				enc->highres_word[mem++]=enc->res_ch[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
 			}
@@ -860,7 +860,7 @@ int compress_res1(image_buffer *im,
 					if (quality>LOW5)
 					{
 						ch_comp[j++]=128+(highres[i+1]>>1);
-						enc->highres_word[mem++]=enc->ch_res[i];
+						enc->highres_word[mem++]=enc->res_ch[i];
 						enc->highres_mem[enc->highres_mem_len++]=i;
 						i++;
 					}
@@ -885,7 +885,7 @@ COMP4:
 				if (quality>LOW5)
 				{
 					ch_comp[j++]=128+(highres[i+1]>>1);
-					enc->highres_word[mem++]=enc->ch_res[i];
+					enc->highres_word[mem++]=enc->res_ch[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
@@ -907,7 +907,7 @@ COMP4:
 
 			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
-				enc->highres_word[mem++]=enc->ch_res[i];
+				enc->highres_word[mem++]=enc->res_ch[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
 			}
@@ -957,7 +957,7 @@ int compress_res2(image_buffer *im,
 				if (quality>LOW5)
 				{
 					ch_comp[j++]=128+(highres[i+1]>>1);
-					enc->highres_word[mem++]=enc->ch_res[i];
+					enc->highres_word[mem++]=enc->res_ch[i];
 					enc->highres_mem[enc->highres_mem_len++]=i;
 					i++;
 				}
@@ -979,7 +979,7 @@ int compress_res2(image_buffer *im,
 
 			if (quality>LOW5) {
 				ch_comp[j++]=128+(highres[i+1]>>1);
-				enc->highres_word[mem++]=enc->ch_res[i];
+				enc->highres_word[mem++]=enc->res_ch[i];
 				enc->highres_mem[enc->highres_mem_len++]=i;
 				i++;
 			}
@@ -1037,8 +1037,6 @@ void compress_pass2(int quality, int j,
 
 	enc->Y_res_comp=e;
 }
-
-
 
 void Y_highres_compression(image_buffer *im,encode_state *enc)
 {
@@ -1249,9 +1247,9 @@ END_RES3:
 		}
 	}
 
-	enc->ch_res = (unsigned char*) calloc(j, sizeof(char));
+	enc->res_ch = (unsigned char*) calloc(j, sizeof(char));
 	enc->end_ch_res = j;
-	memcpy(enc->ch_res, ch_comp, enc->end_ch_res * sizeof(char));
+	memcpy(enc->res_ch, ch_comp, enc->end_ch_res * sizeof(char));
 }
 
 

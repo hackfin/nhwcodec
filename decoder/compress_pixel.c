@@ -8,9 +8,9 @@
 ****************************************************************************
 ****************************************************************************
 
-/* Copyright (C) 2007-2015 NHW Project
-   Written by Raphael Canut - nhwcodec_at_gmail.com */
-/*
+ Copyright (C) 2007-2015 NHW Project
+   Written by Raphael Canut - nhwcodec_at_gmail.com
+
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
@@ -440,7 +440,7 @@ L_TREE:		tr <<=1;
 L4:	free(os->book);
 	free(dec_select_word1);
 	free(dec_select_word2);
-	
+	free(nhw_rle);
 }
 
 void retrieve_pixel_UV_comp(image_buffer *im,decode_state *os,int p1,unsigned int *d1,short *im3)
