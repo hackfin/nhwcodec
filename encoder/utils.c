@@ -2,7 +2,20 @@
 
 #include "utils.h"
 
-/** Copy top left quadrant from source image to destination */
+/*
+ *  Copy from LL quadrant 'X' of an image with dimensions x * y
+ *  into contiguous image buffer:
+ *
+ *   <-- x -->
+ *
+ *   +---+---+  <-+
+ *   | X |   |    |
+ *   +---+---+    y
+ *   |   |   |    |
+ *   +---+---+  <-+
+ *
+ */
+
 void copy_from_quadrant(short *dst, const short *src, int x, int y)
 {
 	int i;
@@ -16,6 +29,8 @@ void copy_from_quadrant(short *dst, const short *src, int x, int y)
 		src += x;
 	}
 }
+
+/* Likewise, copy data to LL quadrant */
 
 void copy_to_quadrant(short *dst, const short *src, int x, int y)
 {
@@ -39,6 +54,13 @@ void copy_buffer(short *dst, const short *src, int x, int y)
 	}
 }
 
+void copy_buffer8bit(short *dst, const unsigned char *src, int n)
+{
+	while (n--) {
+		*dst++ = *src++;
+	}
+}
+
 void copy_bitplane0(unsigned char *sp, int n, unsigned char *res)
 {
 	while (n--) {
@@ -52,24 +74,67 @@ void copy_bitplane0(unsigned char *sp, int n, unsigned char *res)
 	}
 }
 
-#if 0
-	
-short lut[][2] = {
-	{ 12100, 121 },
-	{ 12200, 122 },
-	{ 12300, 123 },
-	{ 12400, 124 },
-	{ 12500, 125 },
-	{ 12600, 126 },
-	{ 14000, 140 },
-	{ 14100, 141 },
-	{ 14500, 145 },
-	{ 14900, 149 }
-};
+#define _EXTRACT_BIT(x, n) (((x) >> n) & 1)
 
-int translate_res3(short r)
+void extract_bitplane(unsigned char *scan_run,
+	unsigned char *tree, int n)
 {
+	int i;
+	unsigned char pc[8];
 
+	for (i=0; i< n; i += 8)
+	{
+		pc[0] = _EXTRACT_BIT(*tree++, 1);
+		pc[1] = _EXTRACT_BIT(*tree++, 1);
+		pc[2] = _EXTRACT_BIT(*tree++, 1);
+		pc[3] = _EXTRACT_BIT(*tree++, 1);
+		pc[4] = _EXTRACT_BIT(*tree++, 1);
+		pc[5] = _EXTRACT_BIT(*tree++, 1);
+		pc[6] = _EXTRACT_BIT(*tree++, 1);
+		pc[7] = _EXTRACT_BIT(*tree++, 1);
+
+		*scan_run++  = ((pc[0]) << 7) | ((pc[1]) << 6)
+		             | ((pc[2]) << 5) | ((pc[3]) << 4)
+		             | ((pc[4]) << 3) | ((pc[5]) << 2)
+		             | ((pc[6]) << 1) | ((pc[7]));
+
+	}
 }
 
-#endif
+void copy_uv_chunks(unsigned char *dst, const short *src, int n)
+{
+	int i, j;
+	int halfn = n / 2;
+
+	const short *p;
+
+	// Copies UV chunks the 'interleaved' way into the im_nhw array:
+	//
+	//  pr:
+	//
+	//  P0 P1 P2 P3 P4 P5 P6 P7 ...
+	//  Q0 Q1 Q2 Q3 Q4 Q5 Q6 Q7 ...
+
+	// -->
+	//
+	//  P0 .. P1 .. P2 .. P3 .. P4 .. P5 .. P6 .. P7 ...
+	//  Q7 .. Q6 .. Q5 .. Q4 .. Q3 .. Q2 .. Q1 .. Q0 ...
+
+	for (j = 0; j < n; j += 8) {
+		p = &src[j];
+		for (i=0;i < halfn ;i++) {
+			int k;
+			for (k = 0; k < 8; k++) {
+				*dst = *p++; dst += 2;
+			}
+			p += n;
+
+			// copy reverse:
+			for (k = 0; k < 8; k++) {
+				p--;
+				*dst = *p; dst += 2;
+			}
+			p += n;
+		}
+	}
+}

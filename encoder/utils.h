@@ -46,6 +46,11 @@
 
 void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);
 void copy_buffer(short *dst, const short *src, int x, int y);
+void copy_buffer8bit(short *dst, const unsigned char *src, int n);
 void copy_to_quadrant(short *dst, const short *src, int x, int y);
 void copy_from_quadrant(short *dst, const short *src, int x, int y);
+
+void copy_uv_chunks(unsigned char *dst, const short *src, int line);
+void extract_bitplane(unsigned char *scan_run,
+	unsigned char *tree, int n);
 
