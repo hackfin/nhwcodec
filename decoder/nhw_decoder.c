@@ -2537,7 +2537,7 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	{
 		os->res_U_64=(unsigned char*)malloc((IM_DIM<<1)*sizeof(char));
 		os->res_V_64=(unsigned char*)malloc((IM_DIM<<1)*sizeof(char));
-		os->highres_comp=(unsigned char*)calloc(os->highres_comp_len,sizeof(char));
+		os->highres_comp=(unsigned char*)malloc(os->highres_comp_len*sizeof(char));
 	}
 
 	

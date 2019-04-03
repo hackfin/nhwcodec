@@ -346,6 +346,10 @@ void reduce_generic(image_buffer *im, short *resIII, char *wvlt,
 	encode_state *enc, int ratio);
 
 
+void reduce_uv_q4(image_buffer *im, int ratio);
+void reduce_uv_q9(image_buffer *im);
+
+void lowres_uv_compensate(short *dst, const short *pr, const short *lowres, int end, int step, int t0, int t1);
 #endif
 
 

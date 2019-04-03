@@ -710,6 +710,125 @@ void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *e
 	}
 }
 
+void reduce_uv_q4(image_buffer *im, int ratio)
+{
+	int i, j;
+	int imhalf  = im->fmt.end / 8;
+	int quad_size = im->fmt.end / 4;
+	int s2 = im->fmt.tile_size / 2;
+	int s4 = s2 >> 1;
+
+	short *pr;
+
+	for (i = 0 ;i < imhalf;i += s2)
+	{
+		pr = &im->im_process[i + s4];
+		for (j= s4; j< s2; j++, pr++)
+		{
+			if (abs(*pr) >= ratio && abs(*pr) < 24) *pr = 0;
+		}
+	}	
+		
+	for (i = imhalf; i < quad_size;i += s2)
+	{
+		pr = &im->im_process[i];
+		for (j = 0;j < s4;j++, pr++) {
+			if (abs(*pr) >= ratio && abs(*pr) < 32) *pr = 0;
+		}
+
+		pr = &im->im_process[i + s4];
+		for (j = s4;j< s2;j++,pr++) {
+			if (abs(*pr) >= ratio && abs(*pr) < 48) *pr = 0;
+		}
+	}
+}
+
+
+void reduce_uv_q9(image_buffer *im)
+{
+	int i, j;
+	unsigned char wvlt[7];
+	int s2 = im->fmt.tile_size / 2;
+
+	wvlt[0] = 2;
+	wvlt[1] = 3;
+	wvlt[2] = 5;
+	wvlt[3] = 8;
+	int imquart = im->fmt.end / 16;
+
+	for (i=0; i < imquart-(2*s2); i+=s2) {
+		short *p = &im->im_process[i];
+		short *q = &p[s2];
+
+		for (j=0;j< (s2>>2)-2;j++,p++,q++) {
+
+			if (abs(p[1]-q[s2+1]) <  wvlt[2]
+			 && abs(q[0]-q[2])    <  wvlt[2]
+			 && abs(q[1]-q[0])    < (wvlt[3]-1)
+			 && abs(p[1]-q[1])    <  wvlt[3])
+			{
+				q[1] = (p[1] + q[s2+1] + q[0] + q[2]+2) >> 2;
+			}
+		}
+	}
+	
+	for (i=0;i<imquart-(2*s2);i+=(s2)) {
+		short *p = &im->im_process[i];
+		short *q = &p[s2];
+
+		for (j=0;j<(s2>>2)-2;j++,p++, q++) {
+
+			if (abs(p[2]-p[1])     < wvlt[2]
+			 && abs(p[1]-p[0])     < wvlt[2]
+			 && abs(p[0]-q[0])     < wvlt[2]
+			 && abs(p[2]-q[2])     < wvlt[2]
+			 && abs(q[s2+1]-q[0])  < wvlt[2]
+			 && abs(q[0]-q[1])     < wvlt[3])
+			{
+				q[1] = (p[1] + q[s2+1]+ q[0] + q[2] + 1) >> 2;
+			}
+		}
+	}
+
+}
+
+void lowres_uv_compensate(short *dst, const short *pr, const short *lowres, int end, int step, int t0, int t1)
+{
+	int i, j;
+	int val;
+	short l;
+	short z;
+
+	for (i = 0; i < end;i += step) {
+		const short *p = &pr[i];
+		short *q = &dst[i];
+		for (j=0;j<(step>>1);j++)
+		{
+			l = lowres[0];
+
+			val = *p - l;
+	
+			if      (val > 10)  { z = l - 6;}
+			else if (val > 7)   { z = l - 3;}
+			else if (val > 4)   { z = l - 2;}
+			else if (val > 3)     z = l - 1;
+			else if (val > 2 && (p[1]-lowres[1]) >= t0)
+			                      z = l - 1;
+			else if (val < -10) { z = l + 6;}
+			else if (val < -7)  { z = l + 3;}
+			else if (val < -4)  { z = l + 2;}
+			else if (val < -3)    z = l + 1;
+			else if (val < -2 && (p[1]-lowres[1]) <= t1)
+			                      z = l + 1;
+			else                  z = l;
+			
+			*q++ = z;
+			p++; lowres++;
+		}
+	}
+}
+
+
 void process_res_q8(image_buffer *im, short *res256, encode_state *enc)
 {
 	int i, j, count, res, stage, scan;

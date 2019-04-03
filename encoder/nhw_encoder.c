@@ -1409,194 +1409,19 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	}
 }
 
-
-MAYBE_STATIC
-void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv)
+void process_uv_exw(image_buffer *im, encode_state *enc, int a)
 {
-	int i, j, a, e, Y, scan, count;
-	int end_transform;
-	unsigned char wvlt[7];
-	unsigned char *ch_comp;
-	unsigned char *scan_run;
-	short *res256;
-	short *resIII;
-	short *pr;
-	const unsigned char *buf;
-
+	int Y;
+	short scan;
+	int i, j;
 	int s2 = im->fmt.tile_size / 2;
-	int s4 = s2 >> 1;
-
-	int quad_size  = im->fmt.end / 4;
 	int imquart = im->fmt.end / 16;
-	int imhalf  = im->fmt.end / 8;
-
-	int quality = im->setup->quality_setting;
-
-	if (uv) {
-		buf = im->im_bufferV;
-	} else {
-		buf = im->im_bufferU;
-	}
-	for (i=0;i<quad_size;i++) im->im_jpeg[i]=buf[i];
-
-	pr= (short*) im->im_process;
-	
-	if (quality <= LOW6) pre_processing_UV(im);
-
-	end_transform=0; im->setup->RES_HIGH=0;
-
-	wavelet_analysis(im, s2,end_transform++,0);
-
-	// Add one pad unit, see residual_coding_q2()::FIXME
-	res256 = (short*) malloc((imquart + 1)*sizeof(short));
-	res256[imquart] = 0; // Pad to 0
-
-	resIII = (short*) malloc(imquart*sizeof(short));
-
-	copy_from_quadrant(res256, im->im_jpeg, s2, s2);
-	
-	if (quality <= LOW4)
-	{
-		for (i = 0 ;i < imhalf;i += s2)
-		{
-			for (scan= i + s4,j= s4; j< s2; j++, scan++)
-			{
-				if (abs(pr[scan])>=ratio && abs(pr[scan])<24) 
-				{	
-					 pr[scan]=0;	
-				}
-			}
-		}	
-			
-		for (i = imhalf; i < quad_size;i += s2)
-		{
-			for (scan = i, j = 0;j < s4;j++,scan++)
-			{
-				if (abs(pr[scan])>=ratio && abs(pr[scan])<32) 
-				{	
-					 pr[scan]=0;	
-				}
-			}
-
-			for (scan=i + s4,j = s4;j< s2;j++,scan++)
-			{
-				if (abs(pr[scan])>=ratio && abs(pr[scan])<48) 
-				{	
-					 pr[scan]=0;		
-				}
-			}
-		}
-	}
-
-	wavelet_analysis(im, s2>>1, end_transform,0); 
-
-	offsetUV_recons256(im,ratio,1);
-
-	wavelet_synthesis(im, s2>>1, end_transform-1,0); 
-
-	int t0, t1;
-
-	if (uv) {
-		t0 = 1; t1 = -1;
-	} else {
-		t0 = 0; t1 = 0;
-	}
-
-	for (i=0,count=0;i< imhalf;i+=s2)
-	{
-		for (e=i,j=0;j<(s2>>1);j++,count++,e++)
-		{
-			scan=pr[e]-res256[count];
-	
-			if      (scan >10)  {im->im_jpeg[e]=res256[count]-6;}
-			else if (scan >7)   {im->im_jpeg[e]=res256[count]-3;}
-			else if (scan >4)   {im->im_jpeg[e]=res256[count]-2;}
-			else if (scan >3)    im->im_jpeg[e]=res256[count]-1;
-			else if (scan >2 && (pr[e+1]-res256[count+1])>=t0)
-			                     im->im_jpeg[e]=res256[count]-1;
-			else if (scan <-10) {im->im_jpeg[e]=res256[count]+6;}
-			else if (scan <-7)  {im->im_jpeg[e]=res256[count]+3;}
-			else if (scan <-4)  {im->im_jpeg[e]=res256[count]+2;}
-			else if (scan <-3)   im->im_jpeg[e]=res256[count]+1;
-			else if (scan<-2 && (pr[e+1]-res256[count+1])<=t1)
-			                     im->im_jpeg[e]=res256[count]+1;
-			else                 im->im_jpeg[e]=res256[count];
-		}
-	}
-
-	wavelet_analysis(im, s2>>1, end_transform, 0);
-	copy_from_quadrant(resIII, pr, s2, s2);
-	offsetUV_recons256(im,ratio,0);
-	wavelet_synthesis(im, s2>>1, end_transform-1,0);
-
-	if (quality >= LOW2) { 
-		residual_coding_q2(im, res256, res_uv);
-	}
-
-	copy_to_quadrant(pr, resIII, s2, s2);
-
-	if (quality <= LOW9)
-	{
-		//if (quality==LOW9 || quality==LOW10)
-		//{
-			wvlt[0]=2;
-			wvlt[1]=3;
-			wvlt[2]=5;
-			wvlt[3]=8;
-		//}
-		
-		for (i=0,scan=0; i < imquart-(2*s2); i+=s2)
-		{
-			for (scan=i,j=0;j< (s2>>2)-2;j++,scan++)
-			{
-				short *p = &pr[scan];
-				short *q = &p[s2];
-
-				if (abs(p[1]-q[s2+1]) <  wvlt[2]
-				 && abs(q[0]-q[2])    <  wvlt[2]
-				 && abs(q[1]-q[0])    < (wvlt[3]-1)
-				 && abs(p[1]-q[1])    <  wvlt[3])
-				{
-					q[1] = (p[1] + q[s2+1] + q[0] + q[2]+2) >> 2;
-				}
-			}
-		}
-		
-		for (i=0,scan=0;i<imquart-(2*s2);i+=(s2))
-		{
-			for (scan=i,j=0;j<(s2>>2)-2;j++,scan++)
-			{
-				short *p = &pr[scan];
-				short *q = &p[s2];
-
-				if (abs(p[2]-p[1])     < wvlt[2]
-				 && abs(p[1]-p[0])     < wvlt[2]
-				 && abs(p[0]-q[0])     < wvlt[2]
-				 && abs(p[2]-q[2])     < wvlt[2]
-				 && abs(q[s2+1]-q[0])  < wvlt[2]
-				 && abs(q[0]-q[1])     < wvlt[3])
-				{
-					q[1] = (p[1] + q[s2+1]+ q[0] + q[2] + 1) >> 2;
-				}
-			}
-		}
-	}
-
-	enc->exw_Y[enc->exw_Y_end++]=0;
-	enc->exw_Y[enc->exw_Y_end++]=0;
-
-
-	if (uv) {
-		a = imquart+(imquart>>2);
-	} else {
-		a = imquart;
-	}
 
 	for (i=0; i<(imquart);i+=(s2))
 	{
-		for (j=0;j<((s2)>>2);j++)
+		short *p = &im->im_process[i];
+		for (j=0;j<((s2)>>2);j++,p++)
 		{
-			short *p = &pr[i+j];
 			scan = p[0];
 
 			if (scan>255 && (j>0 || i>0)) 
@@ -1626,88 +1451,116 @@ void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int u
 			}
 		}
 	}
+}
+
+
+MAYBE_STATIC
+void encode_uv(image_buffer *im,
+	encode_state *enc, int ratio, int res_uv, int uv)
+{
+	int end_transform;
+	unsigned char *scan_run;
+	short *res256;
+	short *resIII;
+	int offset;
+
+	int s2         = im->fmt.tile_size / 2;
+	int quad_size  = im->fmt.end / 4; // Size of U/V component buffer
+	int imquart    = im->fmt.end / 16;
+	int imhalf     = im->fmt.end / 8;
+
+	int quality = im->setup->quality_setting;
+
+	if (uv) {
+		copy_buffer8bit(im->im_jpeg, im->im_bufferV, quad_size);
+	} else {
+		copy_buffer8bit(im->im_jpeg, im->im_bufferU, quad_size);
+	}
+	
+	if (quality <= LOW6) pre_processing_UV(im);
+
+	end_transform=0; im->setup->RES_HIGH=0;
+
+	wavelet_analysis(im, s2, end_transform++, 0);
+
+	// Add one pad unit, see residual_coding_q2()::FIXME
+	res256 = (short*) malloc((imquart + 1)*sizeof(short));
+	res256[imquart] = 0; // Pad to 0
+
+	resIII = (short*) malloc(imquart*sizeof(short));
+
+	copy_from_quadrant(res256, im->im_jpeg, s2, s2);
+	
+	if (quality <= LOW4) {
+		reduce_uv_q4(im, ratio);
+	}
+
+	wavelet_analysis(im, s2 / 2, end_transform,0); 
+
+	offsetUV_recons256(im, ratio, 1);
+
+	wavelet_synthesis(im, s2 / 2, end_transform-1,0); 
+
+	int t0, t1;
+
+	if (uv) {
+		t0 = 1; t1 = -1;
+	} else {
+		t0 = 0; t1 = 0;
+	}
+
+	lowres_uv_compensate(im->im_jpeg, im->im_process, res256, imhalf, s2,
+		t0, t1);
+
+	wavelet_analysis(im, s2 / 2, end_transform, 0);
+	copy_from_quadrant(resIII, im->im_process, s2, s2);
+	offsetUV_recons256(im,ratio,0);
+	wavelet_synthesis(im, s2 / 2, end_transform-1,0);
+
+	if (quality >= LOW2) { 
+		residual_coding_q2(im, res256, res_uv);
+	}
+
+	copy_to_quadrant(im->im_process, resIII, s2, s2);
+
+	if (quality <= LOW9) {
+		reduce_uv_q9(im);
+	}
+
+	if (uv) {
+		offset = imquart+(imquart>>2);
+	} else {
+		offset = imquart;
+	}
+
+	// Insert 'separator' ?
+	enc->exw_Y[enc->exw_Y_end++]=0;
+	enc->exw_Y[enc->exw_Y_end++]=0;
+
+	process_uv_exw(im, enc, offset);
 
 	if (quality>LOW5) 
 	{
-		int code;
 		if (uv) {
 			enc->res_V_64=(unsigned char*)calloc((s2<<1),sizeof(char));
 			scan_run=(unsigned char*)enc->res_V_64;
-			code = 20480;
 		} else {		
 			enc->res_U_64=(unsigned char*)calloc((s2<<1),sizeof(char));
 			scan_run=(unsigned char*)enc->res_U_64;
-			code = 16384;
 		}
 
-		ch_comp=(unsigned char*)calloc((16*s2),sizeof(char));
-
-		int c;
-
-		for (i=0, e=0; i< (16*s2); i += 8)
-		{
-#define _EXTRACT_BIT(x, n) (((x) >> n) & 1)
-			unsigned char *pc = &ch_comp[i];
-			c = code + i;
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc++ = _EXTRACT_BIT(enc->tree1[c++], 1);
-			*pc   = _EXTRACT_BIT(enc->tree1[c], 1);
-
-			pc = &ch_comp[i];
-
-			short tmp = 
-
-			tmp  = ((*pc++) << 7); tmp |= ((*pc++) << 6);
-			tmp |= ((*pc++) << 5); tmp |= ((*pc++) << 4);
-			tmp |= ((*pc++) << 3); tmp |= ((*pc++) << 2);
-			tmp |= ((*pc++) << 1); tmp |= ((*pc++));
-
-			scan_run[e++] = tmp;
-
-		}
-		free(ch_comp);
+		extract_bitplane(scan_run, &enc->tree1[offset], (16*s2));
 	}
 
 	offsetUV(im,enc,ratio);
 
-	if (uv) count=(4*quad_size+1);
-	else    count=(4*quad_size);
-
-	for (j=0;j < s2;)
-	{
-		for (i=0;i < s4 ;i++)
-		{
-			unsigned char *dst = &im->im_nhw[count];
-			short *src = &pr[j];
-
-			int k;
-			for (k = 0; k < 8; k++) {
-				*dst = *src++; dst += 2;
-			}
-
-			j+= s2;
-
-			src = &pr[j+7];
-			// copy mirrored:
-			for (k = 0; k < 8; k++) {
-				*dst = *src--; dst += 2;
-			}
-
-			j+= s2;
-			count+=32;
-		}
-
-		j -= (quad_size-8);
-	}
+	if (uv) 
+		copy_uv_chunks(&im->im_nhw[im->fmt.end+1], im->im_process, s2);
+	else
+		copy_uv_chunks(&im->im_nhw[im->fmt.end], im->im_process, s2);
 
 	free(res256);
 	free(resIII);
-
 }
 
 void SWAPOUT_FUNCTION(encode_image)(image_buffer *im,encode_state *enc, int ratio)
@@ -1727,18 +1580,25 @@ void SWAPOUT_FUNCTION(encode_image)(image_buffer *im,encode_state *enc, int rati
 
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3,sizeof(char));
 
+	// This fills the Y part of the im_nhw array
 	scan_run_code(im, enc);
 
 	free(im->im_process);
 	
 ////////////////////////////////////////////////////////////////////////////	
+	// Size of a U and V buffer for YUV420 format
 
-	im->im_process=(short*)calloc(im->fmt.end / 4,sizeof(short)); // {
-	im->im_jpeg=(short*)calloc(im->fmt.end / 4,sizeof(short)); // Work buffer {
+	int quad_size = im->fmt.end / 4;
+
+	im->im_process = (short*) calloc(quad_size,sizeof(short)); // {
+	im->im_jpeg    = (short*) calloc(quad_size,sizeof(short)); // Work buffer {
 
 	if (im->setup->quality_setting > LOW3) res_uv=4;
 	else                                   res_uv=5;
 
+
+	// Each of the encode_uv fills the remainder of the im_nhw array
+	// with the interleaved U/V data
 	encode_uv(im, enc, ratio, res_uv, 0);
 	free(im->im_bufferU); // Previously reserved buffer XXX
 
