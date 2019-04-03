@@ -101,40 +101,4 @@ void extract_bitplane(unsigned char *scan_run,
 	}
 }
 
-void copy_uv_chunks(unsigned char *dst, const short *src, int n)
-{
-	int i, j;
-	int halfn = n / 2;
 
-	const short *p;
-
-	// Copies UV chunks the 'interleaved' way into the im_nhw array:
-	//
-	//  pr:
-	//
-	//  P0 P1 P2 P3 P4 P5 P6 P7 ...
-	//  Q0 Q1 Q2 Q3 Q4 Q5 Q6 Q7 ...
-
-	// -->
-	//
-	//  P0 .. P1 .. P2 .. P3 .. P4 .. P5 .. P6 .. P7 ...
-	//  Q7 .. Q6 .. Q5 .. Q4 .. Q3 .. Q2 .. Q1 .. Q0 ...
-
-	for (j = 0; j < n; j += 8) {
-		p = &src[j];
-		for (i=0;i < halfn ;i++) {
-			int k;
-			for (k = 0; k < 8; k++) {
-				*dst = *p++; dst += 2;
-			}
-			p += n;
-
-			// copy reverse:
-			for (k = 0; k < 8; k++) {
-				p--;
-				*dst = *p; dst += 2;
-			}
-			p += n;
-		}
-	}
-}
