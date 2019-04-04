@@ -6,7 +6,29 @@
 #include "codec.h"
 #include "remote.h"
 
-#define SIMPLIFIED
+// #define SIMPLIFIED
+#define CRUCIAL
+
+#ifdef CRUCIAL
+
+void postprocess14(image_buffer *im, short *res256);
+void preprocess14(image_buffer *im, short *result);
+
+void process_res_q8(image_buffer *im, short *res256, encode_state *enc);
+void process_hires_q8(image_buffer *im,
+	unsigned char *highres, short *res256, encode_state *enc);
+
+void process_res3_q1(image_buffer *im,
+	unsigned char *highres, short *res256, encode_state *enc);
+void process_res_hq(image_buffer *im, const short *res256);
+void process_res5_q1(image_buffer *im,
+	unsigned char *highres, short *res256, encode_state *enc);
+
+void reduce_LH_q9(image_buffer *im, const char *wvlt, int ratio);
+void reduce_LL_q7(image_buffer *im, const char *wvlt);
+void reduce_LL_q9(image_buffer *im, const char *wvlt);
+
+#endif
 
 enum {
 	OPT_HELP,
@@ -23,6 +45,7 @@ struct config {
 	char *outfilename;
 	int tilepower;
 	char loopback;
+	char verbose;
 } g_encconfig = {
 	.tilepower = 9,
 	.loopback = 0,
@@ -47,36 +70,59 @@ void write_image(const char *filename, uint8_t *buf)
 
 uint8_t g_lut[0x10000 * 3];
 
-void write_image16(const char *filename, const int16_t *buf, int tilesize, int norm)
+void write_image16(const char *filename, const int16_t *buf, int tilesize, int mode)
 {
 	uint8_t *buf8;
 	uint8_t *dst;
 	uint8_t *rgb;
 	uint16_t tmp;
-	int n = tilesize * tilesize;
-	buf8 = malloc(3 * n * sizeof(uint8_t));
+	int i, j;
+	buf8 = malloc(3 * tilesize * tilesize * sizeof(uint8_t));
 	dst = buf8;
-	if (norm) {
-		while (n--) {
-			tmp = *buf++;
-			if (tmp < 0) {
-				*dst++ = 0xff; *dst++ = 0; *dst++ = 0;
-			} else {
-				*dst++ = tmp >> 8;
-				*dst++ = tmp >> 8;
-				*dst++ = tmp >> 8;
-			}
-		}
+	switch (mode) {
+		case 0:
+			for (i = 0; i < tilesize / 2; i++) {
+			// Don't use LUT for LL quadrant
+				for (j = 0; j < tilesize / 2; j++) {
+					tmp = *buf++;
+					*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+				}
+				for (j = 0; j < tilesize / 2; j++) {
+					tmp = *buf++;
+					rgb = &g_lut[tmp * 3];
+					*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
+				}
 
-	} else {
-		while (n--) {
-			tmp = *buf++;
-			rgb = &g_lut[tmp * 3];
-			*dst++ = rgb[0];
-			*dst++ = rgb[1];
-			*dst++ = rgb[2];
-		}
+			}
+			for (i = 0; i < tilesize / 2; i++) {
+				for (j = 0; j < tilesize; j++) {
+					tmp = *buf++;
+					rgb = &g_lut[tmp * 3];
+					*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
+				}
+			}
+			break;
+		case 1:
+			for (i = 0; i < tilesize * tilesize; i++) {
+				tmp = *buf++;
+				rgb = &g_lut[tmp * 3];
+				*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
+			}
+			break;
+		default:
+			for (i = 0; i < tilesize; i++) {
+				for (j = 0; j < tilesize; j++) {
+					tmp = *buf++;
+					if (tmp < 0) {
+						*dst++ = 0xff; *dst++ = 0; *dst++ = 0;
+					} else {
+						*dst++ = tmp >> 8; *dst++ = tmp >> 8; *dst++ = tmp >> 8;
+					}
+				}
+			}
+
 	}
+
 
 	FILE *out = fopen(filename, "wb");
 	if (out) {
@@ -86,6 +132,67 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int n
 	}
 
 	free(buf8);
+}
+
+void set_range(uint8_t *lut, int from, int to, uint8_t *rgb)
+{
+	int i;
+	uint8_t *p;
+
+	for (i = from; i < to; i++) {
+		p = &lut[3*i];
+
+		p[0] = rgb[0];
+		p[1] = rgb[1];
+		p[2] = rgb[2];
+	}
+}
+
+void custom_init_lut(uint8_t *lut, int thresh)
+{
+	int i;
+	uint8_t *p;
+	memset(lut, 0, sizeof(g_lut));
+
+	int f = 255 / thresh;
+
+	for (i = 0; i < thresh; i++) {
+		p = &lut[3*i];
+		p[0] = 0;
+		p[1] = i * f;
+		p[2] = 0;
+	}
+
+	for (i = thresh; i < 256; i++) {
+		p = &lut[3*i];
+		p[0] = 0;
+		p[1] = 0;
+		p[2] = 255;
+	}
+
+	for (i = 0xff00; i < 0xfff0; i++) {
+		p[0] = 255;
+		p[1] = 0;
+		p[2] = 255;
+	}
+
+	for (i = 0xfff0; i < 0xffff; i++) {
+		p = &lut[3*i];
+		p[0] = (0xffff - i) * 8 + 32;
+		p[1] = 0;
+		p[2] = 0;
+	}
+
+	uint8_t rgb[3];
+
+
+	rgb[0] = 220; rgb[1] = 220; rgb[2] = 0;
+	set_range(lut, 10000, 12000, rgb);
+	rgb[0] = 0; rgb[1] = 220; rgb[2] = 220;
+	set_range(lut, 12000, 16000, rgb);
+	rgb[0] = 220; rgb[1] = 220; rgb[2] = 220;
+	set_range(lut, 16000, 18000, rgb);
+
 }
 
 /* Substantially 'broken' simplified encoder function for fixed quality
@@ -101,25 +208,33 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	int quad_size = im->fmt.end / 4;
 
 	int n = im->fmt.tile_size; // line size Y
+
+	// Buffer for first stage WL transform (LL)
 	res256 = (short*) calloc((quad_size + n), sizeof(short));
+
+	// Buffer for second stage WL transform, all quadrants
 	resIII = (short*) malloc(quad_size*sizeof(short));
 	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
 	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
 	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
-	init_lut(g_lut, 0.7);
+	custom_init_lut(g_lut, 20);
 	virtfb_init(n, n);
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, 0, 1);                  // CAN_HW
 	// copy LL1
+	// Unused in this compression mode:
 	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
+
+	write_image16("/tmp/res256.png", res256, n / 2, 0);
 
 	im->setup->RES_HIGH=0;
 	wavelet_analysis(im, n >> 1, 1, 1);             // CAN_HW
 
 	configure_wvlt(quality, wvlt);                  // CAN_HW
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
+	write_image16("/tmp/resIII.png", resIII, n / 2, 0);
 
 	compress_q(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
@@ -163,7 +278,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int res;
 	int end_transform;
 	short *res256, *resIII;
-	// unsigned char *highres;
+	unsigned char *highres;
 	short *pr;
 	char wvlt[7];
 	pr=(short*)im->im_process;
@@ -199,7 +314,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 #ifdef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
-		preprocess14(res256, pr);
+		preprocess14(im, res256);
 
 		write_image16("/tmp/res_p14.png", res256, 256, 0);
 
@@ -207,14 +322,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		wavelet_synthesis(im, n>>1, end_transform-1,1);
 		write_image16("/tmp/syn_stage1.png", im->im_process, n, 0);
 		// Modifies all 3 buffers:
-		postprocess14(im->im_jpeg, pr, res256);
+		postprocess14(im, res256);
 		wavelet_analysis(im, n >> 1, end_transform,1);
 	}
 	
 	if (quality <= LOW9) // Worse than LOW9?
 	{
 		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
-		reduce_LH_q9(pr, wvlt, ratio, n);
+		reduce_LH_q9(im, wvlt, ratio);
 	}
 #endif
 		
@@ -223,11 +338,10 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 #ifdef CRUCIAL
 	if (quality < LOW7) {
 			
-		reduce_LL_q7(quality, pr, wvlt);
+		reduce_LL_q7(im, wvlt);
 		
-		if (quality <= LOW9)
-		{
-			reduce_LL_q9(pr, wvlt, n);
+		if (quality <= LOW9) {
+			reduce_LL_q9(im, wvlt);
 		}
 	}
 #endif
@@ -280,7 +394,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	
 #ifdef CRUCIAL
 	if (quality > LOW8) {
-		process_res_q8(quality, pr, res256, enc);
+		process_res_q8(im, res256, enc);
 	}
 #endif
 
@@ -288,22 +402,22 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	highres=(unsigned char*)calloc(((48*im->fmt.tile_size)+1),sizeof(char));
 
 	if (quality > HIGH1) {
-		process_res_hq(quality, im->im_wavelet_first_order, res256);
+		process_res_hq(im, res256);
 	}
 #endif
 	
 #ifdef CRUCIAL
 	if (quality > LOW8)
 	{
-		process_hires_q8(highres, res256, enc);
+		process_hires_q8(im, highres, res256, enc);
 	}
 
 	// Further residual processing:
 	if (quality>=LOW1) {
-		process_res3_q1(highres, res256, enc);
+		process_res3_q1(im, highres, res256, enc);
 		if (quality>=HIGH1)
 		{
-			process_res5_q1(highres, res256, enc);
+			process_res5_q1(im, highres, res256, enc);
 		}
 	}
 	
@@ -470,6 +584,38 @@ void init_decoder(decode_state *dec, encode_state *enc)
 	dec->packet2 = &enc->encode[enc->size_data1];
 }
 
+void dump_stats(image_buffer *im, encode_state *enc)
+{
+	int n = 0;
+
+	// int q = im->setup->quality_setting;
+
+	n += enc->size_tree1;
+	n += enc->size_tree2;
+	// n += enc->size_data1; // unused
+	n += enc->size_data2 * 4;
+	n += enc->tree_end;
+	n += enc->exw_Y_end;
+	n += enc->nhw_res3_len;
+	n += enc->nhw_res3_bit_len;
+	n += enc->nhw_res4_len;
+	n += enc->nhw_res1_bit_len;
+	n += enc->nhw_res5_len;
+	n += enc->nhw_res5_bit_len;
+	n += enc->nhw_res6_len;
+	n += enc->nhw_res6_bit_len;
+	n += enc->nhw_char_res1_len * 2;
+	n += enc->qsetting3_len * 4;
+	n += enc->nhw_select1;
+	n += enc->nhw_select2;
+	n += enc->highres_comp_len;
+	n += enc->end_ch_res;
+
+	printf("Effective payload size: %d, compression rate: %0.4f\n",
+		n, (float) n / (float) im->fmt.end);
+	
+}
+
 int main(int argc, char **argv) 
 {
 	FILE *image;
@@ -484,12 +630,20 @@ int main(int argc, char **argv)
 	const char *input_filename;
 	char outfile[256];
 
+	setup.quality_setting = NORM;
+	setup.colorspace = YUV;
+	setup.wavelet_type = WVLTS_53;
+	setup.RES_HIGH = 0;
+	setup.RES_LOW = 3;
+	setup.wvlts_order = 2;
+
+	memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 	im.setup = &setup;
 
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:s:Lno:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-l:h:s:Lvno:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -512,6 +666,9 @@ int main(int argc, char **argv)
 			case 'L':
 				g_encconfig.loopback = 1;
 				break;
+			case 'v':
+				g_encconfig.verbose = 1;
+				break;
 			case 's':
 				g_encconfig.tilepower = atoi(optarg);
 				break;
@@ -526,12 +683,6 @@ int main(int argc, char **argv)
 		output_filename = outfile;
 	}
 
-	setup.quality_setting=NORM;
-	setup.colorspace = YUV;
-	setup.wavelet_type=WVLTS_53;
-	setup.RES_HIGH = 0;
-	setup.RES_LOW = 3;
-	setup.wvlts_order = 2;
 
 	imgbuf_init(&im, g_encconfig.tilepower);
 
@@ -556,7 +707,8 @@ int main(int argc, char **argv)
 	}
 
 	if (ret == 0) {
-#ifndef NOT_CRUCIAL
+
+#ifdef SIMPLIFIED
 		setup.quality_setting = LOW8; // force
 #endif
 		downsample_YUV420(&im, &enc, rate);
@@ -583,11 +735,14 @@ int main(int argc, char **argv)
 			} else {
 				perror("opening file for writing");
 			}
+
+			if (g_encconfig.verbose) {
+				dump_stats(&im, &enc);
+			}
 			free(im.im_bufferY); // malloced by decode_image()
 			free(im.im_bufferU);
 			free(im.im_bufferV);
 			free(im.im_buffer4);
-			free(dec.highres_comp); // HACK
 			free(dec.packet1); // HACK
 		} else {
 			write_compressed_file(&im, &enc, output_filename);
