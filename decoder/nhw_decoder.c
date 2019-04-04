@@ -47,13 +47,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <png.h>
+#include <assert.h>
 
 #include "imgio.h"
 #include "codec.h"
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
-void imgbuf_init(image_buffer *im, int tile_power)
+// FIXME: Not for tiling
+#define NHW_INDEX(x) ((((&x)[0])&65280)<<1)+(((&x)[0])&255)
+
+#define PACK_COORDINATES(x, y)  ( ((unsigned long) y)<<1) | (x)
+#define UNPACK_COORDINATES(p)  p
+
+
+
+void SWAPOUT_FUNCTION(imgbuf_init)(image_buffer *im, int tile_power)
 {
 	im->fmt.tile_power = tile_power;
 	im->fmt.tile_size = 1 << tile_power;
@@ -1025,6 +1034,21 @@ L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
 
 }
 
+void inc_cond_bit(unsigned short *res, unsigned short data)
+{
+	int k;
+	for (k = 7; k >= 0; k--) {
+		*res++ += (data >> k) & 1;
+	}
+}
+
+void inc_cond_bit_l(unsigned int *res, unsigned short data)
+{
+	int k;
+	for (k = 7; k >= 0; k--) {
+		*res++ += (data >> k) & 1;
+	}
+}
 
 void decode_image(image_buffer *im,decode_state *os)
 {
@@ -1068,188 +1092,175 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	if (im->setup->quality_setting>LOW8)
 	{
-	nhwres1I=(unsigned short*)calloc((os->nhw_res1_bit_len<<3),sizeof(short));stage=0;
+		nhwres1I = (unsigned short*) calloc((os->nhw_res1_bit_len<<3),
+			sizeof(short));
 
-	if (os->nhw_res1[0]==127)
-	{
-		count=1;
-	}
-	else 
-	{
-		nhwres1I[stage++]=(os->nhw_res1[0]<<1);count=0;
-	}
+		stage=0;
 
-	for (i=1;i<os->nhw_res1_len;i++)
-	{
-		if (os->nhw_res1[i]>=128)
-		{
-			e=(os->nhw_res1[i]-128);e>>=4;
-			scan=os->nhw_res1[i]&15;
-			if (os->nhw_res1[i-1]!=127) j=(nhwres1I[stage-1]&255)+(e<<1);
-			else {os->nhw_res1[i]=127;count+=2;continue;}
-
-			if (j>=254) {count++;os->nhw_res1[i]=127;}
-			else nhwres1I[stage++]=(j)+(count<<8);
-
-			j+=(scan<<1);
-			if (j>=254) {count++;os->nhw_res1[i]=127;}
-			else nhwres1I[stage++]=(j)+(count<<8);
+		if (os->nhw_res1[0]==127) {
+			count=1;
+		} else {
+			nhwres1I[stage++]=(os->nhw_res1[0]<<1); count=0;
 		}
-		else
+
+		for (i=1;i<os->nhw_res1_len;i++)
 		{
-			if (os->nhw_res1[i]==127) count++;
+			if (os->nhw_res1[i]>=128)
+			{
+				e=(os->nhw_res1[i]-128);e>>=4;
+				scan=os->nhw_res1[i]&15;
+				if (os->nhw_res1[i-1]!=127) j=(nhwres1I[stage-1]&255)+(e<<1);
+				else {os->nhw_res1[i]=127;count+=2;continue;}
+
+				if (j>=254) {count++;os->nhw_res1[i]=127;}
+				else nhwres1I[stage++]=(j)+(count<<8);
+
+				j+=(scan<<1);
+				if (j>=254) {count++;os->nhw_res1[i]=127;}
+				else nhwres1I[stage++]=(j)+(count<<8);
+			}
 			else
 			{
-				if (((os->nhw_res1[i]<<1)<(nhwres1I[stage-1]&255)) && (os->nhw_res1[i-1]!=127)) count++;
+				if (os->nhw_res1[i]==127) count++;
+				else
+				{
+					if (((os->nhw_res1[i]<<1)<(nhwres1I[stage-1]&255)) && (os->nhw_res1[i-1]!=127)) count++;
 
-				nhwres1I[stage++]=(os->nhw_res1[i]<<1)+(count<<8);
+					nhwres1I[stage++]=(os->nhw_res1[i]<<1)+(count<<8);
+				}
 			}
 		}
-	}
 
-	for (i=0,count=0;i<os->nhw_res1_bit_len;i++)
-	{
-		nhwres1I[count++]+=os->nhw_res1_bit[i]>>7;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>6)&1;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>5)&1;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>4)&1;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>3)&1;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>2)&1;
-		nhwres1I[count++]+=(os->nhw_res1_bit[i]>>1)&1;
-		nhwres1I[count++]+=os->nhw_res1_bit[i]&1;
-	}
+		for (i=0,count=0;i<os->nhw_res1_bit_len;i++)
+		{
+			inc_cond_bit(&nhwres1I[count], os->nhw_res1_bit[i]);
+			count += 8;
+		}
 
-	free(os->nhw_res1);
-	free(os->nhw_res1_bit);
+		free(os->nhw_res1);
+		free(os->nhw_res1_bit);
 
-	os->end_ch_res=0;os->d_size_tree1=0;
-	for (i=0,count=0;i<os->nhw_res1_bit_len-1;i++)
-	{
-		if (!(os->nhw_res1_word[i]>>7)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>6)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>5)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>4)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>3)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>2)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res1_word[i]>>1)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!(os->nhw_res1_word[i]&1)) os->d_size_tree1++;else os->end_ch_res++;
-	}
+		os->end_ch_res=0;os->d_size_tree1=0;
 
-	nhwres1=(unsigned short*)malloc(os->end_ch_res*sizeof(short));
-	nhwres2=(unsigned short*)malloc(os->d_size_tree1*sizeof(short));
+		int k; // mask
 
-	for (i=0,count=0,scan=0,res=0;i<os->nhw_res1_bit_len-1;i++)
-	{
-		if (!(os->nhw_res1_word[i]>>7)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++]; 
-		if (!((os->nhw_res1_word[i]>>6)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!((os->nhw_res1_word[i]>>5)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!((os->nhw_res1_word[i]>>4)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!((os->nhw_res1_word[i]>>3)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!((os->nhw_res1_word[i]>>2)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!((os->nhw_res1_word[i]>>1)&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-		if (!(os->nhw_res1_word[i]&1)) nhwres2[scan++]=nhwres1I[count++];else nhwres1[res++]=nhwres1I[count++];
-	}
+		for (i=0,count=0;i<os->nhw_res1_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res1_word[i];
 
-	free(nhwres1I);
-	free(os->nhw_res1_word);
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k)) os->d_size_tree1++; else os->end_ch_res++;
+			}
+		}
 
-	os->nhw_res1_bit_len=os->end_ch_res;
-	os->nhw_res2_bit_len=os->d_size_tree1;
-	
+		nhwres1=(unsigned short*)malloc(os->end_ch_res*sizeof(short));
+		nhwres2=(unsigned short*)malloc(os->d_size_tree1*sizeof(short));
+
+		for (i=0,count=0,scan=0,res=0;i<os->nhw_res1_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res1_word[i];
+
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k)) 
+					nhwres2[scan++]=nhwres1I[count++];
+				else
+					nhwres1[res++]=nhwres1I[count++]; 
+			}
+		}
+
+		free(nhwres1I);
+		free(os->nhw_res1_word);
+
+		os->nhw_res1_bit_len=os->end_ch_res;
+		os->nhw_res2_bit_len=os->d_size_tree1;
+		
 	}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 	if (im->setup->quality_setting>=HIGH1)
 	{
+		// FIXME: Index list
+		nhwresH1I=(unsigned short*)calloc((os->nhw_res5_bit_len<<3),
+			sizeof(short));
 
-	nhwresH1I=(unsigned short*)calloc((os->nhw_res5_bit_len<<3),sizeof(short));stage=0;
+		stage=0;
 
-	if (os->nhw_res5[0]==127)
-	{
-		count=1;
-	}
-	else 
-	{
-		nhwresH1I[stage++]=(os->nhw_res5[0]<<1);count=0;
-	}
-
-	for (i=1;i<os->nhw_res5_len;i++)
-	{
-		if (os->nhw_res5[i]>=128)
+		if (os->nhw_res5[0]==127)
 		{
-			e=(os->nhw_res5[i]-128);e>>=4;
-			scan=os->nhw_res5[i]&15;
-			if (os->nhw_res5[i-1]!=127) j=(nhwresH1I[stage-1]&255)+(e<<1);
-			else {os->nhw_res5[i]=127;count+=2;continue;}
-
-			if (j>=254) {count++;os->nhw_res5[i]=127;}
-			else nhwresH1I[stage++]=(j)+(count<<8);
-
-			j+=(scan<<1);
-			if (j>=254) {count++;os->nhw_res5[i]=127;}
-			else nhwresH1I[stage++]=(j)+(count<<8);
+			count=1;
 		}
-		else
+		else 
 		{
-			if (os->nhw_res5[i]==127) count++;
+			nhwresH1I[stage++]=(os->nhw_res5[0]<<1);count=0;
+		}
+
+		for (i=1;i<os->nhw_res5_len;i++)
+		{
+			if (os->nhw_res5[i]>=128)
+			{
+				e=(os->nhw_res5[i]-128);e>>=4;
+				scan=os->nhw_res5[i]&15;
+				if (os->nhw_res5[i-1]!=127) j=(nhwresH1I[stage-1]&255)+(e<<1);
+				else {os->nhw_res5[i]=127;count+=2;continue;}
+
+				if (j>=254) {count++;os->nhw_res5[i]=127;}
+				else nhwresH1I[stage++]=(j)+(count<<8);
+
+				j+=(scan<<1);
+				if (j>=254) {count++;os->nhw_res5[i]=127;}
+				else nhwresH1I[stage++]=(j)+(count<<8);
+			}
 			else
 			{
-				if (((os->nhw_res5[i]<<1)<(nhwresH1I[stage-1]&255)) && (os->nhw_res5[i-1]!=127)) count++;
+				if (os->nhw_res5[i]==127) count++;
+				else
+				{
+					if (((os->nhw_res5[i]<<1)<(nhwresH1I[stage-1]&255)) && (os->nhw_res5[i-1]!=127)) count++;
 
-				nhwresH1I[stage++]=(os->nhw_res5[i]<<1)+(count<<8);
+					nhwresH1I[stage++]=(os->nhw_res5[i]<<1)+(count<<8);
+				}
 			}
 		}
-	}
 
-	for (i=0,count=0;i<os->nhw_res5_bit_len;i++)
-	{
-		nhwresH1I[count++]+=os->nhw_res5_bit[i]>>7;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>6)&1;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>5)&1;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>4)&1;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>3)&1;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>2)&1;
-		nhwresH1I[count++]+=(os->nhw_res5_bit[i]>>1)&1;
-		nhwresH1I[count++]+=os->nhw_res5_bit[i]&1;
-	}
+		for (i=0,count=0;i<os->nhw_res5_bit_len;i++) {
+			inc_cond_bit(&nhwresH1I[count], os->nhw_res5_bit[i]);
+			count += 8;
+		}
 
-	free(os->nhw_res5);
-	free(os->nhw_res5_bit);
+		free(os->nhw_res5);
+		free(os->nhw_res5_bit);
 
-	os->end_ch_res=0;os->d_size_tree1=0;
-	for (i=0,count=0;i<os->nhw_res5_bit_len-1;i++)
-	{
-		if (!(os->nhw_res5_word[i]>>7)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>6)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>5)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>4)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>3)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>2)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res5_word[i]>>1)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!(os->nhw_res5_word[i]&1)) os->d_size_tree1++;else os->end_ch_res++;
-	}
+		os->end_ch_res=0;os->d_size_tree1=0;
+		for (i=0,count=0;i<os->nhw_res5_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res5_word[i];
+			int k;
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k)) os->d_size_tree1++; else os->end_ch_res++;
+			}
+		}
 
-	nhwresH1=(unsigned short*)malloc(os->end_ch_res*sizeof(short));
-	nhwresH2=(unsigned short*)malloc(os->d_size_tree1*sizeof(short));
+		nhwresH1=(unsigned short*)malloc(os->end_ch_res*sizeof(short));
+		nhwresH2=(unsigned short*)malloc(os->d_size_tree1*sizeof(short));
 
-	for (i=0,count=0,scan=0,res=0;i<os->nhw_res5_bit_len-1;i++)
-	{
-		if (!(os->nhw_res5_word[i]>>7)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++]; 
-		if (!((os->nhw_res5_word[i]>>6)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!((os->nhw_res5_word[i]>>5)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!((os->nhw_res5_word[i]>>4)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!((os->nhw_res5_word[i]>>3)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!((os->nhw_res5_word[i]>>2)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!((os->nhw_res5_word[i]>>1)&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-		if (!(os->nhw_res5_word[i]&1)) nhwresH2[scan++]=nhwresH1I[count++];else nhwresH1[res++]=nhwresH1I[count++];
-	}
+		for (i=0,count=0,scan=0,res=0;i<os->nhw_res5_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res5_word[i];
+			int k;
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k))
+					nhwresH2[scan++]=nhwresH1I[count++];
+				else
+					nhwresH1[res++]=nhwresH1I[count++];
+			}
+		}
 
-	free(nhwresH1I);
-	free(os->nhw_res5_word);
+		free(nhwresH1I);
+		free(os->nhw_res5_word);
 
-	os->nhw_res5_bit_len=os->end_ch_res;
-	os->nhw_res5_len=os->d_size_tree1;
+		os->nhw_res5_bit_len=os->end_ch_res;
+		os->nhw_res5_len=os->d_size_tree1;
 
 	}
 
@@ -1258,108 +1269,86 @@ void decode_image(image_buffer *im,decode_state *os)
 	if (im->setup->quality_setting>HIGH1)
 	{
 
-	nhwresH3I=(unsigned int*)calloc((os->nhw_res6_bit_len<<3),sizeof(int));stage=0;
+		nhwresH3I=(unsigned int*)calloc((os->nhw_res6_bit_len<<3),
+			sizeof(int));
+		stage=0;
 
-	if (os->nhw_res6[0]==127)
-	{
-		count=IM_DIM;
-	}
-	else 
-	{
-		nhwresH3I[stage++]=(os->nhw_res6[0]<<1);count=0;
-	}
-
-	for (i=1;i<os->nhw_res6_len;i++)
-	{
-		if (os->nhw_res6[i]>=128)
+		if (os->nhw_res6[0]==127)
 		{
-			e=(os->nhw_res6[i]-128);e>>=4;
-			scan=os->nhw_res6[i]&15;
-			if (os->nhw_res6[i-1]!=127) j=(nhwresH3I[stage-1]&255)+(e<<1);
-			else {os->nhw_res6[i]=127;count+=(2*IM_DIM);continue;}
-
-			if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
-			else nhwresH3I[stage++]=(j)+count;
-
-			j+=(scan<<1);
-			if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
-			else nhwresH3I[stage++]=(j)+count;
+			count=IM_DIM;
 		}
-		else
+		else 
 		{
-			if (os->nhw_res6[i]==127) count+=IM_DIM;
+			nhwresH3I[stage++]=(os->nhw_res6[0]<<1);count=0;
+		}
+
+		for (i=1;i<os->nhw_res6_len;i++)
+		{
+			if (os->nhw_res6[i]>=128)
+			{
+				e=(os->nhw_res6[i]-128);e>>=4;
+				scan=os->nhw_res6[i]&15;
+				if (os->nhw_res6[i-1]!=127) j=(nhwresH3I[stage-1]&255)+(e<<1);
+				else {os->nhw_res6[i]=127;count+=(2*IM_DIM);continue;}
+
+				if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
+				else nhwresH3I[stage++]=(j)+count;
+
+				j+=(scan<<1);
+				if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
+				else nhwresH3I[stage++]=(j)+count;
+			}
 			else
 			{
-				if (((os->nhw_res6[i]<<1)<(nhwresH3I[stage-1]&255)) && (os->nhw_res6[i-1]!=127)) count+=IM_DIM;
+				if (os->nhw_res6[i]==127) count+=IM_DIM;
+				else
+				{
+					if (((os->nhw_res6[i]<<1)<(nhwresH3I[stage-1]&255)) && (os->nhw_res6[i-1]!=127)) count+=IM_DIM;
 
-				nhwresH3I[stage++]=(os->nhw_res6[i]<<1)+count;
+					nhwresH3I[stage++]=(os->nhw_res6[i]<<1)+count;
+				}
 			}
 		}
-	}
 
-	for (i=0,count=0;i<os->nhw_res6_bit_len;i++)
-	{
-		nhwresH3I[count++]+=os->nhw_res6_bit[i]>>7;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>6)&1;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>5)&1;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>4)&1;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>3)&1;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>2)&1;
-		nhwresH3I[count++]+=(os->nhw_res6_bit[i]>>1)&1;
-		nhwresH3I[count++]+=os->nhw_res6_bit[i]&1;
-	}
+		for (i=0,count=0;i<os->nhw_res6_bit_len;i++)
+		{
+			inc_cond_bit_l(&nhwresH3I[count], os->nhw_res6_bit[i]);
+			count += 8;
+		}
 
-	free(os->nhw_res6);
-	free(os->nhw_res6_bit);
+		free(os->nhw_res6);
+		free(os->nhw_res6_bit);
 
-	os->end_ch_res=0;os->d_size_tree1=0;
-	for (i=0,count=0;i<os->nhw_res6_bit_len-1;i++)
-	{
-		if (!(os->nhw_res6_word[i]>>7)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>6)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>5)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>4)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>3)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>2)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!((os->nhw_res6_word[i]>>1)&1)) os->d_size_tree1++;else os->end_ch_res++;
-		if (!(os->nhw_res6_word[i]&1)) os->d_size_tree1++;else os->end_ch_res++;
-	}
+		os->end_ch_res=0;os->d_size_tree1=0;
+		for (i=0,count=0;i<os->nhw_res6_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res6_word[i];
+			int k;
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k)) os->d_size_tree1++; else os->end_ch_res++;
+			}
+		}
 
-	os->nhwresH3=(unsigned int*)malloc(os->end_ch_res*sizeof(int));
-	os->nhwresH4=(unsigned int*)malloc(os->d_size_tree1*sizeof(int));
+		os->nhwresH3=(unsigned int*)malloc(os->end_ch_res*sizeof(int));
+		os->nhwresH4=(unsigned int*)malloc(os->d_size_tree1*sizeof(int));
 
-	for (i=0,count=0,scan=0,res=0;i<os->nhw_res6_bit_len-1;i++)
-	{
-		if (!(os->nhw_res6_word[i]>>7)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++]; 
+		for (i=0,count=0,scan=0,res=0;i<os->nhw_res6_bit_len-1;i++)
+		{
+			unsigned char tmp = os->nhw_res6_word[i];
+			int k;
+			for (k = 0x80; k != 0; k >>= 1) {
+				if (!(tmp & k))
+					os->nhwresH4[scan++]=nhwresH3I[count++];
+				else
+					os->nhwresH3[res++]=nhwresH3I[count++];
+			}
+		}
 
-		if (!((os->nhw_res6_word[i]>>6)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
+		free(nhwresH3I);
+		free(os->nhw_res6_word);
 
-		if (!((os->nhw_res6_word[i]>>5)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-
-		if (!((os->nhw_res6_word[i]>>4)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-
-		if (!((os->nhw_res6_word[i]>>3)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-
-		if (!((os->nhw_res6_word[i]>>2)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-
-		if (!((os->nhw_res6_word[i]>>1)&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-
-		if (!(os->nhw_res6_word[i]&1)) os->nhwresH4[scan++]=nhwresH3I[count++];
-		else os->nhwresH3[res++]=nhwresH3I[count++];
-	}
-
-	free(nhwresH3I);
-	free(os->nhw_res6_word);
-
-	os->nhw_res6_bit_len=os->end_ch_res;
-	os->nhw_res6_len=os->d_size_tree1;
+		os->nhw_res6_bit_len=os->end_ch_res;
+		os->nhw_res6_len=os->d_size_tree1;
 
 	}
 
@@ -1410,14 +1399,8 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	for (i=0,count=0;i<os->nhw_res3_bit_len;i++)
 	{
-		nhwres3I[count++]+=os->nhw_res3_bit[i]>>7;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>6)&1;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>5)&1;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>4)&1;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>3)&1;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>2)&1;
-		nhwres3I[count++]+=(os->nhw_res3_bit[i]>>1)&1;
-		nhwres3I[count++]+=os->nhw_res3_bit[i]&1;
+		inc_cond_bit(&nhwres3I[count], os->nhw_res3_bit[i]);
+		count += 8;
 	}
 
 	free(os->nhw_res3);
@@ -1591,24 +1574,26 @@ void decode_image(image_buffer *im,decode_state *os)
 		}
 	}
 
+	int step = im->fmt.tile_size;
+
 	if (im->setup->quality_setting>LOW3)
 	{
 	for (i=0,e=0,count=0;i<os->nhw_res4_len;i++)
 	{
-		if (os->nhw_res4[i]==128) count++;
+		if (os->nhw_res4[i]==128) count += step;
 		else if (os->nhw_res4[i]>128) 
 		{
-			e=(count<<9)+os->nhw_res4[i]-129;
+			e=count+os->nhw_res4[i]-129;
 			if (!(im->im_jpeg[e]&1)) im->im_jpeg[e]++;
 			if (!(im->im_jpeg[e+1]&1)) im->im_jpeg[e+1]++;
 			if (!(im->im_jpeg[e+2]&1)) im->im_jpeg[e+2]++;
 			if (!(im->im_jpeg[e+3]&1)) im->im_jpeg[e+3]++;
 			//printf("\n %d",e);
-			count++;
+			count +=step;
 		}
 		else 
 		{
-			e=(count<<9)+os->nhw_res4[i]-1;
+			e=count+os->nhw_res4[i]-1;
 			if (!(im->im_jpeg[e]&1)) im->im_jpeg[e]++;
 			if (!(im->im_jpeg[e+1]&1)) im->im_jpeg[e+1]++;
 			if (!(im->im_jpeg[e+2]&1)) im->im_jpeg[e+2]++;
@@ -1627,8 +1612,9 @@ void decode_image(image_buffer *im,decode_state *os)
 		if (os->exw_Y[i+1]>=128) {scan=os->exw_Y[i+2]+255;os->exw_Y[i+1]-=128;}
 		else {scan=-os->exw_Y[i+2];}
 
-		count=(os->exw_Y[i]<<9)+os->exw_Y[i+1];
+		count=(os->exw_Y[i]<<9)+os->exw_Y[i+1]; // FIXME
 
+		assert(count < im->fmt.end);
 		im->im_jpeg[count]=scan;
 
 	}
@@ -1669,13 +1655,13 @@ void decode_image(image_buffer *im,decode_state *os)
 	{
 		for (i=0;i<os->nhw_res5_bit_len;i++) 
 		{
-			im_nhw2[((nhwresH1[i]&65280)<<1)+(nhwresH1[i]&255)]-=3;
+			im_nhw2[NHW_INDEX(nhwresH1[i])]-=3;
 		}
 		free(nhwresH1);
 
 		for (i=0;i<os->nhw_res5_len;i++) 
 		{
-			im_nhw2[((nhwresH2[i]&65280)<<1)+(nhwresH2[i]&255)]+=3;
+			im_nhw2[NHW_INDEX(nhwresH2[i])]+=3;
 		}
 		free(nhwresH2);
 	}
@@ -1688,13 +1674,14 @@ void decode_image(image_buffer *im,decode_state *os)
 
 		for (i=0;i<os->nhw_res1_bit_len;i++) 
 		{
-			im_nhw2[((nhwres1[i]&65280)<<1)+(nhwres1[i]&255)]-=e;
+			im_nhw2[NHW_INDEX(nhwres1[i])] -= e;
+
 		}
 		free(nhwres1);
 
 		for (i=0;i<os->nhw_res2_bit_len;i++) 
 		{
-			im_nhw2[((nhwres2[i]&65280)<<1)+(nhwres2[i]&255)]+=e;
+			im_nhw2[NHW_INDEX(nhwres2[i])] += e;
 		}
 		free(nhwres2);
 	}
@@ -1704,31 +1691,33 @@ void decode_image(image_buffer *im,decode_state *os)
 	{
 		for (i=0;i<os->end_ch_res;i++) 
 		{
-			im_nhw2[((nhwres3[i]&65280)<<1)+(nhwres3[i]&255)]-=4;
-			im_nhw2[((nhwres3[i]&65280)<<1)+(nhwres3[i]&255)+(2*IM_DIM)]-=3;
+			im_nhw2[NHW_INDEX(nhwres3[i])] -= 4;
+			im_nhw2[NHW_INDEX(nhwres3[i])+(2*IM_DIM)] -= 3;
+
 		}
 		free(nhwres3);
 
 		for (i=0;i<os->d_size_tree1;i++) 
 		{
-			im_nhw2[((nhwres4[i]&65280)<<1)+(nhwres4[i]&255)]+=4;
-			im_nhw2[((nhwres4[i]&65280)<<1)+(nhwres4[i]&255)+(2*IM_DIM)]+=3;
+			im_nhw2[NHW_INDEX(nhwres4[i])] += 4;
+			im_nhw2[NHW_INDEX(nhwres4[i])+(2*IM_DIM)] += 3;
+
 		}
 		free(nhwres4);
 
 		for (i=0;i<os->res_f1;i++) 
 		{
-			im_nhw2[((nhwres5[i]&65280)<<1)+(nhwres5[i]&255)]+=2;
-			im_nhw2[((nhwres5[i]&65280)<<1)+(nhwres5[i]&255)+(2*IM_DIM)]+=2;
-			im_nhw2[((nhwres5[i]&65280)<<1)+(nhwres5[i]&255)+(4*IM_DIM)]+=2;
+			im_nhw2[NHW_INDEX(nhwres5[i])] += 2;
+			im_nhw2[NHW_INDEX(nhwres5[i])+(2*IM_DIM)] += 2;
+			im_nhw2[NHW_INDEX(nhwres5[i])+(4*IM_DIM)] += 2;
 		}
 		free(nhwres5);
 
 		for (i=0;i<os->res_f2;i++) 
 		{
-			im_nhw2[((nhwres6[i]&65280)<<1)+(nhwres6[i]&255)]-=2;
-			im_nhw2[((nhwres6[i]&65280)<<1)+(nhwres6[i]&255)+(2*IM_DIM)]-=2;
-			im_nhw2[((nhwres6[i]&65280)<<1)+(nhwres6[i]&255)+(4*IM_DIM)]-=2;
+			im_nhw2[NHW_INDEX(nhwres6[i])] -= 2;
+			im_nhw2[NHW_INDEX(nhwres6[i])+(2*IM_DIM)] -= 2;
+			im_nhw2[NHW_INDEX(nhwres6[i])+(4*IM_DIM)] -= 2;
 		}
 		free(nhwres6);
 	}
@@ -1771,15 +1760,21 @@ void decode_image(image_buffer *im,decode_state *os)
 		}
 	}
 
-	nhwres1=(unsigned short*)malloc(stage*sizeof(short));
+	// Index list for values to be offset corrected:
+	unsigned long *offset_list;
+	offset_list = (unsigned long*) malloc(stage*sizeof(unsigned long));
 
-	for (i=(2*IM_DIM),count=0;i<((2*IM_SIZE)-(2*IM_DIM));i+=(2*IM_DIM))
+	for (i = step,count = 0;i < im->fmt.half-step; i += step)
 	{
 		for (scan=i,j=0;j<IM_DIM;j++,scan++)
 		{
+			unsigned long tmp = PACK_COORDINATES(j, i);
 			if (im_nhw2[scan]>10000)
 			{
-				nhwres1[count++]=(i>>1)+j;	
+				offset_list[count++]= tmp;
+				// printf("scan: %d  0x%x\n", PACK_COORDINATES(j, i),
+					// PACK_COORDINATES(j, i));
+
 				im_nhw2[scan]-=16000;
 			}
 		}
@@ -1796,9 +1791,14 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	for (i=0;i<count;i++)
 	{
-		scan=nhwres1[i]>>8;
-		scan<<=10;
-		scan+=(nhwres1[i]&255);
+		scan = UNPACK_COORDINATES(offset_list[i]);
+
+		assert(scan < im->fmt.end);
+		
+		if(scan-(2*IM_DIM) < 0) {
+			printf("At %d: scan %d\n", i, scan);
+		}
+		assert(scan-(2*IM_DIM) >= 0);
 
 		res	   =   (im_nhw[scan]<<3) -
 					im_nhw[scan-1]-im_nhw[scan+1]-
@@ -1813,7 +1813,7 @@ void decode_image(image_buffer *im,decode_state *os)
 		}
 	}
 
-	free(nhwres1);
+	free(offset_list);
 
 	dec_wavelet_synthesis(im,(2*IM_DIM),end_transform,3);
 	
@@ -1918,7 +1918,8 @@ void decode_image(image_buffer *im,decode_state *os)
 		if (os->exw_Y[i+1]>=128) {scan=os->exw_Y[i+2]+255;os->exw_Y[i+1]-=128;}
 		else {scan=-os->exw_Y[i+2];}
 
-		count=(os->exw_Y[i]<<8)+os->exw_Y[i+1];
+		count=(os->exw_Y[i]<<8)+os->exw_Y[i+1]; // FIXME
+		assert(count < im->fmt.end / 4);
 
 		im->im_jpeg[count]=scan;
 
@@ -2208,8 +2209,9 @@ void decode_image(image_buffer *im,decode_state *os)
 		if (os->exw_Y[i+1]>=128) {scan=os->exw_Y[i+2]+255;os->exw_Y[i+1]-=128;}
 		else {scan=-os->exw_Y[i+2];}
 
-		count=(os->exw_Y[i]<<8)+os->exw_Y[i+1];
+		count=(os->exw_Y[i]<<8)+os->exw_Y[i+1]; // FIXME
 
+		assert(count < im->fmt.end / 4);
 		im->im_jpeg[count]=scan;
 
 	}
