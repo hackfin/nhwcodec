@@ -1332,7 +1332,6 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	}
 	
 	copy_from_quadrant(resIII, pr, n, n);
-
 	
 	enc->tree1=(unsigned char*) calloc(((96*halfn)+4),sizeof(char));
 	enc->exw_Y=(unsigned char*) malloc(32*halfn*sizeof(short));
