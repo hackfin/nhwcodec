@@ -850,6 +850,8 @@ void process_res_q8(image_buffer *im, short *res256, encode_state *enc)
 
 	// TODO: Pad last 2 lines with something sensible
 
+	int shift = im->fmt.tile_power;
+
 	for (j=0,count=0,res=0,stage=0;j<im_dim;j++)
 	{
 		for (scan=j,count=j,i=0;
@@ -858,7 +860,7 @@ void process_res_q8(image_buffer *im, short *res256, encode_state *enc)
 			int r0 = res256[count+im_dim];
 			int rcs = res256[count+step]; // This is stepping out of image bounds on the last line
 
-			int k = (i >> 9) + (j << 9);
+			int k = (i >> shift) + (j << shift);
 			short *p;
 			p = &pr[scan];
 
@@ -1114,7 +1116,7 @@ L_W5:			res256[count]=CODE_14000;
 			if (r < CODE_12000)
 			{
 				// Transposed check pointer:
-				short *p = &pr[(j<<9)+(i>>9)+(im_dim)];
+				short *p = &pr[(j << shift)+(i >> shift)+(im_dim)];
 
 				res= pr[scan]-res256[count];res256[count]=0;
 

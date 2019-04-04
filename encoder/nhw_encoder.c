@@ -165,9 +165,8 @@ void residual_coding_q2(image_buffer *im, short *res256, int res_uv)
 	}
 }
 
-
 MAYBE_STATIC
-void preprocess14(image_buffer *im, short *result)
+void tag_thresh_ranges(image_buffer *im, short *result)
 {
 	int cur;
 	int i, j, count, scan;
@@ -175,39 +174,26 @@ void preprocess14(image_buffer *im, short *result)
 	int halfn = s / 2;
 	int tmp = 2 * halfn + 1;
 
-	short *pr = im->im_process;
+	const short *pr = im->im_process;
 	int quad_size = im->fmt.end / 4;
-
-
-// Checks high frequency parts (CUR = HH2)
-//       'pr'                      'result'
-// +---+---+---+---+              +---+---+
-// |   |   |       |              |   |   |
-// +---+---+       +  < quad_size +---+---+
-// |   |CUR|       |              |   |MAR|
-// +---+---+---+---+  <- (END)    +---+---+
-// |       |       |
-// +       +       +
-// |       |       |
-// +---+---+---+---+
-
-// ^.......^      <-  j = 0..halfn
 
 	int offset_code;
 	int m;
 
-// Score function?
+// Tags all non LL pixels in 'result' according to threshold range
+// and modulo8 values:
+//
 // CUR = '*'
 //
 //       'pr'                      'result'
 // +---+---+---+---+              +---+---+
-// |   | * |       |              |   |   |
+// |   | * |       |              |   | * |
 // +---+---+       + <- quad_size +---+---+
-// | * | * |       |              |   |MAR|
+// | * | * |       |              | * | * |
 // +---+---+---+---+              +---+---+
-// | ***** |       |
-// + ***** +       +
-// | ***** |       |
+// |       |       |
+// +       +       +
+// |       |       |
 // +---+---+---+---+  <- (END) 
 // ^.......^      <-  j = 0..halfn
 
@@ -254,88 +240,43 @@ void preprocess14(image_buffer *im, short *result)
 	}
 }
 
-MAYBE_STATIC
-void postprocess14(image_buffer *im, short *res256)
+inline
+void fixup_pixel_offset(short *p, short *q)
 {
-	int i, j, line, scan;
-	int a, e;
+	if        (*p > 14000) {
+		*p -= 16000; q[0]++;
+	} else if (*p > 10000) {
+		*p -= 12000; q[0]--;
+	}
+}
 
-	int s = im->fmt.tile_size;
-	int s2 = s >> 1;
-	int s4 = s2 >> 1;
+// Can be done with LUT:
 
-	int quad_size = im->fmt.end / 4;
+inline
+int reduce_offset_comp_LL(int a)
+{
+	if (abs(a) > 4) {
+		if (a > 0) {
+			if      (a>11)  a-=7;
+			else if (a>7)   a-=4;
+			else if (a>5)   a-=2;
+			else            a--;
+		} else {
+			if      (a<-11) a+=7;
+			else if (a<-7)  a+=4;
+			else if (a<-5)  a+=2;
+			else            a++;
+		}
+	}
+	return a;
+}
 
-	short *dst = im->im_jpeg;
-	short *pr = im->im_process;
-
-
-// Does some scoring depending on the SQ* coefficient markings
+MAYBE_STATIC
+void offset_compensation_LL(image_buffer *im, short *res256)
+{
 //
-//       'pr'          <<<<        'result'
-// +---+---+---+---+              +---+---+
-// |   |   |       |              |   |SQ0|
-// +---+---+       +  < quad_size +---+---+
-// |   |   |       |              |SQ1|SQ2|
-// +---+---+---+---+  <- (END)    +---+---+
-// |       |       |                               
-// +       +       +
-// |       |       |
-// +---+---+---+---+
-
-// ^.......^      <-  j = 0..IM_DIM
-// ^...^      (s4)
-
-	// Upper half:
-	line = 0;
-	for (i = 0; i < quad_size; i +=s)
-	{
-		short *p = &res256[line];
-		short *q = &pr[(i >> 8) + s];
-		int k;
-		line += s2;
-
-		// Left half:
-		for (j = 0;j < s4; j++, p++) {
-			if        (*p > 14000) *p -= 16000;
-			else if   (*p > 10000) *p -= 12000;
-		}
-		// Right half:
-		for (j = s4, k = 0; j < s2; j++, p++, k += (1 << 10)) {
-			if        (*p > 14000) {
-				*p -= 16000; q[k]++;
-			} else if (*p > 10000) {
-				*p -= 12000; q[k]--;
-			}
-		}
-	}
-
-	// Lower half:
-	for (i = quad_size; i < (2*quad_size); i += s) {
-		// Left half:
-		int k;
-		short *p = &res256[line];
-		short *q = &pr[((i-quad_size)>>8) + 1];
-		line += s2;
-		for (j = 0, k = 0; j < s4; j++, p++, k+= (1 << 10)) {
-			if (*p > 14000) {
-				*p -= 16000; q[k]++; 
-			} else if (*p > 10000) {
-				*p -= 12000; q[k]--; 
-			}
-		}
-		// Right half:
-
-		q += s;
-		for (j = s4, k = 0; j < s2; j++, p++, k+= (1 << 10)) {
-			if (*p > 14000) {
-				*p -= 16000; q[k]++; 
-			} else if (*p > 10000) {
-				*p -= 12000; q[k]--;
-			}
-		}
-	}
-
+//
+//
 //       'pr'          <<<<        'result'
 // +---+---+---+---+              +---+---+
 // |SE0|SE1|       |              |SC0|SC1|
@@ -351,93 +292,164 @@ void postprocess14(image_buffer *im, short *res256)
 // ^...^      (halfn)
 
 	//                   (END) 
+	int i, j;
 
-	int count = 0;
+	const short lut_d0[13] = {
+		0, 0, -1, -1, -1,
+		1, 2,  2,  4,  4,
+		4, 4, 7
+	};
+
+	const short lut_d1[] = {
+		-1, -1, -1, 0, 1, 2
+	};
+
+	int s = im->fmt.tile_size;
+	int s2 = s / 2;
+
+	int quad_size = im->fmt.end / 4;
 
 	int l;
 
-	// Upper half:
-	for (i=0; i < (2*quad_size); i += s)
-	{
-		short *p = &res256[count];
-		count += s2;
+	short *pr = im->im_process;
+	short *r = res256;
 
-		for (e=i,j=0;j<s2;j++,p++,e++)
+	// Upper half:
+	for (i = 0; i < im->fmt.half; i += s)
+	{
+		short *p = &pr[i];
+		short *dst = &im->im_jpeg[i];
+
+		for (j=0;j<s2;j++,r++,p++)
 		{
 			// SE0        SC0
-			scan = pr[e] - p[0];
+			int d0, d1;
+
+			d0 = p[0] - r[0];
 			short comp;
-
-#define _MOD(x) comp = x;
-
-			short tmp = scan;
 			int sgn;
-			if (tmp < 0) { tmp = -tmp; sgn = -1; }
+#define _MOD(x) comp = x;
+			if (d0 < 0) { d0 = -d0; sgn = -1; }
 			else          {  sgn = 1; }
 
-			const short lookup[13] = {
-				0, 0, -1, -1, -1,
-				1, 2,  2,  4,  4,
-				4, 4, 7
-			};
-
-			const short lookup_a[] = {
-				-1, -1, -1, 0, 1, 2
-			};
-
-			l = (tmp > LAST_ELEMENT(lookup)) ? LAST_ELEMENT(lookup) : tmp;
-			comp = lookup[l];
+			l = (d0 > LAST_ELEMENT(lut_d0)) ? LAST_ELEMENT(lut_d0) : d0;
+			comp = lut_d0[l];
 
 			if (comp >= 0) {
 				comp *= -sgn;
-			} else 
-			{
+			} else {
 				comp = 0;
-				a = (pr[e+1]-p[1]);
+				d1 = (p[1]-r[1]);
 
-				if (abs(a) > 4) {
-					if (a > 0) {
-						if      (a>11)  a-=7;
-						else if (a>7)   a-=4;
-						else if (a>5)   a-=2;
-						else            a--;
-					} else {
-						if      (a<-11) a+=7;
-						else if (a<-7)  a+=4;
-						else if (a<-5)  a+=2;
-						else            a++;
-					}
+				d1 = reduce_offset_comp_LL(d1);
+
+				if (r > res256) { // HACK
+					d1+=(p[-1]-r[-1]);
 				}
 
-				if (e > 0 && count > 0) {
-					a+=(pr[e-1]-p[-1]);
-				}
+				short sgn_d1 = 1;
+				l = d1;
+				d1 *= sgn;
 
-				short sgn_a = 1;
-				l = a;
-				a *= sgn;
-
-				if      (tmp == 4 && a >=1)    {  _MOD(1); comp *= sgn; }
-				else if (tmp == 3 && a >=0)    {  _MOD(1); comp *= sgn; }
-				else if (abs(a)>=3)  // case
+				if      (d0 == 4 && d1 >=1)    {  _MOD(1); comp *= sgn; }
+				else if (d0 == 3 && d1 >=0)    {  _MOD(1); comp *= sgn; }
+				else if (abs(d1)>=3)  // case
 				{
-					if (tmp == 2 && a >= 1)     {  _MOD(1); comp *= sgn; }
+					if (d0 == 2 && d1 >= 1)     {  _MOD(1); comp *= sgn; }
 					else {
-						if (l < 0) { l = -l; sgn_a = -1; }
-
-						l = l > LAST_ELEMENT(lookup_a) ? LAST_ELEMENT(lookup_a) : l;
-
-						comp = lookup_a[l];
-						comp *= sgn_a;
+						if (l < 0) { l = -l; sgn_d1 = -1; }
+						l = l > LAST_ELEMENT(lut_d1) ? LAST_ELEMENT(lut_d1) : l;
+						comp = lut_d1[l];
+						comp *= sgn_d1;
 					}
 				}
 				else _MOD(0)
 
 				comp = -comp;
 			}
-			dst[e] = p[0] + comp; pr[e] += comp;
+			dst[0] = r[0] + comp; p[0] += comp;
+			dst++;
 		}
 	}
+}
+
+MAYBE_STATIC
+void revert_compensate_offsets(image_buffer *im, short *res256)
+{
+	int i, j, line;
+
+	int s = im->fmt.tile_size;
+	int s2 = s >> 1;
+	int s4 = s2 >> 1;
+
+	int quad_size = im->fmt.end / 4;
+
+	short *pr = im->im_process;
+
+// Reverts the offset fixup and inc/dec corresponding process pixel values,
+// accordingly
+//
+//       'pr'          <<<<        'result'
+// +---+---+---+---+              +---+---+
+// |   | * |       |              |   |SQ0|
+// +---+---+       +  < quad_size +---+---+
+// | * | * |       |              |SQ1|SQ2|
+// +---+---+---+---+  <- (END)    +---+---+
+// |       |       |                               
+// +       +       +
+// |       |       |
+// +---+---+---+---+
+
+// ^.......^      <-  j = 0..IM_DIM
+// ^...^      (s4)
+
+	// Upper half:
+	line = 0;
+	int shift = im->fmt.tile_power;
+	// Step size for transposed j index:
+	int tstep = 2 * (1 << shift);
+	shift -= 1;
+
+	for (i = 0; i < quad_size; i +=s)
+	{
+		short *p = &res256[line];
+		short *q = &pr[(i >> shift) + s]; // FIXME: improve transposed access
+		int k;
+		line += s2;
+
+#ifdef CONDITION_POSSIBLY_NEVER_MET
+		// LL:
+		for (j = 0;j < s4; j++, p++) {
+			if        (*p > 14000) *p -= 16000;
+			else if   (*p > 10000) *p -= 12000;
+		}
+#else
+		p += s4;
+#endif
+		// Right half:
+		for (j = s4, k = 0; j < s2; j++, p++, k += tstep) {
+			fixup_pixel_offset(p, &q[k]);
+		}
+	}
+
+	// Lower half:
+	for (i = quad_size; i < (2*quad_size); i += s) {
+		// Left half:
+		int k;
+		short *p = &res256[line];
+		short *q = &pr[((i-quad_size)>>8) + 1];
+		line += s2;
+		for (j = 0, k = 0; j < s4; j++, p++, k+= tstep) {
+			fixup_pixel_offset(p, &q[k]);
+		}
+		// Right half:
+
+		q += s;
+		for (j = s4, k = 0; j < s2; j++, p++, k+= tstep) {
+			fixup_pixel_offset(p, &q[k]);
+		}
+	}
+	offset_compensation_LL(im, res256);
 }
 
 
@@ -1294,11 +1306,11 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 
 	if (quality > LOW14) // Better quality than LOW14?
 	{
-		preprocess14(im, res256);
+		tag_thresh_ranges(im, res256);
 		offsetY_recons256(im,enc,ratio,1);
 		wavelet_synthesis(im, n>>1, end_transform-1,1);
 		// Modifies all 3 buffers:
-		postprocess14(im, res256);
+		revert_compensate_offsets(im, res256);
 		wavelet_analysis(im, n >> 1, end_transform,1);
 	}
 	

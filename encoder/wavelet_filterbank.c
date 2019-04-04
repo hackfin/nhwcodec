@@ -209,8 +209,7 @@ void wavelet_analysis(image_buffer *im, int norder, int last_stage, int is_luma)
 	}
 }
 
-static
-void wls_luma(image_buffer *im, int norder, int last_stage)
+void wl_synth_luma(image_buffer *im, int norder, int last_stage)
 {
 	const short *data,*data2;
 	short *res;
@@ -219,8 +218,8 @@ void wls_luma(image_buffer *im, int norder, int last_stage)
 	int halfno = norder >> 1;
 
 	data = im->im_jpeg;
-	res=im->im_process;
-	data2=im->im_jpeg + halfno;
+	res = im->im_process;
+	data2 = im->im_jpeg + halfno;
 
 	if (im->setup->wavelet_type==WVLTS_97)
 	{
@@ -290,8 +289,7 @@ void wls_luma(image_buffer *im, int norder, int last_stage)
 	}
 }
 
-static
-void wls_chroma(image_buffer *im, int norder, int last_stage)
+void wl_synth_chroma(image_buffer *im, int norder, int last_stage)
 {
 	const short *data,*data2;
 	short *res;
@@ -374,9 +372,9 @@ void wls_chroma(image_buffer *im, int norder, int last_stage)
 void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int is_luma)
 {
 	if (is_luma) {
-		wls_luma(im, norder, last_stage);
+		wl_synth_luma(im, norder, last_stage);
 	} else {
-		wls_chroma(im, norder, last_stage);
+		wl_synth_chroma(im, norder, last_stage);
 	}
 }
 

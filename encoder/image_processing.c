@@ -46,6 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "utils.h"
 #include "codec.h"
@@ -67,6 +68,7 @@ static char extra_table[109] = {
 -11,0,0,0,-12,0,-13,0,-14,0,0,0,-15,0,-16,0,-17,0,0,0,-18,0,-19
 };
 
+#if 0 // UNUSED CODE
 void quantizationUV(image_buffer *im)
 {
 	int i,j,low,high;
@@ -98,6 +100,7 @@ void quantizationUV(image_buffer *im)
 	}
 }
 
+
 void quantizationY(image_buffer *im)
 {
 	int i,j,low,high;
@@ -128,6 +131,8 @@ void quantizationY(image_buffer *im)
 
 }
 
+#endif
+
 void offsetUV(image_buffer *im,encode_state *enc,int m2)
 {
 	int i,exw,a;
@@ -144,52 +149,56 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 		//if (a>10000) {im->im_process[i]=124;continue;}
 		//else if (a<-6 && a>-10) {im->im_process[i]=134;continue;}
 
-		if (a>10000)
+		if (a > 10000)
 		{ 
-			if (a==CODE_12400) {p[0]=124;continue;} 
-			else if (a==CODE_12600) {p[0]=126;continue;} 
-			else if (a==CODE_12900) {p[0]=122;continue;}  
-			else if (a==CODE_13000) {p[0]=130;continue;}  
-		}
-
-		// FIXME:
-		int cond = (i&255)<(step2-1);
-		int cond1 = i < (im_size-1);
-
-		if (a>127) {
-			exw = (ROUND_8(a) - 128) >> 3;
-			if (exw>18) exw=18;
-			p[0]=extra_words1[exw];
-		} else if (a<-127) {
-			exw = (ROUND_8(-a) - 128) >> 3;
-			if (exw>18) exw=18;
-			p[0]=extra_words2[exw];
-		} else {
-			if (a<0) {
-				if (a==-7 || a==-8) {
-					if (cond && (p[0+1]==-7 || p[0+1]==-8)) {
-						p[0]=120;p[0+1]=120;i++;continue;
-					}
-				}
-
-				a = -a;
-
-				if (cond1 && p[0+1]<0 && p[0+1]>-8) {
-					if ((a&7)<6) { a = ROUND_8(a); }
-				} else {
-					if ((a&7)<7) { a = ROUND_8(a); }
-				}
-				
-				a = -a;
-			} else if (a>6 && (a&7)>=6) {
-				if (cond && p[0+1]==7) p[0+1]=8;
+			switch (a) {
+				case CODE_12400: {p[0]=124;break;} 
+				case CODE_12600: {p[0]=126;break;} 
+				case CODE_12900: {p[0]=122;break;}  
+				case CODE_13000: {p[0]=130;break;}  
+				default:
+					assert(0);
 			}
+		} else {
+			// FIXME:
+			int cond = (i&255)<(step2-1);
+			int cond1 = i < (im_size-1);
 
-			//if (a==7 || a==4) {p[0]=132;continue;} 
-			if (a < m2 && a > -m2) { p[0]=128; }
-			else {
-				a += 128;
-				p[0]= ROUND_8(a);
+			if (a>127) {
+				exw = (ROUND_8(a) - 128) >> 3;
+				if (exw>18) exw=18;
+				p[0]=extra_words1[exw];
+			} else if (a<-127) {
+				exw = (ROUND_8(-a) - 128) >> 3;
+				if (exw>18) exw=18;
+				p[0]=extra_words2[exw];
+			} else {
+				if (a<0) {
+					if (a==-7 || a==-8) {
+						if (cond && (p[0+1]==-7 || p[0+1]==-8)) {
+							p[0]=120;p[0+1]=120;i++;continue;
+						}
+					}
+
+					a = -a;
+
+					if (cond1 && p[0+1]<0 && p[0+1]>-8) {
+						if ((a&7)<6) { a = ROUND_8(a); }
+					} else {
+						if ((a&7)<7) { a = ROUND_8(a); }
+					}
+					
+					a = -a;
+				} else if (a>6 && (a&7)>=6) {
+					if (cond && p[0+1]==7) p[0+1]=8;
+				}
+
+				//if (a==7 || a==4) {p[0]=132;continue;} 
+				if (a < m2 && a > -m2) { p[0]=128; }
+				else {
+					a += 128;
+					p[0]= ROUND_8(a);
+				}
 			}
 		}
 	}
@@ -888,7 +897,7 @@ void offsetY_recons256_q3(image_buffer *im, short *nhw1, int part)
 }
 
 static inline
-int fixup_neighbours(short *p, short *q, int step)
+int evaluate_neighbours(short *p, short *q, int step)
 {
 	int skip = 0;
 
@@ -896,7 +905,9 @@ int fixup_neighbours(short *p, short *q, int step)
 		if     (p[-1] >3 && p[-1] <=7) {
 
 			if (p[1]  >3 && p[1]  <=7) {
-				p[-1]=CODE_15300;p[0]=0;q[0]=5;q[1]=5; skip = 1;
+				p[-1] = CODE_15300;
+				p[0] = 0; q[0] = 5; q[1] = 5;
+				skip = 1;
 			} else
 			if     ((p[(step-1)] > 3 && p[(step-1)] <=7)
 				&&  (p[(step)]   > 3 && p[(step)]   <=7)) {
@@ -956,7 +967,7 @@ void offsetY_recons256_q4(short *pr, short *jp, int size, int step, int part)
 
 		for (j=(step/4)+1;j<(step/2-1);j++,p++, q++)
 		{
-			if (fixup_neighbours(p, q, step)) { j++; p++; q++; }
+			if (evaluate_neighbours(p, q, step)) { j++; p++; q++; }
 		}
 	}
 
@@ -967,12 +978,24 @@ void offsetY_recons256_q4(short *pr, short *jp, int size, int step, int part)
 
 		for (j=1;j<(step/2-1);j++,p++, q++)
 		{
-			if (fixup_neighbours(p, q, step)) { j++; p++; q++; }
+			if (evaluate_neighbours(p, q, step)) { j++; p++; q++; }
 		}
 	}
 
 	if (!part)
 	{
+
+	// Operate on:
+	// <-  s2 ->
+	// +---+---+...
+	// |   | A |
+	// +---+---+   <- size
+	// | B | B |
+	// +---+---+
+	// .
+	//
+
+		// A
 		for (i=0;i<(size);i+=(step)) {
 			short *p = &pr[i + step/4];
 			for (j=(step/4);j<(step/2-1);j++,p++) {
@@ -980,7 +1003,7 @@ void offsetY_recons256_q4(short *pr, short *jp, int size, int step, int part)
 				if (tag_thresh_neighbour(p)) { j++; p++; }
 			}
 		}
-
+		// B
 		for (i=size;i<(2*size);i+=(step)) {
 			short *p = &pr[i];
 			for (j=0;j<(step/2-1);j++,p++) {
@@ -1028,12 +1051,15 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 
 	} else {
 		switch (a) {
+			// Note: all these conditions are only effective
+			// when quality better than 4: {
 			case CODE_15300: q[0] =  5;          return 2;
 			case CODE_15400: q[0] = -5;          return 2;
 			case CODE_15500: q[0] =  5;          return 1;
 			case CODE_15600: q[0] = -5;          return 1;
 			case CODE_15700: q[0] =  6; q[1]= 6; return 1;
 			case CODE_15800: q[0] = -6; q[1]=-6; return 1;
+			// }
 			case 8:
 				if (end && p[1]==-7) p[1]=-8;
 				break;
@@ -1056,26 +1082,18 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 // enc->highres_mem might be uninitalized, when this function is called before
 // Y_highres_compression(). This is only safe when 'part' != 0.
 //
-void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
+
+static
+void offsetY_recons256_generic_part0(image_buffer *im, encode_state *enc,
+	short thresh[2])
 {
-	int i,j,a,t;
-	short *nhw1,*highres_tmp;
-	int step = im->fmt.tile_size;
+	int i, a, j;
+
 	int im_size = im->fmt.end / 4;
-	short thresh0, thresh1;
-
-	nhw1=(short*)im->im_process;
-
-	if (im->setup->quality_setting>LOW3) {
-		offsetY_recons256_q3(im, nhw1, part);
-		thresh0 = 10000;
-		thresh1 = 1;
-	} else {
-		thresh0 = -32768;
-		thresh1 = 32767;
-	}
-
-	for (i=0,a=0,t=0;i<im_size;i+=step)
+	int step = im->fmt.tile_size;
+	
+	// Process LL:
+	for (i=0,a=0;i<im_size;i+=step)
 	{
 		short *p = &im->im_process[i];
 		short *q = &im->im_jpeg[i];
@@ -1085,26 +1103,14 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 
 			if (p[0]>10000) 
 			{
-				if (!part) q[0]=p[0];
-				else 
-				{
-					p[0]-=16000;q[0]=p[0];
-					if (p[1]>0 && p[1]<256) q[1]=ROUND_2(p[1]);
-					else q[1]=p[1];
-					j++;a++; p++; q++;
-				} 
-
+				q[0]=p[0];
 				continue;
 			}
-			/*else if (!part && im->setup->quality_setting<=LOW3 && j>0 && j<((step/4)-1) && abs(p[-1]-p[1])<1 && abs(p[-1]-p[0])<=3)
-		 	{
-				p[0]=p[-1];//p[1]=p[-1];
-			}*/
 			else if ((p[0]&1)==1 && a>i && (p[1]&1)==1 /*&& !(p[-1]&1)*/)
 			{
 				if (j<((step/4)-2) && (p[2]&1)==1 /*&& !(im->im_process[a+3]&1)*/)
 				{
-					if (abs(p[0]-p[2])> thresh1) p[1]++;
+					if (abs(p[0]-p[2])> thresh[1]) p[1]++;
 				}
 				/*else if (j<((step/4)-4) && (p[2]&1)==1 && (p[3]&1)==1
 						&& !(p[4]&1))
@@ -1114,7 +1120,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 				else if (i<(im_size-step-2) && (p[step]&1)==1 
 							&& (p[(step+1)]&1)==1 && !(p[(step+2)]&1))
 				{
-					if (p[step]<thresh0) p[step]++;
+					if (p[step]<thresh[0]) p[step]++;
 				}
 			}
 			else if ((p[0]&1)==1 && i>=step && i<(im_size-(3*step)))
@@ -1123,43 +1129,128 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 				{
 					if ((p[(2*step)]&1)==1 && !(p[(3*step)]&1)) 
 					{
-						if (p[step]<thresh0) p[step]++;
+						if (p[step]<thresh[0]) p[step]++;
+					}
+				}
+			}
+		}
+	}
+}
+
+static
+void offsetY_recons256_generic_part1(image_buffer *im, encode_state *enc,
+	short thresh[2])
+{
+	int i, a, j;
+
+	int im_size = im->fmt.end / 4;
+	int step = im->fmt.tile_size;
+	
+	// Process LL:
+	for (i=0,a=0;i<im_size;i+=step)
+	{
+		short *p = &im->im_process[i];
+		short *q = &im->im_jpeg[i];
+
+		for (a=i,j=0;j<(step/4);j++,a++, p++, q++) 
+		{
+
+			if (p[0]>10000) 
+			{
+				p[0]-=16000;q[0]=p[0];
+				if (p[1]>0 && p[1]<256) q[1]=ROUND_2(p[1]);
+				else q[1]=p[1];
+				j++;a++; p++; q++;
+
+				continue;
+			}
+			else if ((p[0]&1)==1 && a>i && (p[1]&1)==1 /*&& !(p[-1]&1)*/)
+			{
+				if (j<((step/4)-2) && (p[2]&1)==1 /*&& !(im->im_process[a+3]&1)*/)
+				{
+					if (abs(p[0]-p[2])> thresh[1]) p[1]++;
+				}
+				/*else if (j<((step/4)-4) && (p[2]&1)==1 && (p[3]&1)==1
+						&& !(p[4]&1))
+				{
+					p[2]++;
+				}*/
+				else if (i<(im_size-step-2) && (p[step]&1)==1 
+							&& (p[(step+1)]&1)==1 && !(p[(step+2)]&1))
+				{
+					if (p[step]<thresh[0]) p[step]++;
+				}
+			}
+			else if ((p[0]&1)==1 && i>=step && i<(im_size-(3*step)))
+			{
+				if ((p[step]&1)==1 && (p[(step+1)]&1)==1)
+				{
+					if ((p[(2*step)]&1)==1 && !(p[(3*step)]&1)) 
+					{
+						if (p[step]<thresh[0]) p[step]++;
 					}
 				}
 			}
 
-			if (part) 
-			{
-				if (p[0]>0 && p[0]<256) q[0]=ROUND_2(p[0]);
-				else q[0]=p[0];
-			}
+			if (p[0]>0 && p[0]<256) q[0]=ROUND_2(p[0]);
+			else q[0]=p[0];
 		}
 	}
+}
 
-	if (!part)
+static
+void fixup_highres(image_buffer *im, short *highres_tmp)
+{
+	int i, j;
+	int step = im->fmt.tile_size;
+	int im_size = im->fmt.end / 4;
+
+	for (i = 0; i < im_size; i += step)
 	{
+		short *p = &im->im_process[i];
+		short *q = &im->im_jpeg[i];
+		for (j = 0; j < (step / 4); j++, p++, q++) 
+		{
+			if (p[0] < 10000) {
+				*highres_tmp = p[0];
+				if (p[0]>=0 && p[0]<256) q[0]=ROUND_2(p[0]);
+				else q[0]=p[0]; 
+			} else {
+				p[0]-=16000;
+				*highres_tmp = p[0];
+				q[0]=p[0];
+			}
+			highres_tmp++;
+		}
+	}
+}
+
+void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
+{
+	int i,j,a;
+	short *nhw1,*highres_tmp;
+	int step = im->fmt.tile_size;
+	int im_size = im->fmt.end / 4;
+	short thresh[2];
+
+	nhw1=(short*)im->im_process;
+
+	if (im->setup->quality_setting>LOW3) {
+		offsetY_recons256_q3(im, nhw1, part);
+		thresh[0] = 10000;
+		thresh[1] = 1;
+	} else {
+		thresh[0] = -32768;
+		thresh[1] = 32767;
+	}
+
+	if (part) {
+		offsetY_recons256_generic_part1(im, enc, thresh);
+	} else {
+		offsetY_recons256_generic_part0(im, enc, thresh);
 		highres_tmp=(short*)malloc((im_size>>2)*sizeof(short));
 
-		for (i=0,t=0;i<im_size;i+=step)
-		{
-			short *p = &nhw1[i];
-			short *q = &im->im_jpeg[i];
-			for (j=0;j<(step / 4);j++,p++, q++) 
-			{
-				if (p[0]<10000)
-				{
-					highres_tmp[t++]=p[0];
-					if (p[0]>=0 && p[0]<256) q[0]=ROUND_2(p[0]);
-					else q[0]=p[0]; 
-				}
-				else
-				{
-					p[0]-=16000;
-					highres_tmp[t++]=p[0];
-					q[0]=p[0];
-				}
-			}
-		}
+		fixup_highres(im, highres_tmp);
 
 		if (im->setup->quality_setting>LOW5)
 		{
@@ -1168,37 +1259,19 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 				j=(enc->highres_mem[i]>>7);
 				a=enc->highres_mem[i]&127;
 
-				im->im_jpeg[(j<<9)+a]=highres_tmp[enc->highres_mem[i]];
+				im->im_jpeg[(j<<im->fmt.tile_power)+a]=highres_tmp[enc->highres_mem[i]];
 			}
 
 			// XXX Don't free this here.
 			// free(enc->highres_mem);
 		}
 		free(highres_tmp);
-
 	}
 
-	/*if (!part)
-	{
-		if (im->setup->quality_setting<LOW6)
-		{
-			for (i=im_size;i<(2*im_size);i+=(step))
-			{
-				for (a=i,j=0;j<step >> 1;j++,a++)
-				{
-					if (abs(im->im_process[a])>=8 &&  abs(im->im_process[a])<9) 
-					{	
-						im->im_process[a]=0;
-						//if (nhw_process[scan]>0) nhw_process[scan]=7;else nhw_process[scan]=-7;
-					}
-				}
-			}
-		}
-	}*/
-
-	
 	if (im->setup->quality_setting>LOW4)
 	{
+		// Tags pixels according to neighbour properties
+		// Only this function is tagging by CODE_15xxx
 		offsetY_recons256_q4(im->im_process, im->im_jpeg, im->fmt.end / 4, step, part);
 	}
 
@@ -1266,12 +1339,14 @@ void offsetUV_recons256_q5(short *dst, const short *src, int size, int step)
 {
 	int i;
 
+#warning "Tiling incompatible"
+
 	for (i=0;i<(size>>2);i++)
 	{
 		// TODO: Check boundary conditions
 		if ((i&255)<(step))
 		{
-			if (!(i>>8)) {
+			if (!(i>>8)) { // FIXME
 				*dst++=*src++;
 				*dst++=ROUND_2(*src++);
 			} else {

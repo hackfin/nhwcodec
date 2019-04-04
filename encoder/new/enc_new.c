@@ -9,10 +9,16 @@
 // #define SIMPLIFIED
 #define CRUCIAL
 
+
+void wl_synth_luma(image_buffer *im, int norder, int last_stage);
+
 #ifdef CRUCIAL
 
-void postprocess14(image_buffer *im, short *res256);
-void preprocess14(image_buffer *im, short *result);
+#define FIRST_STAGE 0
+#define SECOND_STAGE 1
+
+void revert_compensate_offsets(image_buffer *im, short *res256);
+void tag_thresh_ranges(image_buffer *im, short *result);
 
 void process_res_q8(image_buffer *im, short *res256, encode_state *enc);
 void process_hires_q8(image_buffer *im,
@@ -222,7 +228,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	virtfb_init(n, n);
 
 	// This always places the result in pr:
-	wavelet_analysis(im, n, 0, 1);                  // CAN_HW
+	wavelet_analysis(im, n, FIRST_STAGE, 1);                  // CAN_HW
 	// copy LL1
 	// Unused in this compression mode:
 	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
@@ -230,7 +236,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	write_image16("/tmp/res256.png", res256, n / 2, 0);
 
 	im->setup->RES_HIGH=0;
-	wavelet_analysis(im, n >> 1, 1, 1);             // CAN_HW
+	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);             // CAN_HW
 
 	configure_wvlt(quality, wvlt);                  // CAN_HW
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
@@ -276,7 +282,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	int quality = im->setup->quality_setting;
 	int res;
-	int end_transform;
 	short *res256, *resIII;
 	unsigned char *highres;
 	short *pr;
@@ -285,13 +290,11 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	int n = im->fmt.tile_size; // line size Y
 
-	init_lut(g_lut, 0.7);
+	custom_init_lut(g_lut, 20);
 	virtfb_init(n, n);
 
-	end_transform=0;
-
 	// This always places the result in pr:
-	wavelet_analysis(im, n, end_transform++, 1);
+	wavelet_analysis(im, n, FIRST_STAGE, 1);
 
 	write_image16("/tmp/wl1.png", im->im_process, n, 0);
 
@@ -307,23 +310,33 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	im->setup->RES_HIGH=0;
 
-	wavelet_analysis(im, n >> 1, end_transform,1);
+	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 
 	write_image16("/tmp/wl2.png", im->im_process, n, 0);
 
 #ifdef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
-		preprocess14(im, res256);
+		// Tag all values in a specific threshold range with an offset.
+		// The tags are applied to the res256 array, process is untouched.
+		//
+		// range:    ...  | -7 .. -5  | -4 .. -1 | 2 .. 4 |  5 .. 7  | ...
+		// offset:  (T16) |    T12    |     -    | (T12)  |   T16    | (T12)
+		// ( ) : dependent on special condition:
+		// When outside this range, tag them according to its modulo 8:
+		//  MOD8(abs(val)):      7 (val<0)      1 (val > 0)
+		//  offset:              T16               T12
+		tag_thresh_ranges(im, res256);
 
-		write_image16("/tmp/res_p14.png", res256, 256, 0);
+		write_image16("/tmp/res_p14.png", res256, n / 2, 0);
 
 		offsetY_recons256(im,enc,ratio,1);
-		wavelet_synthesis(im, n>>1, end_transform-1,1);
-		write_image16("/tmp/syn_stage1.png", im->im_process, n, 0);
+		// Drops result in im_process:
+		wl_synth_luma(im, n>>1, FIRST_STAGE);
 		// Modifies all 3 buffers:
-		postprocess14(im, res256);
-		wavelet_analysis(im, n >> 1, end_transform,1);
+		revert_compensate_offsets(im, res256);
+		write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
+		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 	}
 	
 	if (quality <= LOW9) // Worse than LOW9?
@@ -368,12 +381,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	copy_to_quadrant(pr, resIII, n, n);
 
-	
 	if (quality > LOW8) { // Better than LOW8?
 
-		offsetY_recons256(im, enc, ratio, 0);
+		// 
+		offsetY_recons256(im, enc, ratio, 0); // FIXME: Eliminate 'part'
+		//offsetY_recons256_part0(im, enc, ratio);
 
-		wavelet_synthesis(im,n>>1,end_transform-1,1);
+		// Drops result in im_process:
+		wl_synth_luma(im, n>>1, FIRST_STAGE);
 
 		if (quality>HIGH1) {
 			im->im_wavelet_first_order=(short*)malloc(quad_size*sizeof(short));
