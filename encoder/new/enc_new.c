@@ -6,6 +6,10 @@
 #include "codec.h"
 #include "remote.h"
 
+#define FIRST_STAGE  0
+#define SECOND_STAGE 1
+
+
 // #define SIMPLIFIED
 #define CRUCIAL
 
@@ -13,9 +17,6 @@
 void wl_synth_luma(image_buffer *im, int norder, int last_stage);
 
 #ifdef CRUCIAL
-
-#define FIRST_STAGE 0
-#define SECOND_STAGE 1
 
 void revert_compensate_offsets(image_buffer *im, short *res256);
 void tag_thresh_ranges(image_buffer *im, short *result);
@@ -288,20 +289,16 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	char wvlt[7];
 	pr=(short*)im->im_process;
 
-	int n = im->fmt.tile_size; // line size Y
+	// First order quadrant size:
+	int quad_size = im->fmt.end / 4;
+	int n = im->fmt.tile_size;
 
 	custom_init_lut(g_lut, 20);
 	virtfb_init(n, n);
 
-	// This always places the result in pr:
-	wavelet_analysis(im, n, FIRST_STAGE, 1);
+	wavelet_analysis(im, n,FIRST_STAGE,1);
 
-	write_image16("/tmp/wl1.png", im->im_process, n, 0);
-
-	virtfb_set((unsigned short *) im->im_process);
-
-	int quad_size = im->fmt.end / 4;
-
+	// Add some head room for padding (PAD is initialized to 0!)
 	res256 = (short*) calloc((quad_size + n), sizeof(short));
 	resIII = (short*) malloc(quad_size*sizeof(short));
 
@@ -407,36 +404,31 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	reduce_generic(im, resIII, wvlt, enc, ratio);
 	
-#ifdef CRUCIAL
-	if (quality > LOW8) {
-		process_res_q8(im, res256, enc);
-	}
-#endif
-
-#ifdef CRUCIAL
-	highres=(unsigned char*)calloc(((48*im->fmt.tile_size)+1),sizeof(char));
-
-	if (quality > HIGH1) {
-		process_res_hq(im, res256);
-	}
-#endif
 	
 #ifdef CRUCIAL
 	if (quality > LOW8)
 	{
-		process_hires_q8(im, highres, res256, enc);
-	}
+		process_res_q8(im, res256, enc);
 
-	// Further residual processing:
-	if (quality>=LOW1) {
-		process_res3_q1(im, highres, res256, enc);
-		if (quality>=HIGH1)
-		{
-			process_res5_q1(im, highres, res256, enc);
+		highres=(unsigned char*)calloc(((48*im->fmt.tile_size)+1),sizeof(char));
+
+		if (quality > HIGH1) {
+			process_res_hq(im, res256);
 		}
+
+		process_hires_q8(im, highres, res256, enc);
+
+		// Further residual processing:
+		if (quality>=LOW1) {
+			process_res3_q1(im, highres, res256, enc);
+			if (quality>=HIGH1)
+			{
+				process_res5_q1(im, highres, res256, enc);
+			}
+		}
+		free(highres);
 	}
 	
-	free(highres);
 #endif
 	free(res256);
 
@@ -734,7 +726,7 @@ int main(int argc, char **argv)
 			FILE *png_out;
 			// Initialize decoder with encoder values:
 			init_decoder(&dec, &enc);
-			dec.res_comp=(unsigned char*)malloc((48*im.fmt.tile_size+1)*sizeof(char));
+			dec.res_comp=(unsigned char*)calloc((48*im.fmt.tile_size+1),sizeof(char));
 			im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
 
 			process_hrcomp(&im, &dec);

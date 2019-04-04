@@ -524,6 +524,7 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 	unsigned char codebook[NUM_CODE_WORDS],color;
 
 	C.nhw_comp=(unsigned char*)im->im_nhw;
+	C.zone_entrance = 0;
 
 	enc->encode=(unsigned int*)calloc(80000,sizeof(int));
 	enc->tree1=(unsigned char*)calloc((DEPTH+UNZONE1+1)*2,sizeof(char));

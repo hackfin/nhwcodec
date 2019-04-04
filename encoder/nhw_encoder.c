@@ -307,8 +307,6 @@ void offset_compensation_LL(image_buffer *im, short *res256)
 	int s = im->fmt.tile_size;
 	int s2 = s / 2;
 
-	int quad_size = im->fmt.end / 4;
-
 	int l;
 
 	short *pr = im->im_process;
@@ -1378,29 +1376,27 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	
 	if (quality > LOW8) {
 		process_res_q8(im, res256, enc);
-	}
 
-	highres=(unsigned char*)calloc(((96*halfn)+1),sizeof(char));
+		highres=(unsigned char*)calloc(((96*halfn)+1),sizeof(char));
 
-	if (quality > HIGH1) {
-		process_res_hq(im, res256);
-	}
-	
-	if (quality > LOW8)
-	{
-		process_hires_q8(im, highres, res256, enc);
-	}
-
-	// Further residual processing:
-	if (quality>=LOW1) {
-		process_res3_q1(im, highres, res256, enc);
-		if (quality>=HIGH1)
-		{
-			process_res5_q1(im, highres, res256, enc);
+		if (quality > HIGH1) {
+			process_res_hq(im, res256);
 		}
-	}
 	
-	free(highres);
+		process_hires_q8(im, highres, res256, enc);
+
+		// Further residual processing:
+		if (quality>=LOW1) {
+			process_res3_q1(im, highres, res256, enc);
+			if (quality>=HIGH1)
+			{
+				process_res5_q1(im, highres, res256, enc);
+			}
+		}
+	
+		free(highres);
+	}
+
 	free(res256);
 
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
