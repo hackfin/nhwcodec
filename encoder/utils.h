@@ -6,32 +6,65 @@
 #define CLAMPL(x, low)  \
 		if (x < low) { x = low ; }
 
+////////////////////////////////////////////////////////////////////////////
 // Special code markers:
 
-#define CODE_12000 12000
+// TODO: Put all functionality into opcodes
+
+
+
+// Codes used for res256 buffer:
 #define CODE_12100 12100
 #define CODE_12200 12200
 #define CODE_12300 12300
+#define CODE_12400 12400
 #define CODE_12500 12500
 #define CODE_12600 12600
-#define CODE_12300 12300
-#define CODE_12400 12400
-#define CODE_12900 12900
-#define CODE_13000 13000
+
 #define CODE_14000 14000
 #define CODE_14100 14100
+// #define CODE_14400 14500  // Not used as 'CODE', see TAG
 #define CODE_14500 14500
 #define CODE_14900 14900
 
-#define CODE_15800 15800
+#define IS_CODE(r)  (r > 12000)
 
-#define CODE_15300 15300
-#define CODE_15400 15400
-#define CODE_15500 15500
-#define CODE_15600 15600
-#define CODE_15700 15700
-#define CODE_15800 15800
+// Tags that are the byte equivalents from the above CODEs:
+// They mark the residual compensations for the final
+// coordinate list of values to be compensated
 
+
+#ifdef USE_OPCODES
+#include "opcodes.h"
+#define IS_OPCODE(a)  (a & OPCODE_RES)
+
+#else
+
+#define OP_R30_P 122
+#define OP_R31_N 121
+#define OP_R32_P 123
+#define OP_R33_N 124
+#define OP_R3R1N 125
+#define OP_R3R0P 126
+
+#define OP_R10_P 140
+#define OP_R11_N 141
+
+#define OP_R50_P 145
+#define OP_R51_N 144
+#define OP_R5R1N 148
+#define OP_R5R1P 149
+
+#endif
+
+// Codes used for the im_process buffer:
+#define OFFS_C_CODE_12600 12600
+#define OFFS_C_CODE_12400 12400
+#define OFFS_C_CODE_12900 12900
+#define OFFS_C_CODE_13000 13000
+
+// Markers used by image_processing:offsetY_LL_q4()
+// and reduce_HL_q4()
 #define MARK_121   12100
 #define MARK_122   12204
 #define MARK_125   10204
@@ -39,6 +72,13 @@
 #define MARK_127   12700
 #define MARK_128   10100
 #define MARK_129   12900
+#define MARK_15300 15300
+#define MARK_15400 15400
+#define MARK_15500 15500
+#define MARK_15600 15600
+#define MARK_15700 15700
+#define MARK_15800 15800
+
 
 #ifndef __CONCAT
 #define __CONCAT(x, y) x##y

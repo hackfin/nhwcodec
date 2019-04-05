@@ -149,13 +149,12 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 		//if (a>10000) {im->im_process[i]=124;continue;}
 		//else if (a<-6 && a>-10) {im->im_process[i]=134;continue;}
 
-		if (a > 10000)
-		{ 
+		if (IS_CODE(a)) { 
 			switch (a) {
-				case CODE_12400: {p[0]=124;break;} 
-				case CODE_12600: {p[0]=126;break;} 
-				case CODE_12900: {p[0]=122;break;}  
-				case CODE_13000: {p[0]=130;break;}  
+				case OFFS_C_CODE_12400: {p[0]=124;break;} 
+				case OFFS_C_CODE_12600: {p[0]=126;break;} 
+				case OFFS_C_CODE_12900: {p[0]=122;break;}  
+				case OFFS_C_CODE_13000: {p[0]=130;break;}  
 				default:
 					assert(0);
 			}
@@ -905,14 +904,14 @@ int evaluate_neighbours(short *p, short *q, int step)
 		if     (p[-1] >3 && p[-1] <=7) {
 
 			if (p[1]  >3 && p[1]  <=7) {
-				p[-1] = CODE_15300;
+				p[-1] = MARK_15300;
 				p[0] = 0; q[0] = 5; q[1] = 5;
 				skip = 1;
 			} else
 			if     ((p[(step-1)] > 3 && p[(step-1)] <=7)
 				&&  (p[(step)]   > 3 && p[(step)]   <=7)) {
-					p[-1] =       CODE_15500;  q[0]      = 5;
-					p[(step-1)] = CODE_15500;  q[(step)] = 5;
+					p[-1] =       MARK_15500;  q[0]      = 5;
+					p[(step-1)] = MARK_15500;  q[(step)] = 5;
 					p[(step)] = 0;
 					skip = 1;
 			}
@@ -920,13 +919,13 @@ int evaluate_neighbours(short *p, short *q, int step)
 	} else if (p[0] <- 3 && p[0] > -8) {
 		if (p[-1]    <-3 && p[-1] >=-7) {
 			if (p[1] <-3 && p[1]  >=-7) {
-				p[-1] = CODE_15400;  p[0] = 0;
+				p[-1] = MARK_15400;  p[0] = 0;
 				q[0]  = -6;     q[1] = -5; skip = 1;
 			}
 			else if (p[(step-1)] < -3 && p[(step-1)] >= -7) {
 				if (p[(step)] <    -3 && p[(step)]   >= -7) {
-					p[-1]      = CODE_15600;  q[0]      = -5;
-					p[(step-1)]= CODE_15600;  q[(step)] = -5;
+					p[-1]      = MARK_15600;  q[0]      = -5;
+					p[(step-1)]= MARK_15600;  q[(step)] = -5;
 					p[(step)]=0;
 					skip = 1;
 				}
@@ -941,13 +940,13 @@ int tag_thresh_neighbour(short *p)
 	if (p[0]==5 || p[0]==6 || p[0]==7) {
 		if (p[1]==5 || p[1]==6 || p[1]==7) {
 			//p[0]+=3;
-			p[0]=CODE_15700;
+			p[0]=MARK_15700;
 			return 1;
 		}
 	} else if (p[0]==-5 || p[0]==-6 || p[0]==-7) {
 		if (p[1]==-5 || p[1]==-6 || p[1]==-7) {
 			//p[0]-=3;
-			p[0]=CODE_15800;
+			p[0]=MARK_15800;
 			return 1;
 		}
 	}
@@ -1053,12 +1052,12 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 		switch (a) {
 			// Note: all these conditions are only effective
 			// when quality better than 4: {
-			case CODE_15300: q[0] =  5;          return 2;
-			case CODE_15400: q[0] = -5;          return 2;
-			case CODE_15500: q[0] =  5;          return 1;
-			case CODE_15600: q[0] = -5;          return 1;
-			case CODE_15700: q[0] =  6; q[1]= 6; return 1;
-			case CODE_15800: q[0] = -6; q[1]=-6; return 1;
+			case MARK_15300: q[0] =  5;          return 2;
+			case MARK_15400: q[0] = -5;          return 2;
+			case MARK_15500: q[0] =  5;          return 1;
+			case MARK_15600: q[0] = -5;          return 1;
+			case MARK_15700: q[0] =  6; q[1]= 6; return 1;
+			case MARK_15800: q[0] = -6; q[1]=-6; return 1;
 			// }
 			case 8:
 				if (end && p[1]==-7) p[1]=-8;
@@ -1271,7 +1270,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 	if (im->setup->quality_setting>LOW4)
 	{
 		// Tags pixels according to neighbour properties
-		// Only this function is tagging by CODE_15xxx
+		// Only this function is tagging by MARK_15xxx
 		offsetY_recons256_q4(im->im_process, im->im_jpeg, im->fmt.end / 4, step, part);
 	}
 

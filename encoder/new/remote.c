@@ -45,11 +45,11 @@ int set_property(DEVICE d, const char *name, void *val, int type)
 	return dcDevice_SetProperty(d, t, &v);
 }
 
-int set_buffer(DEVICE d, TOKEN t, void  *buf, int len)
+int set_buffer(DEVICE d, TOKEN t, const void *buf, int len)
 {
 	int error;
 	DCValue val;
-	val.value.p = buf;
+	val.value.p = (void *) buf;
 	val.len = len;
 	val.type = DC_BUFFER;
 
@@ -74,15 +74,15 @@ void break_handler(int n)
 	exit(-1);
 }
 
-int virtfb_init(int width, int height)
+int virtfb_init(int width, int height, const unsigned char *lut)
 {
 	DEVICE d;
 	int error;
 	int bpp = 16;
 	const char port[] = "TCP:localhost:2008";
 	short i, type = VIDEOMODE_INDEXED;
-	short mode = 3; // Pseudocolor15
-	float gamma = 0.5;
+	short mode = 0; // Custom
+	// float gamma = 0.5;
 
 	FBuffer *fb = &g_context.fb;
 
@@ -96,32 +96,39 @@ int virtfb_init(int width, int height)
 
 	error = dcDeviceOpen(port, &d);
 	if (error >= 0) {
+	
+		TOKEN t_lut;
 
-		fb->device = d;
+		error = dcProperty_ParseName(d, "ColorTable.CustomData", &t_lut);
+		if (error >= 0 ) {
 
-		error = dcProperty_ParseName(d, "Stream.Data", &fb->token);
-		if (error >= 0) {
-			// Configure display:
+			fb->device = d;
 
-			set_property(d, "Stream.X", &width, DC_INT);
-			set_property(d, "Stream.Y", &height, DC_INT);
-			i = bpp; set_property(d, "Stream.BitsPerPixel", &i, DC_MODE);
-			printf("Configure for mode %d\n", type);
-			set_property(d, "Mode", &type, DC_MODE);
-			i = 1; set_property(d, "Stream.Start", &i, DC_COMMAND);
+			error = dcProperty_ParseName(d, "Stream.Data", &fb->token);
+			if (error >= 0) {
+				// Configure display:
 
-			// Set 16 bit to 8 bit coding:
-			set_property(d, "ColorTable.Preset", &mode, DC_MODE);
-			set_property(d, "ColorTable.Gamma", &gamma, DC_FLOAT);
-			i = 1;
-			set_property(d, "ColorTable.Update", &i, DC_COMMAND);
+				set_property(d, "Stream.X", &width, DC_INT);
+				set_property(d, "Stream.Y", &height, DC_INT);
+				i = bpp; set_property(d, "Stream.BitsPerPixel", &i, DC_MODE);
+				printf("Configure for mode %d\n", type);
+				set_property(d, "Mode", &type, DC_MODE);
+				i = 1; set_property(d, "Stream.Start", &i, DC_COMMAND);
+
+				// Set 16 bit to 8 bit coding:
+				set_property(d, "ColorTable.Preset", &mode, DC_MODE);
+				// set_property(d, "ColorTable.Gamma", &gamma, DC_FLOAT);
+				set_buffer(d, t_lut, lut, 3 * 0x10000);
+				i = 1;
+				set_property(d, "ColorTable.Update", &i, DC_COMMAND);
 
 
-			signal(SIGINT, break_handler);
-		} else {
-			fprintf(stderr,
-				"Doesn't seem to be a netpp display server we're talking to\n");
-			error = -2;
+				signal(SIGINT, break_handler);
+			} else {
+				fprintf(stderr,
+					"Doesn't seem to be a netpp display server we're talking to\n");
+				error = -2;
+			}
 		}
 	} else {
 		error = -1;
@@ -137,7 +144,7 @@ int virtfb_init(int width, int height)
 	return error;
 }
 
-int virtfb_set(unsigned short *buffer)
+int virtfb_set(const unsigned short *buffer)
 {
 	FBuffer *fb = &g_context.fb;
 	printf("Updating buffer size %ld\n", fb->size);

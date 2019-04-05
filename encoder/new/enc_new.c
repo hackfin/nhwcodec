@@ -21,19 +21,15 @@ void wl_synth_luma(image_buffer *im, int norder, int last_stage);
 void revert_compensate_offsets(image_buffer *im, short *res256);
 void tag_thresh_ranges(image_buffer *im, short *result);
 
-void process_res_q8(image_buffer *im, short *res256, encode_state *enc);
+void preprocess_res_q8(image_buffer *im, short *res256, encode_state *enc);
 void process_hires_q8(image_buffer *im,
-	unsigned char *highres, short *res256, encode_state *enc);
+	ResIndex *highres, short *res256, encode_state *enc);
 
-void process_res3_q1(image_buffer *im,
-	unsigned char *highres, short *res256, encode_state *enc);
-void process_res_hq(image_buffer *im, const short *res256);
-void process_res5_q1(image_buffer *im,
-	unsigned char *highres, short *res256, encode_state *enc);
 
-void reduce_LH_q9(image_buffer *im, const char *wvlt, int ratio);
-void reduce_LL_q7(image_buffer *im, const char *wvlt);
-void reduce_LL_q9(image_buffer *im, const char *wvlt);
+void process_residuals(image_buffer *im,
+	ResIndex *highres, short *res256, encode_state *enc);
+
+void reduce_lowres_generic(image_buffer *im, char *wvlt, int ratio);
 
 #endif
 
@@ -69,7 +65,7 @@ void write_image(const char *filename, uint8_t *buf)
 	FILE *out = fopen(filename, "wb");
 	int s = 1 << g_encconfig.tilepower;
 	if (out) {
-		write_png(out, buf, s, s, 0);
+		write_png(out, buf, s, s, 0, 0);
 	} else {
 		perror("Opening file");
 	}
@@ -116,6 +112,12 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 				*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
 			}
 			break;
+		case 2:
+			for (i = 0; i < tilesize * tilesize; i++) {
+				tmp = *buf++;
+				*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+			}
+			break;
 		default:
 			for (i = 0; i < tilesize; i++) {
 				for (j = 0; j < tilesize; j++) {
@@ -130,10 +132,9 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 
 	}
 
-
 	FILE *out = fopen(filename, "wb");
 	if (out) {
-		write_png(out, buf8, tilesize, tilesize, 1);
+		write_png(out, buf8, tilesize, tilesize, 1, 1);
 	} else {
 		perror("Opening file");
 	}
@@ -213,6 +214,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	char wvlt[7];
 	pr = im->im_process;
 	int quad_size = im->fmt.end / 4;
+	ResIndex *highres;
 
 	int n = im->fmt.tile_size; // line size Y
 
@@ -223,10 +225,10 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	resIII = (short*) malloc(quad_size*sizeof(short));
 	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
 	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
-	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
+	enc->res_ch=(unsigned char *)calloc((quad_size>>2),sizeof(char));
 
 	custom_init_lut(g_lut, 20);
-	virtfb_init(n, n);
+	virtfb_init(n, n, g_lut);
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);                  // CAN_HW
@@ -234,7 +236,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	// Unused in this compression mode:
 	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
 
-	write_image16("/tmp/res256.png", res256, n / 2, 0);
+	write_image16("/tmp/res256.png", res256, n / 2, 2);
 
 	im->setup->RES_HIGH=0;
 	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);             // CAN_HW
@@ -243,14 +245,27 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 	write_image16("/tmp/resIII.png", resIII, n / 2, 0);
 
-	compress_q(im, enc);                // CAN_HW (< LOW3)
+	tree_compress_q(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
-	reduce_generic(im, resIII, wvlt, enc, ratio);
+	reduce_generic(im, resIII, wvlt, enc, ratio); // TODO: Simplify
+
+	if (quality > LOW8) {
+		// This is a big ugly function.
+		// In first pass, res256 are tagged with CODE_* values
+		// Second pass reverts these back to the corresponding TAGs
+		preprocess_res_q8(im, res256, enc);
+
+		highres=(ResIndex*)calloc(((48*im->fmt.tile_size)+1),sizeof(ResIndex));
+
+		process_residuals(im, highres, res256, enc); // CAN_HW
+
+		free(highres);
+	}
 
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
-	ywl(im, ratio, lookup_ywlthreshold(quality));
+	ywl(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();
@@ -284,7 +299,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int quality = im->setup->quality_setting;
 	int res;
 	short *res256, *resIII;
-	unsigned char *highres;
+	ResIndex *highres;
 	short *pr;
 	char wvlt[7];
 	pr=(short*)im->im_process;
@@ -294,9 +309,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int n = im->fmt.tile_size;
 
 	custom_init_lut(g_lut, 20);
-	virtfb_init(n, n);
+	virtfb_init(n, n, g_lut);
 
-	wavelet_analysis(im, n,FIRST_STAGE,1);
+	// This always places the result in pr:
+	wavelet_analysis(im, n, FIRST_STAGE, 1);
+
+	write_image16("/tmp/wl1.png", im->im_process, n, 0);
+
+	virtfb_set((unsigned short *) im->im_process);
 
 	// Add some head room for padding (PAD is initialized to 0!)
 	res256 = (short*) calloc((quad_size + n), sizeof(short));
@@ -335,42 +355,28 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
 		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 	}
-	
-	if (quality <= LOW9) // Worse than LOW9?
-	{
-		if (quality > LOW14) wvlt[0] = 10; else wvlt[0] = 11;
-		reduce_LH_q9(im, wvlt, ratio);
-	}
 #endif
-		
-	configure_wvlt(quality, wvlt);
+	
+	reduce_lowres_generic(im, wvlt, ratio);
 
-#ifdef CRUCIAL
-	if (quality < LOW7) {
-			
-		reduce_LL_q7(im, wvlt);
-		
-		if (quality <= LOW9) {
-			reduce_LL_q9(im, wvlt);
-		}
-	}
-#endif
-	
 	copy_from_quadrant(resIII, pr, n, n);
 	
 	enc->tree1=(unsigned char*) calloc(((48*im->fmt.tile_size)+4),sizeof(char));
-	enc->exw_Y=(unsigned char*) malloc(16*im->fmt.tile_size*sizeof(short)); // CHECK: short??
+	enc->exw_Y=(unsigned char*) malloc(32*im->fmt.tile_size*sizeof(char));
 	
 	if (quality > LOW3)
 	{
 		res = process_res_q3(im);
 		enc->nhw_res4_len=res;
-		enc->nhw_res4=(unsigned char*)calloc(enc->nhw_res4_len,sizeof(char));
+		enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
 	}
 
-	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
+	enc->res_ch=(unsigned char *)calloc((quad_size>>2),sizeof(char));
 
-	compress1(im, enc);
+	// This fills the tree structures and coordinate index
+	// arrays for tagged values in the im_process array. Tagged values are
+	// reverted.
+	tree_compress(im, enc);
 
 	Y_highres_compression(im, enc);
 
@@ -379,7 +385,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	copy_to_quadrant(pr, resIII, n, n);
 
 	if (quality > LOW8) { // Better than LOW8?
-
 		// 
 		offsetY_recons256(im, enc, ratio, 0); // FIXME: Eliminate 'part'
 		//offsetY_recons256_part0(im, enc, ratio);
@@ -403,33 +408,23 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 ////////////////////////////////////////////////////////////////////////////
 
 	reduce_generic(im, resIII, wvlt, enc, ratio);
-	
-	
-#ifdef CRUCIAL
+
+	write_image16("/tmp/reduced.png", im->im_process, n, 0);
+
 	if (quality > LOW8)
 	{
-		process_res_q8(im, res256, enc);
+		// This is a big ugly function.
+		// In first pass, res256 are tagged with CODE_* values
+		// Second pass reverts these back to the corresponding TAGs
+		preprocess_res_q8(im, res256, enc);
 
-		highres=(unsigned char*)calloc(((48*im->fmt.tile_size)+1),sizeof(char));
+		highres=(ResIndex*)calloc(((48*im->fmt.tile_size)+1),sizeof(ResIndex));
 
-		if (quality > HIGH1) {
-			process_res_hq(im, res256);
-		}
+		process_residuals(im, highres, res256, enc);
 
-		process_hires_q8(im, highres, res256, enc);
-
-		// Further residual processing:
-		if (quality>=LOW1) {
-			process_res3_q1(im, highres, res256, enc);
-			if (quality>=HIGH1)
-			{
-				process_res5_q1(im, highres, res256, enc);
-			}
-		}
 		free(highres);
 	}
 	
-#endif
 	free(res256);
 
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
@@ -550,13 +545,13 @@ void init_decoder(decode_state *dec, encode_state *enc)
 
 	dec->tree_end = enc->tree_end;
 	dec->exw_Y_end = enc->exw_Y_end;
-	dec->nhw_res1_len = enc->nhw_res1_len;
-	dec->nhw_res3_len = enc->nhw_res3_len;
-	dec->nhw_res3_bit_len = enc->nhw_res3_bit_len;
+	dec->nhw_res1_len = enc->res1.len;
+	dec->nhw_res3_len = enc->res3.len;
+	dec->nhw_res3_bit_len = enc->res3.bit_len;
 	dec->nhw_res4_len = enc->nhw_res4_len;
-	dec->nhw_res1_bit_len = enc->nhw_res1_bit_len;
-	dec->nhw_res5_len = enc->nhw_res5_len;
-	dec->nhw_res5_bit_len = enc->nhw_res5_bit_len;
+	dec->nhw_res1_bit_len = enc->res1.bit_len;
+	dec->nhw_res5_len = enc->res5.len;
+	dec->nhw_res5_bit_len = enc->res5.bit_len;
 	dec->nhw_res6_len = enc->nhw_res6_len;
 	dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
 	dec->nhw_char_res1_len = enc->nhw_char_res1_len;
@@ -566,16 +561,16 @@ void init_decoder(decode_state *dec, encode_state *enc)
 	dec->highres_comp_len = enc->highres_comp_len;
 	dec->end_ch_res = enc->end_ch_res;
 	dec->exw_Y = enc->exw_Y;
-	dec->nhw_res1 = enc->nhw_res1;
-	dec->nhw_res1_bit = enc->nhw_res1_bit;
-	dec->nhw_res1_word = enc->nhw_res1_word;
+	dec->nhw_res1 = enc->res1.res;
+	dec->nhw_res1_bit = enc->res1.res_bit;
+	dec->nhw_res1_word = enc->res1.res_word;
 	dec->nhw_res4 = enc->nhw_res4;
-	dec->nhw_res3 = enc->nhw_res3;
-	dec->nhw_res3_bit = enc->nhw_res3_bit;
-	dec->nhw_res3_word = enc->nhw_res3_word;
-	dec->nhw_res5 = enc->nhw_res5;
-	dec->nhw_res5_bit = enc->nhw_res5_bit;
-	dec->nhw_res5_word = enc->nhw_res5_word;
+	dec->nhw_res3 = enc->res3.res;
+	dec->nhw_res3_bit = enc->res3.res_bit;
+	dec->nhw_res3_word = enc->res3.res_word;
+	dec->nhw_res5 = enc->res5.res;
+	dec->nhw_res5_bit = enc->res5.res_bit;
+	dec->nhw_res5_word = enc->res5.res_word;
 	dec->nhw_res6 = enc->nhw_res6;
 	dec->nhw_res6_bit = enc->nhw_res6_bit;
 	dec->nhw_res6_word = enc->nhw_res6_word;
@@ -603,12 +598,12 @@ void dump_stats(image_buffer *im, encode_state *enc)
 	n += enc->size_data2 * 4;
 	n += enc->tree_end;
 	n += enc->exw_Y_end;
-	n += enc->nhw_res3_len;
-	n += enc->nhw_res3_bit_len;
+	n += enc->res3.len;
+	n += enc->res3.bit_len;
 	n += enc->nhw_res4_len;
-	n += enc->nhw_res1_bit_len;
-	n += enc->nhw_res5_len;
-	n += enc->nhw_res5_bit_len;
+	n += enc->res1.bit_len;
+	n += enc->res5.len;
+	n += enc->res5.bit_len;
 	n += enc->nhw_res6_len;
 	n += enc->nhw_res6_bit_len;
 	n += enc->nhw_char_res1_len * 2;
@@ -726,7 +721,7 @@ int main(int argc, char **argv)
 			FILE *png_out;
 			// Initialize decoder with encoder values:
 			init_decoder(&dec, &enc);
-			dec.res_comp=(unsigned char*)calloc((48*im.fmt.tile_size+1),sizeof(char));
+			dec.res_comp=(ResIndex *)calloc((48*im.fmt.tile_size+1),sizeof(ResIndex));
 			im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
 
 			process_hrcomp(&im, &dec);
@@ -737,7 +732,7 @@ int main(int argc, char **argv)
 			png_out = fopen(output_filename, "wb");
 			int s = im.fmt.tile_size;
 			if (png_out != NULL) {
-				write_png(png_out, im.im_buffer4, s, s, 1);
+				write_png(png_out, im.im_buffer4, s, s, 1, 1);
 				fclose(png_out);
 			} else {
 				perror("opening file for writing");

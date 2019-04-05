@@ -710,20 +710,14 @@ int compress_res0(image_buffer *im,
 				default:  i--;
 			}
 			ch_comp[j++] = comp;
-		}
-
-
-
-		else if (abs(dh0)<=6 && abs(dh1)<=8)
-		{
+		} else
+		if (abs(dh0)<=6 && abs(dh1)<=8) {
 			dh0+=6;dh1+=8;
 
-			if (dh0==12 || dh1==16) 
-			{
+			if (dh0==12 || dh1==16) {
 				int d2 = highres[i+2]-highres[i+1];
 
-				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i, n)) 
-				{
+				if (abs(d2)<=32 && LOOP_VAR_CONDITION(i, n)) {
 					e = d2 + 32; dh0 += 26; dh1 += 8; goto COMP3;
 				} else {
 					ch_comp[j++]=128;
@@ -737,22 +731,19 @@ int compress_res0(image_buffer *im,
 					}
 				}
 			} else {
-				if (dh0<8) ch_comp[j++]=32+ (dh0<<2) + (dh1>>1);
+				if (dh0<8)
+					ch_comp[j++]=32+ (dh0<<2) + (dh1>>1);
 				else {
-					if (dh0==8)
-					{
+					if (dh0==8) {
 						ch_comp[j++]= 16 + (dh1>>1);
-					}
-					else
-					{
+					} else {
 						ch_comp[j++]= 24 + (dh1>>1);
 					}
 				}
-
 				i++;
 			}
-		}
-		else if (abs(dh0)<=32 && abs(dh1)<=16
+		} else
+		if (abs(dh0)<=32 && abs(dh1)<=16
 		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i, n))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
@@ -950,7 +941,7 @@ int compress_res2(image_buffer *im,
 		  && abs(highres[i+2]-highres[i+1])<=32 && LOOP_VAR_CONDITION(i, n))
 		{
 			dh0+=32;dh1+=16;e=highres[i+2]-highres[i+1]+32;
-		if (dh0==64 || dh1==32 || e==64) 
+			if (dh0==64 || dh1==32 || e==64) 
 			{
 				ch_comp[j++]=128;
 				ch_comp[j++]=128+(highres[i]>>1);
@@ -1077,9 +1068,9 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 
 	ch_comp[0]=highres[0];
 
-	if (Y>299) {im->setup->RES_LOW=2; }
-	else if (a>179) {im->setup->RES_LOW=1; } 
-	else im->setup->RES_LOW=0;
+	if (Y>299)       im->setup->RES_LOW=2;
+	else if (a>179)  im->setup->RES_LOW=1;
+	else             im->setup->RES_LOW=0;
 
 	int quality = im->setup->quality_setting;
 
@@ -1097,7 +1088,6 @@ void Y_highres_compression(image_buffer *im,encode_state *enc)
 			compress_pass2(quality, count, highres, ch_comp, enc);
 
 	}
-
 }
 
 void highres_compression(image_buffer *im, encode_state *enc)

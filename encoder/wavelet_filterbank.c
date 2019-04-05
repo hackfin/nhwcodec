@@ -522,7 +522,7 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 	enc->nhw_res6_len=res;
 	enc->nhw_res6_word_len=e;
 
-	enc->nhw_res6=(unsigned char*)malloc((enc->nhw_res6_len)*sizeof(char));
+	enc->nhw_res6=(ResIndex *)malloc((enc->nhw_res6_len)*sizeof(ResIndex));
 
 	for (i=0;i<enc->nhw_res6_len;i++) enc->nhw_res6[i]=highres[i];
 

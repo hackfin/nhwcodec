@@ -145,7 +145,7 @@ valgrind: $(TESTDIR)/$(TESTIMAGE).png
 	@echo ===============  DONE  ==================
 
 
-clean:
+clean::
 	rm -f $(TESTDIR)/*.nhw
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
 

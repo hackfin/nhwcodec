@@ -101,6 +101,9 @@
 
 //#define NHW_BOOKS
 
+// All the ResIndex arrays are coordinate index lists
+typedef unsigned char ResIndex;
+
 typedef struct{
 	unsigned char colorspace;
 	unsigned char wavelet_type;
@@ -140,36 +143,34 @@ typedef struct{
 	img_format  fmt;
 } image_buffer;
 
+struct nhw_res {
+	unsigned int   len;
+	unsigned short word_len;
+	unsigned short bit_len;
+	ResIndex *res;
+	unsigned char *res_bit;
+	unsigned char *res_word;
+};
+
 typedef struct{
 	unsigned int *encode;
 	unsigned char *tree1;
 	unsigned char *tree2;
-	unsigned short nhw_res1_len;
-	unsigned short nhw_res3_len;
+	struct nhw_res res1;
+	struct nhw_res res3;
+	struct nhw_res res5;
+
 	unsigned short nhw_res4_len;
 	unsigned short nhw_res5_len;
 	unsigned int nhw_res6_len;
-	unsigned short nhw_res1_word_len;
-	unsigned short nhw_res3_word_len;
-	unsigned short nhw_res5_word_len;
 	unsigned short nhw_res6_word_len;
-	unsigned short nhw_res1_bit_len;
-	unsigned short nhw_res3_bit_len;
-	unsigned short nhw_res5_bit_len;
 	unsigned short nhw_res6_bit_len;
-	unsigned char *nhw_res1;
-	unsigned char *nhw_res3;
-	unsigned char *nhw_res4;
-	unsigned char *nhw_res5;
-	unsigned char *nhw_res6;
-	unsigned char *nhw_res1_bit;
-	unsigned char *nhw_res3_bit;
-	unsigned char *nhw_res5_bit;
+	ResIndex *nhw_res4;
+	ResIndex *nhw_res6;
 	unsigned char *nhw_res6_bit;
-	unsigned char *nhw_res1_word;
-	unsigned char *nhw_res3_word;
 	unsigned char *nhw_res5_word;
 	unsigned char *nhw_res6_word;
+
 	unsigned short *nhw_char_res1;
 	unsigned short nhw_char_res1_len;
 	unsigned short nhw_select1;
@@ -215,11 +216,11 @@ typedef struct{
 	unsigned short nhw_res6_bit_len;
 	unsigned short nhw_select1;
 	unsigned short nhw_select2;
-	unsigned char *nhw_res1;
-	unsigned char *nhw_res3;
-	unsigned char *nhw_res4;
-	unsigned char *nhw_res5;
-	unsigned char *nhw_res6;
+	ResIndex *nhw_res1;
+	ResIndex *nhw_res3;
+	ResIndex *nhw_res4;
+	ResIndex *nhw_res5;
+	ResIndex *nhw_res6;
 	unsigned char *nhw_res1_bit;
 	unsigned char *nhw_res1_word;
 	unsigned char *nhw_res3_bit;
@@ -253,7 +254,7 @@ typedef struct{
 	unsigned char *res_U_64;
 	unsigned char *res_V_64;
 	unsigned char *res_ch;
-	unsigned char *res_comp;
+	ResIndex *res_comp;
 }decode_state;
 
 
@@ -335,11 +336,11 @@ void imgbuf_init(image_buffer *im, int tile_power);
 void ywl(image_buffer *im, int ratio, const short *y_wl);
 void scan_run_code(image_buffer *im, encode_state *enc);
 void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv);
-int process_res_q3(image_buffer *im);
-void compress1(image_buffer *im, encode_state *enc);
 void copy_thresholds(short *process, const short *resIII, int size, int step);
-void compress_q(image_buffer *im, encode_state *enc);
-void compress_q3(image_buffer *im,  encode_state *enc);
+int process_res_q3(image_buffer *im);
+void tree_compress(image_buffer *im, encode_state *enc);
+void tree_compress_q(image_buffer *im, encode_state *enc);
+void tree_compress_q3(image_buffer *im,  encode_state *enc);
 
 int configure_wvlt(int quality, char *wvlt);
 void reduce_generic(image_buffer *im, short *resIII, char *wvlt,

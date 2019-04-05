@@ -8,7 +8,8 @@
 #include "imgio.h"
 #include <png.h>
 
-int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrgb)
+int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrgb,
+	int upside_down)
 {
 	png_structp pngp;
 	png_infop infop;
@@ -32,10 +33,17 @@ int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrg
 
 	p = imagebuf;
 
-	i = height;
-	while (i--) {
-		row_pointers[i] = p;
-		p += step;
+	if (upside_down) {
+		i = height;
+		while (i--) {
+			row_pointers[i] = p;
+			p += step;
+		}
+	} else {
+		for (i = 0; i < height; i++) {
+			row_pointers[i] = p;
+			p += step;
+		}
 	}
 
 	pngp = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);

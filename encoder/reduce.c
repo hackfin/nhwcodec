@@ -9,6 +9,16 @@
 #define RESIII_GETXY(x, y, off)  \
 					(((((y) >> 1) + (x)) >> 1) + (off))
 
+#define IN_RANGE(x, a, b)  ( ((x) >= a) && ((x) <= b) )
+
+// TODO: Simplify all functions inside reduce_generic():
+//
+// They all basically quantize the coefficients in the high frequency
+// (LH/HL) subbands, depending on their
+//
+// reduce_LH_q6()
+//
+
 inline void reduce(short *q, int s, char w0, char w1, int im_size, int im_dim)
 {
 
@@ -45,7 +55,7 @@ inline void reduce(short *q, int s, char w0, char w1, int im_size, int im_dim)
 	&& abs(p[3]-p[1]) < v \
 	&& abs(p[3]-p[2]) < v
 
-void reduce_LL_q7(image_buffer *im, const unsigned char *wvlt)
+void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
 	int e;
@@ -60,9 +70,10 @@ void reduce_LL_q7(image_buffer *im, const unsigned char *wvlt)
 	int im_size = im->fmt.end / 4;
 	int s2 = 2 * s;
 
-	// *LL*  HL
-	//  LH   HH
-
+	// *LL*  HL  ..   ..  <- im_size
+	//  LH   HH  ..   ..  
+	//  ..   ..  ..   ..
+	//  ..   ..  ..   ..
 	for (i=0,scan=0;i<(im_size);i+=s)
 	{
 		for (scan=i,j=0;j<half-4;j++,scan++)
@@ -218,7 +229,7 @@ void reduce_LL_q7(image_buffer *im, const unsigned char *wvlt)
 	}
 }
 
-void reduce_LL_q9(image_buffer *im, const unsigned char *wvlt)
+void reduce_lowres_LL_q9(image_buffer *im, const unsigned char *wvlt)
 {
 	int i, j, count, scan;
 	char w;
@@ -227,6 +238,12 @@ void reduce_LL_q9(image_buffer *im, const unsigned char *wvlt)
 	int step = im->fmt.tile_size;
 	int im_dim = step / 2;
 	int half = im_dim / 2;
+
+	// *LL*  HL  ..   ..  <- im_size
+	//  LH   HH  ..   ..  
+	//  ..   ..  ..   ..
+	//  ..   ..  ..   ..
+	//  <--  step    -->
 
 	for (i=0,scan=0;i<(im_size);i+=step)
 	{
@@ -252,7 +269,8 @@ void reduce_LL_q9(image_buffer *im, const unsigned char *wvlt)
 	}
 }
 
-void reduce_LH_q9(image_buffer *im, const unsigned char *wvlt, int ratio)
+void SWAPOUT_FUNCTION(reduce_lowres_LH)(image_buffer *im,
+	const unsigned char *wvlt, int ratio)
 {
 	int i, j, scan;
 
@@ -332,7 +350,8 @@ int configure_wvlt(int quality, char *wvlt)
 	return 0;
 }
 
-void reduce_generic_LH_HH(image_buffer *im, short *resIII, int ratio, char *wvlt, int thr)
+void SWAPOUT_FUNCTION(reduce_generic_LH_HH)(image_buffer *im,
+	short *resIII, int ratio, char *wvlt, int thr)
 {
 	int i, scan, j, res3=0;
 	short tmp;
@@ -455,11 +474,11 @@ void reduce_LH_q5(image_buffer *im, int ratio)
 	}
 }
 
-void reduce_LH_q56(image_buffer *im, int ratio, char *wvlt)
+void SWAPOUT_FUNCTION(reduce_LH_HH_q56)(image_buffer *im, int ratio, char *wvlt)
 {
-	int i, j, scan;
+	int i, j;
 	//  LL    HL
-	// *LH*   HH
+	// *LH*  *HH*
 
 	short *pr = im->im_process;
 	int step = im->fmt.tile_size;
@@ -467,15 +486,15 @@ void reduce_LH_q56(image_buffer *im, int ratio, char *wvlt)
 
 	for (i=im->fmt.half;i<im->fmt.end;i+=step)
 	{
-		for (scan=i,j=0;j< im_dim; j++,scan++)
+		short *p = &pr[i];
+
+		for (j=0;j< im_dim; j++,p++)
 		{		
-			short *p = &pr[scan];
 			if (abs(p[0])>=ratio && abs(p[0])<wvlt[0]) { p[0] = 0; }
 		}
 
-		for (scan=i+ im_dim,j= im_dim;j<step;j++,scan++)
+		for (j= im_dim;j<step;j++,p++)
 		{
-			short *p = &pr[scan];
 			if (abs(p[0])>=ratio && abs(p[0]) < wvlt[1]) {	
 				if      (p[0] >= 14)       p[0]=7;
 				else if (p[0] <= -14)      p[0]=-7;	
@@ -504,39 +523,33 @@ void reduce_HL_q4(image_buffer *im)
 
 //  LL   *HL*
 //  LH    HH 
+
 	
 	for (i=step; i<(im->fmt.half-step);i+=step)
 	{
 		for (scan=i+ im_dim+1,j= im_dim+1;j<(step-1);j++,scan++)
 		{
 			short *p = &pr[scan];
-			if (p[0]>4 && p[0]<8)
-			{
-				if (p[-1]>3 && p[-1]<=7)
-				{
-					if (p[1]>3 && p[1]<=7)
-					{
-						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128;
+
+//             -8  -7  -6  -5  -4  -3  -2  -1   0   1   2   3   4   5   6   7   8
+//   p[0]:          B   B   B                                       A   A   A
+//   p[-1]:         B   B   B   B                               A   A   A   A
+//   p[1]:          B   B   B   B                               A   A   A   A
+//
+
+			if (IN_RANGE(p[0], 5, 7)) {
+				if (IN_RANGE(p[-1], 4, 7)) {
+					if (IN_RANGE(p[1], 4, 7)) {
+						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128; // A
 					}
 				}
-			}
-			else if (p[0]<-4 && p[0]>-8)
-			{
-				if (p[-1]<-3 && p[-1]>=-7)
-				{
-					if (p[1]<-3 && p[1]>=-7)
-					{
-						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;	 
+			} else
+			if (IN_RANGE(p[0], -7, -5)) {
+				if (IN_RANGE(p[-1], -7, -4)) {
+					if (IN_RANGE(p[1], -7, -4)) {
+						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;	  // B
 					}
 				}
-			}
-			else if ((p[0]==-7) && (p[1]==-6 || p[1]==-7))
-			{
-				p[0]=MARK_125;p[1]=MARK_128;
-			}
-			else if (p[0]==7 && p[1]==7)
-			{
-				p[0]=MARK_126;p[1]=MARK_128;
 			}
 			else if (p[0]==8)
 			{
@@ -559,26 +572,21 @@ void reduce_HL_q4(image_buffer *im)
 		for (scan=i+1,j=1;j< im_dim-1;j++,scan++)
 		{
 			short *p = &pr[scan];
-			if (p[0]>4 && p[0]<8)
-			{
-				if (p[-1]>3 && p[-1]<=7)
-				{
-					if (p[1]>3 && p[1]<=7)
-					{
-						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128;
+			if (IN_RANGE(p[0], 5, 7)) {
+				if (IN_RANGE(p[-1], 4, 7)) {
+					if (IN_RANGE(p[1], 4, 7)) {
+						p[0]=MARK_127;p[-1]=MARK_128;p[1]=MARK_128; // A
+					}
+				}
+			} else
+			if (IN_RANGE(p[0], -7, -5)) {
+				if (IN_RANGE(p[-1], -7, -4)) {
+					if (IN_RANGE(p[1], -7, -4)) {
+						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;	  // B
 					}
 				}
 			}
-			else if (p[0]<-4 && p[0]>-8)
-			{
-				if (p[-1]<-3 && p[-1]>=-7)
-				{
-					if (p[1]<-3 && p[1]>=-7)
-					{
-						p[0]=MARK_129;p[-1]=MARK_128;p[1]=MARK_128;
-					}
-				}
-			}
+#if 0 // CONDITION NEVER MET
 			else if (p[0]==-6 || p[0]==-7)
 			{
 				if (p[1]==-7)
@@ -602,6 +610,7 @@ void reduce_HL_q4(image_buffer *im)
 					if (abs(p[im_dim])<8) p[im_dim]=MARK_126;p[0]=MARK_128;
 				}
 			}
+#endif
 			else if (p[0]==8)
 			{
 				if (FLOOR2(p[-1])==6 || FLOOR2(p[1])==6) p[0]=10;
@@ -616,7 +625,8 @@ void reduce_HL_q4(image_buffer *im)
 }
 
 
-void reduce_LH_q6(image_buffer *im, short *resIII, int ratio, char *wvlt)
+void SWAPOUT_FUNCTION(reduce_HL)(image_buffer *im,
+short *resIII, int ratio, char *wvlt)
 {
 	int i, j, scan;
 	int step = im->fmt.tile_size;
@@ -660,21 +670,22 @@ void reduce_LH_q6(image_buffer *im, short *resIII, int ratio, char *wvlt)
 	}
 }
 
-void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
+void SWAPOUT_FUNCTION(reduce_generic)(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
 	int count;
 	int quality = im->setup->quality_setting;
 	short *pr = im->im_process;
 
-	if (quality < NORM && quality > LOW5) {
+	if (IN_RANGE(quality, LOW4, HIGH1)) {
 		reduce_LH_q5(im, ratio);
-	} else if (quality <= LOW5 && quality >= LOW6) { 
+	} else
+	if (IN_RANGE(quality, LOW6, LOW5)) {
 		wvlt[0] = 11;
 
 		if      (quality == LOW5) wvlt[1]=19;
 		else if (quality == LOW6) wvlt[1]=20;
 		
-		reduce_LH_q56(im, ratio, wvlt);
+		reduce_LH_HH_q56(im, ratio, wvlt);
 
 	} else if (quality < LOW6) { 
 		if (quality <= LOW8) {
@@ -695,7 +706,7 @@ void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *e
 			}
 		}
 	
-		reduce_LH_q6(im, resIII, ratio, wvlt);
+		reduce_HL(im, resIII, ratio, wvlt);
 
 		if (quality > LOW10) {
 			reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);
@@ -829,7 +840,7 @@ void lowres_uv_compensate(short *dst, const short *pr, const short *lowres, int 
 }
 
 
-void process_res_q8(image_buffer *im, short *res256, encode_state *enc)
+void preprocess_res_q8(image_buffer *im, short *res256, encode_state *enc)
 {
 	int i, j, count, res, stage, scan;
 	int res_setting;
@@ -1063,7 +1074,7 @@ L_W3:			if (quality>=HIGH1) {res256[count]=CODE_14500;} // Redundant
 						q[0]++;
 					}
 				}
-				else if (q[0]>=0 && ((q[0]+2)&65532)==8)
+				else if (q[0]>=0 && ((q[0]+2)& ~3)==8)
 				{
 					if (q[0-1]>=-2) q[0]=10;
 				}
@@ -1104,21 +1115,25 @@ L_W5:			res256[count]=CODE_14000;
 		}	
 	}
 
-	enc->nhw_res1_word_len=0;
-	enc->nhw_res3_word_len=0;
-	enc->nhw_res5_word_len=0;
+	enc->res1.word_len=0;
+	enc->res3.word_len=0;
+	enc->res5.word_len=0;
+
+	// Process all values from res256 array. When tagged, replace by opcode,
+	// else set to 0.
 
 	for (i=0,count=0,stage=0,res=0;i<(im->fmt.half);i+=step)
 	{
 		for (scan=i,j=0;j<im_dim;j++,scan++,count++)
 		{
 			short r = res256[count];
-			if (r < CODE_12000)
+			if (!IS_CODE(r))
 			{
 				// Transposed check pointer:
 				short *p = &pr[(j << shift)+(i >> shift)+(im_dim)];
 
-				res= pr[scan]-res256[count];res256[count]=0;
+				res= pr[scan]-res256[count];
+				res256[count]=0;
 
 				switch (res) {
 					case 0:
@@ -1142,7 +1157,7 @@ L_W5:			res256[count]=CODE_14000;
 						break;
 					case 3:
 						if (quality>=HIGH1)
-							{ res256[count] = 144; enc->nhw_res5_word_len++; }
+							{ res256[count] = OP_R51_N; enc->res5.word_len++; }
 						else
 						{
 							if (p[0] > 15 && (p[0] & 7) == 0) p[0]--;
@@ -1156,7 +1171,7 @@ L_W5:			res256[count]=CODE_14000;
 					default:
 						if (res>res_setting) 
 						{
-							res256[count]=141;enc->nhw_res1_word_len++;
+							res256[count]=OP_R11_N;enc->res1.word_len++;
 
 							if (res == 4)
 							{
@@ -1169,9 +1184,9 @@ L_W5:			res256[count]=CODE_14000;
 							{
 								if (res > 7 && quality>=HIGH1) 
 								{
-									res256[count]=148;
-									enc->nhw_res5_word_len++;
-									enc->nhw_res1_word_len++;
+									res256[count]=OP_R5R1N;
+									enc->res5.word_len++;
+									enc->res1.word_len++;
 								}
 								else
 								{
@@ -1185,39 +1200,40 @@ L_W5:			res256[count]=CODE_14000;
 						}
 				}
 			} else {
+// USE_OPCODE: Eliminate this one
 				switch (r) {
 					case CODE_14000:
-						r = 140; enc->nhw_res1_word_len++; 
+						r = OP_R10_P; enc->res1.word_len++; 
 						break;
 					case CODE_14500:
-						r = 145; enc->nhw_res5_word_len++;
+						r = OP_R50_P; enc->res5.word_len++;
 						break;
 					case CODE_12200:
-						r = 122; enc->nhw_res3_word_len++; 
+						r = OP_R30_P; enc->res3.word_len++; 
 						break;
 					case CODE_12100:
-						r = 121; enc->nhw_res3_word_len++;
+						r = OP_R31_N; enc->res3.word_len++;
 						break;
 					case CODE_12300:
-						r = 123; enc->nhw_res3_word_len++; 
+						r = OP_R32_P; enc->res3.word_len++; 
 						break;
 					case CODE_12400:
-						r = 124; enc->nhw_res3_word_len++;
+						r = OP_R33_N; enc->res3.word_len++;
 						break;
 					case CODE_14100:
-						r = 141; enc->nhw_res1_word_len++; 
+						r = OP_R11_N; enc->res1.word_len++; 
 						break;
 					case CODE_12500:
-						r = 125; enc->nhw_res3_word_len++;
-						enc->nhw_res1_word_len++;
+						r = OP_R3R1N; enc->res3.word_len++;
+						enc->res1.word_len++;
 						break;
 					case CODE_12600:
-						r = 126;enc->nhw_res3_word_len++;
-						enc->nhw_res1_word_len++;
+						r = OP_R3R0P;enc->res3.word_len++;
+						enc->res1.word_len++;
 						break;
 					case CODE_14900:
-						r = 149;enc->nhw_res5_word_len++;
-						enc->nhw_res1_word_len++;
+						r = OP_R5R1P;enc->res5.word_len++;
+						enc->res1.word_len++;
 						break;
 					default:
 						assert(0);
