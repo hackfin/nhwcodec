@@ -10,7 +10,7 @@
 #define SECOND_STAGE 1
 
 
-// #define SIMPLIFIED
+#define SIMPLIFIED
 #define CRUCIAL
 
 
@@ -249,7 +249,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
-	reduce_generic(im, resIII, wvlt, enc, ratio); // TODO: Simplify
+	reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // TODO: Simplify
 
 	if (quality > LOW8) {
 		// This is a big ugly function.
