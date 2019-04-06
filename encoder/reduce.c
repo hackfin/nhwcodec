@@ -14,31 +14,35 @@
 // TODO: Simplify all functions inside reduce_generic():
 //
 // They all basically quantize the coefficients in the high frequency
-// (LH/HL) subbands, depending on their
+// (LH/HL) subbands, depending on their neighbours:
 //
 // reduce_LH_q6()
 //
 
-inline void reduce(short *q, int s, char w0, char w1, int im_size, int im_dim)
+inline void reduce(short *q, int s, char w0, char w1, char w2, int halfsize, int half_dim)
 {
+	//  LL   HL  q1   ..  
+	//  LH   HH  ..   .. 
+	//   q   ..  AA   .. <- halfsize
+	//  ..   ..  ..   ..
 
-	short *q1= &q[im_dim];
+
+	short *q1= &q[half_dim];
 
 	REDUCE(q1[0], w0); REDUCE(q1[1], w0);
-	q1 += s;
+	q1 += s; // Next line
 	REDUCE(q1[0], w0); REDUCE(q1[1], w0);
 	
-	w0 += 6;
-	q += 2 * im_size;
+	q += halfsize; // now at 'q'
 
-	REDUCE(q[0], w0); REDUCE(q[1], w0);
-	q += s;
-	REDUCE(q[0], w0); REDUCE(q[1], w0);
+	REDUCE(q[0], w1); REDUCE(q[1], w1);
+	q += s; // Next line
+	REDUCE(q[0], w1); REDUCE(q[1], w1);
 	
-	q -= im_dim;
-	REDUCE(q[0], w1); REDUCE(q[1], w1);
+	q -= half_dim; // now at AA
+	REDUCE(q[0], w2); REDUCE(q[1], w2);
 	q += s;
-	REDUCE(q[0], w1); REDUCE(q[1], w1);
+	REDUCE(q[0], w2); REDUCE(q[1], w2);
 }
 
 #define CONDITION_A(p, w, v) \
@@ -70,15 +74,19 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 	int im_size = im->fmt.end / 4;
 	int s2 = 2 * s;
 
-	// *LL*  HL  ..   ..  <- im_size
-	//  LH   HH  ..   ..  
-	//  ..   ..  ..   ..
-	//  ..   ..  ..   ..
+	// Depending on the conditions in LL, the A, B and C quadrants
+	// are subject to a coefficient reduction (DZ quantization)
+	// This is done by the reduce() function.
+	//
+	// *LL*  HL   BB   BB  <- im_size
+	//  LH   HH   BB   BB  
+	//  AA   AA   CC   CC
+	//  AA   AA   CC   CC
 	for (i=0,scan=0;i<(im_size);i+=s)
 	{
-		for (scan=i,j=0;j<half-4;j++,scan++)
+		short *p = &pr[i];
+		for (scan=i,j=0;j<half-4;j++,scan++, p++)
 		{
-			short *p = &pr[scan];
 			w = wvlt[0];
 			v = wvlt[1];
 
@@ -93,17 +101,13 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 				else
 				                                     p[2]=(p[3]+p[1])>>1;
 						
-				for (count=1;count<4;count++)
-				{
-					short *q = &pr[((scan+count)<<1)];
-					reduce(q, s, wvlt[5], wvlt[4], im_size, im_dim);
+				short *q;
+				for (q = &p[scan + 2]; q < &p[scan + 8]; q += 2) {
+					reduce(q, s, wvlt[5], wvlt[5] + 6, wvlt[4], im->fmt.half, im_dim);
 				}
 					
-				if (quality<=LOW9)
-				{
-					for (count=1;count<4;count++)
-					{
-						short *q = &p[count];
+				if (quality<=LOW9) { // FIXME: inefficient compare inside loop
+					for (q = &p[1]; q < &p[4]; q++) {
 						REDUCE(q[half], 11);
 						REDUCE(q[im_size], 12);
 						REDUCE(q[im_size+half],13);
@@ -118,18 +122,13 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 					if (((p[3]-p[2])>=0 && (p[2]-p[1])>=0) ||
 						((p[3]-p[2])<=0 && (p[2]-p[1])<=0)) 
 					{
-						//p[2]=(p[3]+p[1]+1)>>1;
-						
-						for (count=1;count<4;count++) {
-							short *q = &pr[((scan+count)<<1)];
-							reduce(q, s, wvlt[5], wvlt[4], im_size, im_dim);
+						short *q;
+						for (q = &p[scan + 2]; q < &p[scan + 8]; q += 2) {
+							reduce(q, s, wvlt[5], wvlt[5] + 6, wvlt[4], im->fmt.half, im_dim);
 						}
 						
-						if (quality<=LOW9)
-						{
-							for (count=1;count<4;count++)
-							{
-								short *q = &p[count];
+						if (quality<=LOW9) {
+							for (q = &p[1]; q < &p[4]; q++) {
 								REDUCE(q[half], 11);
 								REDUCE(q[im_size], 12);
 								REDUCE(q[im_size+half],13);
@@ -167,7 +166,7 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 				count=scan+s+1;
 
 				short *q = &pr[(count<<1)];
-				reduce(q, s, wvlt[5], 32, im_size, im_dim);
+				reduce(q, s, wvlt[5], wvlt[5] + 6, 32, im->fmt.half, im_dim);
 
 				if (quality<=LOW9)
 				{
@@ -210,7 +209,7 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 
 					short *q = &pr[(count<<1)];
 
-					reduce(q, s, wvlt[5], 32, im_size, im_dim);
+					reduce(q, s, wvlt[5], wvlt[5] + 6, 32, im->fmt.half, im_dim);
 				}
 				
 				if (quality<=LOW9)
@@ -257,7 +256,7 @@ void reduce_lowres_LL_q9(image_buffer *im, const unsigned char *wvlt)
 			{
 				count=scan+1;
 
-				reduce(&pr[(count<<1)], step, wvlt[5], 34, im_size, im_dim);
+				reduce(&pr[(count<<1)], step, wvlt[5], wvlt[5] + 6, 34, im->fmt.half, im_dim);
 					
 				short *q = &pr[count];
 				REDUCE(q[half], 11);
@@ -670,7 +669,7 @@ short *resIII, int ratio, char *wvlt)
 	}
 }
 
-void SWAPOUT_FUNCTION(reduce_generic)(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
+void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
 	int count;
 	int quality = im->setup->quality_setting;

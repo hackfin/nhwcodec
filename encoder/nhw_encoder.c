@@ -503,6 +503,8 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	stage = 0;
 	a = e = 0;
 
+	// FIXME: Simplify complex loop construct
+
 	// First pixel special treatment:
 	//
 	scan = pr[0];
@@ -569,7 +571,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 			if (IS_ODD(scan) && IS_ODD(p[1])) {	
 				char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
 				if (cond) {
-					if (q[0] < 10000) q[0]++;
+					if (!IS_TAG(q[0])) q[0]++;
 				}
 			}
 		}
@@ -726,21 +728,31 @@ void tree_compress(image_buffer *im, encode_state *enc)
 }
 
 MAYBE_STATIC
-int process_res_q3(image_buffer *im)
+int mark_res_q3(image_buffer *im)
 {
 	int i, j, count;
 	int res;
 	int stage;
 
+	// Tag all values whose condition match:
+	// * Quad-pack has odd values
+	// * Absolute difference of first and last value is > 1
+
+	// *LL*  HL   ..   ..  <- im_size
+	//  LH   HH   ..   ..  
+	//  ..   ..   ..   ..
+	//  ..   ..   ..   ..
+
 
 	short *pr = im->im_process;
 	int im_size = im->fmt.end / 4;
 	int step = im->fmt.tile_size;
-	for (i=0,count=0,res=0,stage=0; i < im_size; i+=step)
+	for (i=0,res=0,stage=0; i < im_size; i+=step)
 	{
-		for (count=i,j=0;j<((step>>2)-3);j++,count++)
+		short *p = &pr[i];
+
+		for (j=0;j<((step/4)-3);j++,p++)
 		{
-			short *p = &pr[count];
 			if (IS_ODD(p[0]) &&
 			    IS_ODD(p[1]) &&
 			    IS_ODD(p[2]) &&
@@ -1393,7 +1405,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	
 	if (quality > LOW3)
 	{
-		res = process_res_q3(im);
+		res = mark_res_q3(im);
 		enc->nhw_res4_len=res;
 		enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
 	}

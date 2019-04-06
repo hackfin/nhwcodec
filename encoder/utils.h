@@ -72,6 +72,8 @@
 #define MARK_127   12700
 #define MARK_128   10100
 #define MARK_129   12900
+
+// These are used in offset reconstruction: offsetY_recons256_q4()
 #define MARK_15300 15300
 #define MARK_15400 15400
 #define MARK_15500 15500
@@ -79,6 +81,17 @@
 #define MARK_15700 15700
 #define MARK_15800 15800
 
+#define MARK_12000 0x2800
+#define MARK_16000 0x2000
+#define MARK_24000 0x3000
+
+#define MARK_MASK  0x3800
+
+#define TAG_PIXEL(x, which)     (x |= (which))
+#define UNTAG_PIXEL(x, which)   (x &= ~(which))
+
+#define IS_TAG(x)      (x & 0x2000)
+#define IS_TAG_RES(x)  ((x & MARK_MASK) == 0x800)
 
 #ifndef __CONCAT
 #define __CONCAT(x, y) x##y

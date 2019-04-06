@@ -74,19 +74,19 @@ void reduce_lowres_generic(image_buffer *im, char *wvlt, int ratio)
 		
 	configure_wvlt(quality, wvlt);
 
-#ifdef CRUCIAL
 	if (quality < LOW7) {
 			
-		reduce_LL_q7(im, wvlt);
+		reduce_lowres_LL_q7(im, wvlt);
 		
 		if (quality <= LOW9) {
-			reduce_LL_q9(im, wvlt);
+			reduce_lowres_LL_q9(im, wvlt);
 		}
 	}
-#endif
 }
 
 // Fixme: Eliminate mode ? Will break binary compatibility.
+//
+// This function tags pixels whose neighbour conditions match certain specifics
 inline
 void reduce_HL_LH(short *p, int mode)
 {
@@ -267,57 +267,6 @@ void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt)
 				else 	                   p[0]=0;	
 			}
 		}
-	}
-}
-
-void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *enc, int ratio)
-{
-	int count;
-	int quality = im->setup->quality_setting;
-	short *pr = im->im_process;
-
-	if (IN_RANGE(quality, LOW4, HIGH1)) {
-		reduce_LH_q5(im, ratio);
-	} else
-	if (IN_RANGE(quality, LOW6, LOW5)) {
-		wvlt[0] = 11;
-
-		if      (quality == LOW5) wvlt[1]=19;
-		else if (quality == LOW6) wvlt[1]=20;
-		
-		reduce_LH_HH_q56(im, ratio, wvlt);
-
-	} else if (quality < LOW6) { 
-		if (quality <= LOW8) {
-			count = count_threshold(pr, im->fmt.half, im->fmt.end, 12);
-
-			//if (count>MARK_15000) {wvlt[0]=20;wvlt[1]=32;wvlt[2]=13;wvlt[3]=8;wvlt[4]=5;}
-			if      (count > 12500)      COPY_WVLT(wvlt, quality_special12500)
-			else if (count > 10000)      COPY_WVLT(wvlt, quality_special10000)
-			else if (count >= 7000)      COPY_WVLT(wvlt, quality_special7000)
-			else                         COPY_WVLT(wvlt, quality_special_default);
-			if (quality == LOW9) {
-				if (count > 12500) { wvlt[0]++;wvlt[1]++;wvlt[2]++;wvlt[3]++;wvlt[4]++; }
-				else wvlt[0]++;
-			} else if (quality <= LOW10) 
-			{
-				if (count > 12500) { wvlt[0]+=3;wvlt[1]+=3;wvlt[2]+=2;wvlt[3]+=3;wvlt[4]+=3; }
-				else               { wvlt[0]+=3;wvlt[1]+=2;wvlt[2]+=2;wvlt[3]+=2;wvlt[4]+=2; }
-			}
-		}
-	
-		reduce_HL(im, resIII, ratio, wvlt);
-
-		if (quality > LOW10) {
-			reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);
-		} else {
-			reduce_generic_LH_HH(im, resIII, ratio, wvlt, 0xffff);
-		}
-
-	}
-
-	if (quality > LOW4) { 
-		reduce_HL_LH_q4(im);
 	}
 }
 

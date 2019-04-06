@@ -10,7 +10,7 @@
 #define SECOND_STAGE 1
 
 
-#define SIMPLIFIED
+// #define SIMPLIFIED
 #define CRUCIAL
 
 
@@ -245,11 +245,11 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 	write_image16("/tmp/resIII.png", resIII, n / 2, 0);
 
-	tree_compress_q(im, enc);                // CAN_HW (< LOW3)
+	tree_compress(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
-	reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // TODO: Simplify
+	reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
 
 	if (quality > LOW8) {
 		// This is a big ugly function.
@@ -364,9 +364,8 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	enc->tree1=(unsigned char*) calloc(((48*im->fmt.tile_size)+4),sizeof(char));
 	enc->exw_Y=(unsigned char*) malloc(32*im->fmt.tile_size*sizeof(char));
 	
-	if (quality > LOW3)
-	{
-		res = process_res_q3(im);
+	if (quality > LOW3) {
+		res = mark_res_q3(im); // Mark all values in quad pixel packs which are odd
 		enc->nhw_res4_len=res;
 		enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
 	}

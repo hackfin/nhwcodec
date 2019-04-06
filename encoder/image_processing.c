@@ -1235,6 +1235,7 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 	nhw1=(short*)im->im_process;
 
 	if (im->setup->quality_setting>LOW3) {
+		// Tags values that match a specific condition
 		offsetY_recons256_q3(im, nhw1, part);
 		thresh[0] = 10000;
 		thresh[1] = 1;
@@ -1267,17 +1268,14 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 		free(highres_tmp);
 	}
 
-	if (im->setup->quality_setting>LOW4)
-	{
+	if (im->setup->quality_setting>LOW4) {
 		// Tags pixels according to neighbour properties
 		// Only this function is tagging by MARK_15xxx
 		offsetY_recons256_q4(im->im_process, im->im_jpeg, im->fmt.end / 4, step, part);
 	}
 
-	for (i=0;i< im_size;i+=(step))
-	{
-		for (j=(step/4);j<step/2;j++) 
-		{
+	for (i=0;i< im_size;i+=(step)) {
+		for (j=(step/4);j<step/2;j++) {
 			int skip;
 			short *p = &im->im_process[i+j]; // FIXME: optimize
 			short *q = &im->im_jpeg[i+j];
@@ -1286,18 +1284,14 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 		}
 	}
 
-	for (i=im_size;i<(2*im_size);i+=(step))
-	{
-		for (j=0;j<step/2;j++) 
-		{
+	for (i=im_size;i<(2*im_size);i+=(step)) {
+		for (j=0;j<step/2;j++) {
 			int skip;
 			short *p = &im->im_process[i+j];
 			short *q = &im->im_jpeg[i+j];
 
 			skip = offsetY_subbands_H4(p, q, m1, j < step/2-1, part);
 			j += skip;
-
-
 		}
 	}
 
