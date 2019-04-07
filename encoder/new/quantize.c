@@ -30,7 +30,7 @@ void reduce_lowres_LL_q7(image_buffer *im, const char *wvlt);
 void reduce_lowres_LL_q9(image_buffer *im, const char *wvlt);
 
 void reduce_lowres_LH(image_buffer *im,
-	const unsigned char *wvlt, int ratio)
+	const char *wvlt, int ratio)
 {
 	int i, j;
 
@@ -177,7 +177,7 @@ inline void quant_zero(short tmp, short *p, char th2, char th3, int ratio)
 }
 
 void reduce_generic_LH_HH(image_buffer *im,
-	short *resIII, int ratio, char *wvlt, int thr)
+	const short *resIII, int ratio, char *wvlt, int thr)
 {
 	int i, j;
 	short tmp;
@@ -217,7 +217,7 @@ void reduce_generic_LH_HH(image_buffer *im,
 
 }
 
-void reduce_HL(image_buffer *im, short *resIII, int ratio, char *wvlt)
+void reduce_HL(image_buffer *im, const short *resIII, int ratio, char *wvlt)
 {
 	int i, j;
 	int step = im->fmt.tile_size;
@@ -271,7 +271,7 @@ void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt)
 }
 
 void reduce_generic_simplified(image_buffer *im,
-	short *resIII, char *wvlt, encode_state *enc, int ratio)
+	const short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
 	reduce_HL(im, resIII, ratio, wvlt);
 	reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);

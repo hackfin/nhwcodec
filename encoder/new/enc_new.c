@@ -31,6 +31,9 @@ void process_residuals(image_buffer *im,
 
 void reduce_lowres_generic(image_buffer *im, char *wvlt, int ratio);
 
+void reduce_generic_simplified(image_buffer *im,
+	const short *resIII, char *wvlt, encode_state *enc, int ratio);
+
 #endif
 
 enum {
@@ -251,6 +254,8 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
 	reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
 
+	virtfb_set((unsigned short *) im->im_process);
+
 	if (quality > LOW8) {
 		// This is a big ugly function.
 		// In first pass, res256 are tagged with CODE_* values
@@ -297,7 +302,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 {
 
 	int quality = im->setup->quality_setting;
-	int res;
 	short *res256, *resIII;
 	ResIndex *highres;
 	short *pr;
@@ -309,14 +313,12 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	int n = im->fmt.tile_size;
 
 	custom_init_lut(g_lut, 20);
-	virtfb_init(n, n, g_lut);
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);
 
-	write_image16("/tmp/wl1.png", im->im_process, n, 0);
+	// write_image16("/tmp/wl1.png", im->im_process, n, 0);
 
-	virtfb_set((unsigned short *) im->im_process);
 
 	// Add some head room for padding (PAD is initialized to 0!)
 	res256 = (short*) calloc((quad_size + n), sizeof(short));
@@ -329,7 +331,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 
-	write_image16("/tmp/wl2.png", im->im_process, n, 0);
+	// write_image16("/tmp/wl2.png", im->im_process, n, 0);
 
 #ifdef CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
@@ -345,14 +347,14 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		//  offset:              T16               T12
 		tag_thresh_ranges(im, res256);
 
-		write_image16("/tmp/res_p14.png", res256, n / 2, 0);
+		// write_image16("/tmp/res_p14.png", res256, n / 2, 0);
 
 		offsetY_recons256(im,enc,ratio,1);
 		// Drops result in im_process:
 		wl_synth_luma(im, n>>1, FIRST_STAGE);
 		// Modifies all 3 buffers:
 		revert_compensate_offsets(im, res256);
-		write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
+		// write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
 		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 	}
 #endif
@@ -364,11 +366,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	enc->tree1=(unsigned char*) calloc(((48*im->fmt.tile_size)+4),sizeof(char));
 	enc->exw_Y=(unsigned char*) malloc(32*im->fmt.tile_size*sizeof(char));
 	
-	if (quality > LOW3) {
-		res = mark_res_q3(im); // Mark all values in quad pixel packs which are odd
-		enc->nhw_res4_len=res;
-		enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
-	}
 
 	enc->res_ch=(unsigned char *)calloc((quad_size>>2),sizeof(char));
 
@@ -408,7 +405,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	reduce_generic(im, resIII, wvlt, enc, ratio);
 
-	write_image16("/tmp/reduced.png", im->im_process, n, 0);
+	// write_image16("/tmp/reduced.png", im->im_process, n, 0);
 
 	if (quality > LOW8)
 	{

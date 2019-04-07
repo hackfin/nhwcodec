@@ -832,9 +832,6 @@ int compress_res1(image_buffer *im,
 			}
 			ch_comp[j++] = comp;
 		}
-
-
-
 		else if (abs(dh0)<=4 && abs(dh1)<=8)
 		{
 			dh0+=4;dh1+=8;

@@ -498,6 +498,10 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	short *pr = im->im_process;
 	int step = im->fmt.tile_size;
 
+	res = mark_res_q3(im); // Mark all values in quad pixel packs which are odd
+	enc->nhw_res4_len=res;
+	enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
+
 	// First line
 	res = 0;
 	stage = 0;
@@ -1389,13 +1393,6 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	enc->tree1=(unsigned char*) calloc(((96*halfn)+4),sizeof(char));
 	enc->exw_Y=(unsigned char*) malloc(32*halfn*sizeof(short));
 	
-	if (quality > LOW3)
-	{
-		res = mark_res_q3(im);
-		enc->nhw_res4_len=res;
-		enc->nhw_res4=(ResIndex *)calloc(enc->nhw_res4_len,sizeof(ResIndex));
-	}
-
 	enc->res_ch=(unsigned char*)calloc((quad_size>>2),sizeof(char));
 
 	tree_compress(im, enc);
