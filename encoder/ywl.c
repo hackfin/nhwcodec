@@ -1,13 +1,13 @@
 #include "codec.h"
 
 static inline
-int count_cond(short *p, int scan, int step)
+int count_cond(short *p, int count, int step)
 {
-	if (((abs(p[-1])))    >= 6) scan++;
-	if (((abs(p[1])))     >= 6) scan++;
-	if (((abs(p[-step]))) >= 6) scan++;
-	if (((abs(p[step])))  >= 6) scan++;
-	return scan;
+	if (((abs(p[-1])))    >= 6) count++;
+	if (((abs(p[1])))     >= 6) count++;
+	if (((abs(p[-step]))) >= 6) count++;
+	if (((abs(p[step])))  >= 6) count++;
+	return count;
 }
 
 #define MODULO7(x)  ((x) & 7)
@@ -33,9 +33,9 @@ inline void reduce_yterms(short *p, short e, short f, int step, int condition)
 	p[0] = e; p[1] = f;
 }
 
-void ywl(image_buffer *im, int ratio, const short *y_wl)
+void quant_ac_final(image_buffer *im, int ratio, const short *y_wl)
 {
-	int i, j, scan;
+	int i, c;
 	int e, f;
 	int a;
 	short *pr = im->im_process;
@@ -51,9 +51,11 @@ void ywl(image_buffer *im, int ratio, const short *y_wl)
 
 	for (i=step; i < ((im_size>>1)-step); i += step)
 	{
-		for (j=(halfs+1);j<(step-1);j++)
+		short *p = &pr[i];
+		short *end = &p[step-1];
+
+		for (p = &p[halfs+1]; p < end; p++)
 		{
-			short *p = &pr[i+j];
 			e = p[0]; f = p[1];
 			a = abs(p[0]);
 // Possible conditions for a:
@@ -62,13 +64,13 @@ void ywl(image_buffer *im, int ratio, const short *y_wl)
 // If 'a' in [(ratio-2)..ywl2]:
 			if (a >= (ratio-2)) {
 				if (a < y_wl[1]) {
-					scan = count_cond(p, 0, step);
-					if (scan < 3) {
+					c = count_cond(p, 0, step);
+					if (c < 3) {
 						if      (e < -6) e = -7;
 						else if (e >  6) e =  7;
 					}
 				}
-				reduce_yterms(p, e, f, step, j<(step-2));
+				reduce_yterms(p, e, f, step, p < &end[-1]);
 			}
 			else p[0]=0;
 		}
@@ -82,22 +84,24 @@ void ywl(image_buffer *im, int ratio, const short *y_wl)
 	// Scan LH:
 	for (i=(im_size>>1);i<(im_size-step);i+=step)
 	{
-		for (j=1;j<(halfs);j++)
+		short *p = &pr[i+1];
+		short *end = &p[halfs-1];
+
+		for (;p < end; p++)
 		{
-			short *p = &pr[i+j];
 
 			e = p[0]; f = p[1];
 			a = abs(e);
 
 			if (a >= (ratio-2)) {	
 				if (a < y_wl[1]) {
-					scan = count_cond(p, 0, step);
-					if ((scan <  3 && a < y_wl[0])
-					 || (scan == 0)) {
+					c = count_cond(p, 0, step);
+					if ((c <  3 && a < y_wl[0])
+					 || (c == 0)) {
 						if (e < 0) e = -7 ; else e =7;
 					}
 				}
-				reduce_yterms(p, e, f, step, j<(step-2));
+				reduce_yterms(p, e, f, step, p < &end[-1]);
 			}
 			else p[0] = 0;
 		}
@@ -111,20 +115,22 @@ void ywl(image_buffer *im, int ratio, const short *y_wl)
 	// Scan HH:
 	for (i = (im_size>>1); i < (im_size-step); i += step)
 	{
-		for (j=(halfs+1);j<(step-1);j++)
+		short *p = &pr[i];
+		short *end = &p[step-1];
+
+		for (p = &p[halfs+1]; p < end; p++)
 		{
-			short *p = &pr[i+j];
 			e = p[0]; f = p[1];
 			a = abs(e);
 
 			if (a >= (ratio-1)) {	
 				if (a < y_wl[2]) {
-					scan = count_cond(p, 0, step);
-					if (scan < 3) {
+					c = count_cond(p, 0, step);
+					if (c < 3) {
 						if (e < 0) e = -7; else e = 7;
 					}
 				}
-				reduce_yterms(p, e, f, step, j<(step-2));
+				reduce_yterms(p, e, f, step, p < &end[-1]);
 			}
 			else p[0]=0;
 		}

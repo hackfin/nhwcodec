@@ -1271,38 +1271,33 @@ void SWAPOUT_FUNCTION(process_res_hq)(image_buffer *im, const short *res256)
 
 void copy_thresholds(short *process, const short *resIII, int size, int step)
 {
-	int i, j, count;
+	int i, j;
 
 	int im_dim = step / 2;
+	const short *r = resIII;
 
-	for (i=0, count=0; i < size; i += step)
-	{
+	for (i=0; i < size; i += step) {
 		short *p = &process[i];
 		// LL:
-		for (j=0;j<im_dim >> 1;j++)
-		{ 
-			if (resIII[count]>8000) {
-				*p++ = resIII[count++];
+		for (j = 0; j < im_dim >> 1; j++, r++) { 
+			if (*r > 8000) {
+				*p++ = *r;
 			} else {
-				*p++ = 0;count++;
+				*p++ = 0;
 			}
 		}
 
 		// LH:
-		for (j=im_dim >> 1;j<im_dim;j++)
-		{ 
-			*p++ = resIII[count++];
+		for (j = im_dim >> 1; j < im_dim; j++) { 
+			*p++ = *r++;
 		}
-
 	}
 
-	for (i=size; i < (2*size); i += step)
-	{
+	for (i = size; i < (2*size); i += step) {
 		short *p = &process[i];
 		// HL and HH
-		for (j=0;j<im_dim;j++)
-		{ 
-			*p++ = resIII[count++];
+		for (j = 0; j < im_dim; j++) { 
+			*p++ = *r++;
 		}
 	}
 }
@@ -1454,7 +1449,7 @@ void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 
 	free(resIII);
-	ywl(im, ratio, lookup_ywlthreshold(quality));
+	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {

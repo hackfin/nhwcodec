@@ -14,8 +14,9 @@
 #include "utils.h"
 #include "codec.h"
 
-#define RESIII_GETXY(x, y, off)  \
-					(((((y) >> 1) + (x)) >> 1) + (off))
+// FIXME: Indexing ineffective in software, ok in HW
+#define RESIII_GETXY(x, y)  \
+					(((((y) >> 1) + (x)) >> 1))
 
 #define IN_RANGE(x, a, b)  ( ((x) >= a) && ((x) <= b) )
 
@@ -160,6 +161,9 @@ void reduce_HL_LH_q4(image_buffer *im)
 
 }
 
+// Warning: Lazy coded, can actually 'artefact' due to
+// p[-1] pointing into the LL quad for the first value
+
 inline void quant_zero(short tmp, short *p, char th2, char th3, int ratio)
 {
 	if (abs(tmp) < th2) p[0] = 0;
@@ -180,6 +184,7 @@ void reduce_generic_LH_HH(image_buffer *im,
 	const short *resIII, int ratio, char *wvlt, int thr)
 {
 	int i, j;
+	int ri;
 	short tmp;
 	int im_size = im->fmt.end / 4;
 	int step = im->fmt.tile_size;
@@ -188,12 +193,15 @@ void reduce_generic_LH_HH(image_buffer *im,
 	//  LL    HL 
 	// *LH*   HH
 
-	for (i=im->fmt.half;i<im->fmt.end;i+=step) {
+	const short *r0 = &resIII[im_size >> 1];
+	const short *r1 = &r0[im_dim >> 1];
+
+	for (i=im->fmt.half, ri = 0;i<im->fmt.end;i+=step, ri += step) {
 		short *p = &pr[i];
 		for (j=0;j<(im_dim);j++,p++) {
 			if (IN_RANGE(abs(p[0]), ratio, wvlt[0]+1)) {	
 				if (i<(im->fmt.end-(2*im_dim))) { // FIXME
-					tmp = resIII[RESIII_GETXY(j, (i-im->fmt.half), im_size >> 1)];
+					tmp = r0[RESIII_GETXY(j, ri)];
 				} else tmp= 0x7fff;
 				quant_zero(tmp, p, wvlt[3], wvlt[4], ratio);
 			}
@@ -202,12 +210,10 @@ void reduce_generic_LH_HH(image_buffer *im,
 	//  LL    HL 
 	//  LH   *HH*
 
-		for (j=(im_dim);j<(step-1);j++,p++)
-		{
+		for (j=0;j<im_dim-1;j++,p++) {
 			if (IN_RANGE(abs(p[0]), ratio, wvlt[1])) {	
 				if (i<(im->fmt.end-step)) {
-					int index = RESIII_GETXY(j-im_dim, i-im->fmt.half, (im_size>>1)+(im_dim>>1));
-					tmp = resIII[index];
+					tmp = r1[RESIII_GETXY(j, ri)];
 				} else tmp=0x7fff;
 				quant_zero(tmp, p, wvlt[3], wvlt[4], ratio);
 			}
@@ -223,17 +229,15 @@ void reduce_HL(image_buffer *im, const short *resIII, int ratio, char *wvlt)
 	int step = im->fmt.tile_size;
 	int im_dim = step / 2;
 	short *pr = im->im_process;
-	//  Full tile, first stage:
-	//
-	//  LL   *HL*
-	//  LH    HH 
-	
-	for (i=0;i < im->fmt.half;i+=step) {
-		short *p = &pr[i + im_dim];
+	const short *r = &resIII[im_dim >> 1];
 
-		for (j=im_dim;j<step;j++,p++) {
+	int ri;
+	for (i = im_dim, ri = 0;i < im->fmt.half;i+=step, ri += step) {
+		short *p = &pr[i];
+
+		for (j=0;j<im_dim;j++,p++) {
 			if (IN_RANGE(abs(p[0]), ratio, wvlt[2])) {
-				short tmp = resIII[RESIII_GETXY(j-im_dim, i, im_dim >> 1)];
+				short tmp = r[RESIII_GETXY(j, ri)];
 				quant_zero(tmp, p, wvlt[3], wvlt[4], ratio);
 			}
 		}
@@ -269,6 +273,22 @@ void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt)
 		}
 	}
 }
+
+//
+//       'pr'                       'resIII'
+// +---+---+---+---+  <-            +---+---+
+// |LLL|LHL|       |                |   | * |
+// +---+---+  HL   +   i            +---+---+
+// |LLH|LHH|       |                | * | * |
+// +---+---+---+---+  <-            +---+---+
+// |       |       |
+// +  LH   +  HH   +
+// |       |       |
+// +---+---+---+---+  <- (END) 
+//         ^.......^  <- j
+
+// This function does a simple dead zone quantization, depending
+// on the [pr] values and the corresponding low res ones in [resIII]
 
 void reduce_generic_simplified(image_buffer *im,
 	const short *resIII, char *wvlt, encode_state *enc, int ratio)

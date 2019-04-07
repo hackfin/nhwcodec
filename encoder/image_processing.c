@@ -53,10 +53,14 @@
 #include "tree.h"
 
 #define ROUND_8(x)  ((x) & ~7)
+#define ROUND_4(x)  ((x) & ~3)
 #define ROUND_2(x)  ((x) & ~1)
 
 // GLOBALS:
 //
+
+// FIXME: Eliminate
+#define DEPRECATED_LOOP_CONDITION(i, step)  ( (i& (step-1) ) < (step-1) )
 
 static unsigned char extra_words1[19]={10,12,14,18,20,22,26,28,30,34,36,38,42,44,46,50,52,54,58};
 static unsigned char extra_words2[19]={60,62,66,68,70,74,76,78,82,84,86,90,92,94,98,100,102,106,108};
@@ -141,6 +145,8 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 	int step2 = step / 2;
 	int im_size = im->fmt.end / 4;
 
+	unsigned int DEPRECATED_mask = step2 - 1;
+
 	for (i=0;i < im_size;i++)
 	{
 		short *p = &im->im_process[i];
@@ -159,8 +165,7 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 					assert(0);
 			}
 		} else {
-			// FIXME:
-			int cond = (i&255)<(step2-1);
+			int cond = (i & DEPRECATED_mask) < (step2-1);
 			int cond1 = i < (im_size-1);
 
 			if (a>127) {
@@ -202,22 +207,23 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 		}
 	}
 }
+				
+// TODO: Verify boundary conditions
+
 
 static inline
-void offset_fixup_neighbours(short *p, int i, short p2)
+void offset_fixup_neighbours(short *p, short p2)
 {
-	int a;
+	int a, b;
 
-	if (p[0] > 7 && p[1] > 7) {
-		a = p[0];
+	a = p[0]; b = p[1];
 
-		if ((a & 7) == 0 && (p[1] & 7) == 0) {
+	if (a > 7 && b > 7) {
+
+		if ((a & 7) == 0 && (b & 7) == 0) {
 			if (a > 15) {
-				// TODO: Verify boundary conditions
-				if (i > 0) { // FIXME: boundary case
-					if      (p[-1] <= 0)           { p[0]--; }
-					else if (p2 <= 0 && p[1] > 15) { p[1]--; }
-				}
+				if      (p[-1] <= 0)           { p[0]--; }
+				else if (p2 <= 0 && p[1] > 15) { p[1]--; }
 			} else
 				// Special boundary case:
 				if (p2 <= 0 && p[1] > 15) {p[1]--; }
@@ -226,10 +232,30 @@ void offset_fixup_neighbours(short *p, int i, short p2)
 
 }
 
+// Special variant of the above for first line
+// where p[-1] off bounds:
+
+static inline
+void offset_fixup_neighbours0(short *p, short p2)
+{
+	int a, b;
+
+	a = p[0]; b = p[1];
+
+	if (a > 7 && b > 7) {
+		if ((a & 7) == 0 && (b & 7) == 0) {
+			if (a <= 15) {
+				if (p2 <= 0 && p[1] > 15) {p[1]--; }
+			}
+		}
+	}
+}
+
+
 /* Process all subbands except LL */
 void offsetY_non_LL(image_buffer *im)
 {
-	int i;
+	int i, j;
 	short *p;
 	short *pr = im->im_process;
 	int step = im->fmt.tile_size;
@@ -240,15 +266,28 @@ void offsetY_non_LL(image_buffer *im)
 	// - - # #
 	// - - - -
 	// - - - -
+	p = &pr[step2];
 
-	p = &pr[0];
-	for (i = 0; i < im->fmt.half; i++, p++) {
-		if ((i&511) >= step2) { // FIXME: loop variable comparison
-			if ((i&511)<(step-1)) {
-				short p2 = ((i&511)<(step-2)) ? p[2] : 1;
-				offset_fixup_neighbours(p, i, p2);
-			}
+	// XXX: Verify: Does this really make sense?
+	// Actually, the p[-1] case should apply only on first column,
+	// not row.
+
+	// Special case first line:
+	for (j = 0; j < step2-2; j++, p++) {
+		offset_fixup_neighbours0(p, p[2]);
+	}
+	// j = step - 2:
+	offset_fixup_neighbours0(p, 1); j++; p += 2; p += step2;
+
+	for (i = step; i < im->fmt.half; i+=step) {
+
+		for (j = 0; j < step2-2; j++, p++) {
+			offset_fixup_neighbours(p, p[2]);
 		}
+		// j = step - 2:
+		offset_fixup_neighbours(p, 1); j++; p += 2; p += step2;
+		// j = step - 1:
+
 	}
 
 	// - - - -
@@ -257,12 +296,21 @@ void offsetY_non_LL(image_buffer *im)
 	// # # # #
 
 	p = &pr[im->fmt.half];
-	for (i = im->fmt.half; i < im->fmt.end; i++, p++) {
-		if ((i&511)<(step-1)) { // FIXME: loop variable comparison
-			short p2 = ((i&511)<(step-2)) ? p[2] : 1;
-			offset_fixup_neighbours(p, i, p2);
-		}
+	
+	// Special case first line:
+	for (j = 0; j < step2-2; j++, p++) {
+		offset_fixup_neighbours0(p, p[2]);
+	}
+	// j = step - 2:
+	offset_fixup_neighbours0(p, 1); j++; p += 2; p += step2;
 
+	for (i = step; i < im->fmt.half; i+=step) {
+
+		for (j = 0; j < step-2; j++, p++) {
+			offset_fixup_neighbours(p, p[2]);
+		}
+		// j = step - 2:
+		offset_fixup_neighbours(p, 1); j++; p += 2;
 	}
 
 }
@@ -357,6 +405,7 @@ void offsetY_LL_q4(image_buffer *im)
 
 }
 
+
 void offsetY(image_buffer *im,encode_state *enc, int m1)
 {
 	int i,exw,a;
@@ -388,7 +437,7 @@ void offsetY(image_buffer *im,encode_state *enc, int m1)
 
 			default:
 			{
-				int cond = (i&511)<(step-1);
+				int cond = DEPRECATED_LOOP_CONDITION(i, step);
 				if (a>127) {
 					exw = (ROUND_8(a) - 128) >> 3;
 					if (exw > 18) exw=18;
@@ -1052,12 +1101,12 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 		switch (a) {
 			// Note: all these conditions are only effective
 			// when quality better than 4: {
-			case MARK_15300: q[0] =  5;          return 2;
-			case MARK_15400: q[0] = -5;          return 2;
-			case MARK_15500: q[0] =  5;          return 1;
-			case MARK_15600: q[0] = -5;          return 1;
-			case MARK_15700: q[0] =  6; q[1]= 6; return 1;
-			case MARK_15800: q[0] = -6; q[1]=-6; return 1;
+			case MARK_15300: q[0] =  5;          return 3;
+			case MARK_15400: q[0] = -5;          return 3;
+			case MARK_15500: q[0] =  5;          return 2;
+			case MARK_15600: q[0] = -5;          return 2;
+			case MARK_15700: q[0] =  6; q[1]= 6; return 2;
+			case MARK_15800: q[0] = -6; q[1]=-6; return 2;
 			// }
 			case 8:
 				if (end && p[1]==-7) p[1]=-8;
@@ -1072,7 +1121,7 @@ int offsetY_subbands_H4(short *p, short *q, int m1, int end, int part)
 		}
 	}
 	round_offset_limit_m1(a, q, m1);
-	return 0;
+	return 1;
 }
 
 // Remarks:
@@ -1224,6 +1273,22 @@ void fixup_highres(image_buffer *im, short *highres_tmp)
 	}
 }
 
+inline
+int check_3x3_neighbours(const short *q, int step, int thresh)
+{
+	// Evaluate 3x3 kernel around mid pixel q[0]:
+	if (abs(q[0]) < thresh) return 1;
+	if (abs(q[-(step+1)])>= thresh) return 1;
+	if (abs(q[-(step)])>= thresh) return 1;
+	if (abs(q[-(step-1)])>= thresh) return 1;
+	if (abs(q[-1])>= thresh) return 1;
+	if (abs(q[1])>= thresh) return 1;
+	if (abs(q[(step-1)])>= thresh) return 1;
+	if (abs(q[(step)])>= thresh) return 1;
+	if (abs(q[(step+1)])>= thresh) return 1;
+	return 0;
+}
+
 void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 {
 	int i,j,a;
@@ -1233,6 +1298,9 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 	short thresh[2];
 
 	nhw1=(short*)im->im_process;
+
+	// When part == 0, another function (tag_thresh_ranges()) may have
+	// tagged pixels:
 
 	if (im->setup->quality_setting>LOW3) {
 		// Tags values that match a specific condition
@@ -1274,56 +1342,108 @@ void offsetY_recons256(image_buffer *im, encode_state *enc, int m1, int part)
 		offsetY_recons256_q4(im->im_process, im->im_jpeg, im->fmt.end / 4, step, part);
 	}
 
+	// - - # #
+	// - - # #
+	// - - - -
+	// - - - -
+
 	for (i=0;i< im_size;i+=(step)) {
-		for (j=(step/4);j<step/2;j++) {
-			int skip;
-			short *p = &im->im_process[i+j]; // FIXME: optimize
-			short *q = &im->im_jpeg[i+j];
-			skip = offsetY_subbands_H4(p, q, m1, j < step/2-1, part);
-			j += skip;
+		int skip;
+		short *p = &im->im_process[i+(step/4)];
+		short *end = &p[step/4];
+		short *q = &im->im_jpeg[i+(step/4)];
+
+		while (p < end-1) {
+			skip = offsetY_subbands_H4(p, q, m1, 1, part);
+			p += skip; q += skip;
 		}
+		offsetY_subbands_H4(p, q, m1, 0, part);
 	}
 
-	for (i=im_size;i<(2*im_size);i+=(step)) {
-		for (j=0;j<step/2;j++) {
-			int skip;
-			short *p = &im->im_process[i+j];
-			short *q = &im->im_jpeg[i+j];
+	// - - - -
+	// - - - -
+	// # # # #
+	// # # # #
 
-			skip = offsetY_subbands_H4(p, q, m1, j < step/2-1, part);
-			j += skip;
+
+	for (i=im_size;i<(2*im_size);i+=(step)) {
+		int skip;
+		short *p = &im->im_process[i];
+		short *q = &im->im_jpeg[i];
+		short *end = &p[step/2];
+
+		while (p < end-1) {
+			skip = offsetY_subbands_H4(p, q, m1, 1, part);
+			p += skip; q += skip;
 		}
+		skip = offsetY_subbands_H4(p, q, m1, 0, part);
 	}
 
 	if (!part)
 	{
-		// Run through all subbands except LL:
+
+#ifndef OPTIMIZED_PROCESSING
+		// This is the very lazy way, which runs the filter kernel over
+		// the quad boundaries as well.
 		for (i=(step);i<((2*im_size)-(step));i+=(step))
 		{
 			short *q = &im->im_jpeg[i + 1];
 
 			for (j=1;j<step/2-1;j++,q++) 
 			{
-
-				if (abs(q[0])>=8)
+				// See unrolled version below
+				if (i>=im_size || j>=(step/4))
 				{
-					if (abs(q[-(step+1)])>=8) continue;
-					if (abs(q[-(step)])>=8) continue;
-					if (abs(q[-(step-1)])>=8) continue;
-					if (abs(q[-1])>=8) continue;
-					if (abs(q[1])>=8) continue;
-					if (abs(q[(step-1)])>=8) continue;
-					if (abs(q[(step)])>=8) continue;
-					if (abs(q[(step+1)])>=8) continue;
-
-					if (i>=im_size || j>=(step/4))
-					{
+					if (!(check_3x3_neighbours(q, step, 8))) {
 						if (q[0]>0) q[0]--;
 						else q[0]++;
 					}
 				}
 			}
 		}
+#else
+		
+		// The new function breaks compatibility
+
+		// - - # #
+		// - - # #
+		// - - - -
+		// - - - -
+
+		for (i=step;i< im_size-step;i+=(step)) {
+			int skip;
+			short *q = &im->im_jpeg[i+(step/4)+1];
+			short *end = &q[step/4-2];
+
+			while (q++ < end) {
+				if (!(check_3x3_neighbours(q, step, 8))) {
+					if (q[0]>0) q[0]--;
+					else q[0]++;
+				}
+			}
+		}
+	
+		// Lazy, does not check boundary conds between quadrants
+	
+		// - - - -
+		// - - - -
+		// # # # #
+		// # # # #
+
+		for (i=im_size+step;i<(2*im_size)-step;i+=(step)) {
+			int skip;
+			short *q = &im->im_jpeg[i+1];
+			short *end = &q[step/2-2];
+
+			while (q++ < end) {
+				if (!(check_3x3_neighbours(q, step, 8))) {
+					if (q[0]>0) q[0]--;
+					else q[0]++;
+				}
+			}
+		}
+#endif
+
 	}
 }
 
@@ -1333,13 +1453,14 @@ void offsetUV_recons256_q5(short *dst, const short *src, int size, int step)
 	int i;
 
 #warning "Tiling incompatible"
+	unsigned int DEPRECATED_mask = step * 4 - 1;
 
 	for (i=0;i<(size>>2);i++)
 	{
 		// TODO: Check boundary conditions
-		if ((i&255)<(step))
+		if ((i & DEPRECATED_mask) < (step))
 		{
-			if (!(i>>8)) { // FIXME
+			if (i <= DEPRECATED_mask) { // FIXME
 				*dst++=*src++;
 				*dst++=ROUND_2(*src++);
 			} else {
@@ -1391,6 +1512,8 @@ void offsetUV_recons256(image_buffer *im, int m1, int comp)
 	int im_size = im->fmt.end / 4;
 	int quad_size = im_size / 4;
 
+	unsigned int mask = step2 - 1;
+
 	if (comp)
 	{	
 		if (im->setup->quality_setting>LOW5) 
@@ -1400,9 +1523,9 @@ void offsetUV_recons256(image_buffer *im, int m1, int comp)
 			short *p = im->im_process;
 			short *q = im->im_jpeg;
 
-			for (i=0;i<quad_size;i++) {
-				if ((i & 255) < step8) { // FIXME
-					*q =(*p & ~3) + 1;
+			for (i = 0; i < quad_size;i++) {
+				if ((i & mask) < step8) { // FIXME
+					*q = ROUND_4(*p) + 1;
 				}
 				p++; q++;
 			}	
@@ -1411,8 +1534,8 @@ void offsetUV_recons256(image_buffer *im, int m1, int comp)
 		short *p = im->im_process;
 		short *q = im->im_jpeg;
 
-		for (i=0;i<quad_size;i++) {
-			if ((i & 255)<(step8)) {
+		for (i = 0;i < quad_size;i++) {
+			if ((i & mask)<(step8)) {
 				if (*p > 0 && *p < 256)
 					*q = ROUND_2(*p);
 				else

@@ -207,7 +207,7 @@ void custom_init_lut(uint8_t *lut, int thresh)
 
 }
 
-/* Substantially 'broken' simplified encoder function for fixed quality
+/*  Simplified encoder function for fixed quality
  */
 
 void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
@@ -218,7 +218,6 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	char wvlt[7];
 	pr = im->im_process;
 	int quad_size = im->fmt.end / 4;
-	ResIndex *highres;
 
 	int n = im->fmt.tile_size; // line size Y
 
@@ -227,9 +226,9 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 
 	// Buffer for second stage WL transform, all quadrants
 	resIII = (short*) malloc(quad_size*sizeof(short));
-	enc->tree1 = (unsigned char*) calloc(((48*n)+4),sizeof(char));
-	enc->exw_Y = (unsigned char*) malloc(16*n*sizeof(short)); // CHECK: short??
-	enc->res_ch=(unsigned char *)calloc((quad_size>>2),sizeof(char));
+	enc->tree1 = (unsigned char*)  calloc(((48*n)+4),sizeof(char));
+	enc->exw_Y = (unsigned char*)  malloc(32*n*sizeof(char));
+	enc->res_ch= (unsigned char *) calloc((quad_size>>2),sizeof(char));
 
 	custom_init_lut(g_lut, 20);
 	virtfb_init(n, n, g_lut);
@@ -246,6 +245,8 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);             // CAN_HW
 
 	configure_wvlt(quality, wvlt);                  // CAN_HW
+
+	// Copy process array second stage LL LH HL HH quads into resIII:
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 	write_image16("/tmp/resIII.png", resIII, n / 2, 0);
 
@@ -258,10 +259,15 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	virtfb_set((unsigned short *) im->im_process);
 
 #ifdef NOT_CRUCIAL
+	// Residual coding stage:
 	if (quality > LOW8) {
-		// This is a big ugly function.
+		ResIndex *highres;
+		// This is a big complex function, operating on the LL first stage (DC)
+		// quadrant.
 		// In first pass, res256 are tagged with CODE_* values
 		// Second pass reverts these back to the corresponding TAGs
+		// Basically, it looks at the differences from the quantization/reduction and
+		// tags all values with the 'fixup' CODE that are outside a specific tolerance.
 		preprocess_res_q8(im, res256, enc);
 
 		highres=(ResIndex*)calloc(((48*im->fmt.tile_size)+1),sizeof(ResIndex));
@@ -272,8 +278,15 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	}
 #endif
 
+	// Copy resIII quadrants to process array:
+	// - LL is copied only, when resIII greater than threshold (8000),
+	//   else it's nulled
+	// - All other subbands are copied without condition
+	//
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
-	ywl(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
+	// again, quantize AC sub bands if smaller than above threshold:
+	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
+	// Quantize DC quadrant:
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	virtfb_close();
@@ -336,7 +349,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	// write_image16("/tmp/wl2.png", im->im_process, n, 0);
 
-#ifdef NOT_CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
 		// Tag all values in a specific threshold range with an offset.
@@ -360,7 +372,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 		// write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
 		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 	}
-#endif
 	
 	reduce_lowres_generic(im, wvlt, ratio);
 
@@ -384,7 +395,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	copy_to_quadrant(pr, resIII, n, n);
 
 	if (quality > LOW8) { // Better than LOW8?
-		// 
+		// Operates on DC quad: (LL):
 		offsetY_recons256(im, enc, ratio, 0); // FIXME: Eliminate 'part'
 		//offsetY_recons256_part0(im, enc, ratio);
 
@@ -412,7 +423,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	if (quality > LOW8)
 	{
-		// This is a big ugly function.
+		// This is a big complex function.
 		// In first pass, res256 are tagged with CODE_* values
 		// Second pass reverts these back to the corresponding TAGs
 		preprocess_res_q8(im, res256, enc);
@@ -429,7 +440,8 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 
 	free(resIII);
-	ywl(im, ratio, lookup_ywlthreshold(quality));
+	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));
+	// Quantize DC quadrant:
 	offsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
@@ -619,8 +631,8 @@ void dump_stats(image_buffer *im, encode_state *enc)
 	n += enc->highres_comp_len;
 	n += enc->end_ch_res;
 
-	printf("Effective payload size: %d, compression rate: %0.4f\n",
-		n, (float) n / (float) im->fmt.end);
+	printf("Effective payload size: %d, compression rate: 1:%0.1f\n",
+		n, (float) im->fmt.end * 3.0 / (float) n );
 	
 }
 
