@@ -81,17 +81,16 @@
 #define MARK_15700 15700
 #define MARK_15800 15800
 
-#define MARK_12000 0x2800
-#define MARK_16000 0x2000
-#define MARK_24000 0x3000
+#define MARK_12000 0x2000
+#define MARK_16000 0x3000
+#define MARK_24000 0x4000
 
-#define MARK_MASK  0x3800
+#define TAG_PIXEL(x, which)     (x += (which + 256))
+#define UNTAG_PIXEL(x, which)   (x -= (which + 256))
 
-#define TAG_PIXEL(x, which)     (x |= (which))
-#define UNTAG_PIXEL(x, which)   (x &= ~(which))
+#define IS_TAG(x)      (x > (MARK_16000))
+#define IS_TAG_RES(x)  (x > (MARK_24000))
 
-#define IS_TAG(x)      (x & 0x2000)
-#define IS_TAG_RES(x)  ((x & MARK_MASK) == 0x800)
 
 #ifndef __CONCAT
 #define __CONCAT(x, y) x##y

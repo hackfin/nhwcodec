@@ -99,7 +99,7 @@ pngdiff: $(CURIMAGES)
 	if [ "$$ERR" == "1" ]; then echo "FAIL"; false; else true; fi
 
 
-testdiff:
+testdiff: $(NHWIMAGES)
 	@echo "=================================================="
 	@for i in $(IMAGES); do \
 		diff $(WORKDIR)/$${i}_$(SETTING).nhw \

@@ -211,27 +211,27 @@ void tag_thresh_ranges(image_buffer *im, short *result)
 
 				switch (cur) {
 					case -7: case -6: case -5:
-						*result += 12000;
+						TAG_PIXEL(*result, MARK_12000);
 						break;
 					case -4: case -3: case -2: case -1:
 						break;
 					case 2: case 3: case 4:
 						if (scan>=tmp && (i+j) < (im->fmt.half - 2*halfn-1)
 						 && (abs(p[-tmp])!=0 || abs(p[tmp])!=0))
-								*result+=12000;
+							TAG_PIXEL(*result, MARK_12000);
 						break;
 					case 5: case 6: case 7:
-						*result += 16000;
+						TAG_PIXEL(*result, MARK_16000);
 						break;
 					default:
 						if (cur < -7) {
-							offset_code = 16000;
+							offset_code = MARK_16000;
 							cur = -cur; m = 7;
 						} else {
-							offset_code = 12000; m = 1;
+							offset_code = MARK_12000; m = 1;
 						}
 						if    (((cur) & 7) == m
-						 ||    ((cur) & 7) == 0 )   *result += offset_code;
+						 ||    ((cur) & 7) == 0 )   TAG_PIXEL(*result, offset_code);
 
 				}
 			}
@@ -243,10 +243,10 @@ void tag_thresh_ranges(image_buffer *im, short *result)
 inline
 void fixup_pixel_offset(short *p, short *q)
 {
-	if        (*p > 14000) {
-		*p -= 16000; q[0]++;
-	} else if (*p > 10000) {
-		*p -= 12000; q[0]--;
+	if        (*p >= MARK_16000) {
+		UNTAG_PIXEL(*p, MARK_16000); q[0]++;
+	} else if (*p >= MARK_12000) {
+		UNTAG_PIXEL(*p, MARK_12000); q[0]--;
 	}
 }
 
@@ -480,7 +480,7 @@ inline void cond_modify0(short scan, int step, short *q)
 	if (IS_ODD(scan)) {
 		if (IS_ODD(q[0]) && IS_ODD(q[1])) {
 			if (IS_ODD(q[step]) && !IS_ODD(q[(2*step)])) {
-				if (q[0] < 10000) q[0]++;
+				if (!IS_TAG(q[0])) q[0]++;
 			}
 		}
 	}
@@ -509,13 +509,17 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	//
 	scan = pr[0];
 
-	if (scan > 10000) {
-		scan -= 16000;
-		if (scan > 4000) {
-			scan -= 8000; enc->nhw_res4[res++]= 1;
-			stage++;
-		}
-	} 
+#define CHECK_TAGGED_PIXEL(x) \
+	if IS_TAG(scan) {     \
+		if IS_TAG_RES(scan) {     \
+			enc->nhw_res4[res++]= x;     \
+			stage++;     \
+			UNTAG_PIXEL(scan, MARK_24000); \
+		} else \
+			UNTAG_PIXEL(scan, MARK_16000); \
+	}
+
+	CHECK_TAGGED_PIXEL(1);
 
 	CLAMP2(scan, 0, 255);
 	enc->res_ch[a] = scan;
@@ -530,13 +534,9 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	{
 		scan = p[0];
 
-		if (scan > 10000) {
-			scan -= 16000;
-			if (scan > 4000) {
-				scan -= 8000; enc->nhw_res4[res++]= j + 1;
-				stage++;
-			}
-		} else  {
+		CHECK_TAGGED_PIXEL(j+1)
+		else  {
+			// South pixel (next line):
 			short *q = &p[step];
 
 			if (IS_ODD(scan) && IS_ODD(p[1])) {
@@ -545,7 +545,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 				if (IS_ODD(p[2])) {
 					if (abs(scan-p[2])>1) p[1]++;
 				} else if (cond) {
-					if (q[0] < 10000) q[0]++;
+					if (!IS_TAG(q[0])) q[0]++;
 				}
 
 			}
@@ -558,14 +558,8 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	for (; j < (step>>2); j++, p++) {
 		scan = p[0];
 
-		if (scan > 10000) {
-			scan -= 16000;
-			if (scan > 4000) {
-				scan -= 8000;
-				enc->nhw_res4[res++]= j + 1;
-				stage++;
-			}
-		} else  {
+		CHECK_TAGGED_PIXEL(j+1)
+		else  {
 			short *q = &p[step];
 
 			if (IS_ODD(scan) && IS_ODD(p[1])) {	
@@ -592,13 +586,8 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 
 		// First row:
 		j = 0;
-		if (scan > 10000) {
-			scan -= 16000;
-			if (scan > 4000) {
-				scan -= 8000; enc->nhw_res4[res++]= j + 1;
-				stage++;
-			}
-		} else 
+		CHECK_TAGGED_PIXEL(j+1)
+		else 
 		if (i < (im_size-(3*step))) {
 			cond_modify0(scan, step, &p[step]);
 		}
@@ -611,13 +600,8 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 		{
 			scan = p[0];
 
-			if (scan > 10000) {
-				scan -= 16000;
-				if (scan > 4000) {
-					scan -= 8000; enc->nhw_res4[res++]= j + 1;
-					stage++;
-				}
-			} else {
+			CHECK_TAGGED_PIXEL(j+1)
+			else {
 				short *q = &p[step];
 
 				if (IS_ODD(scan)
@@ -628,7 +612,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 					if (IS_ODD(p[2])) {
 						if (abs(scan-p[2])>1) p[1]++;
 					} else if (i<(im_size-step-2) && cond ) {
-						if (q[0] < 10000) q[0]++;
+						if (!IS_TAG(q[0])) q[0]++;
 					}
 
 				} else
@@ -644,13 +628,8 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 		for (; j < (step>>2); j++, p++) {
 			scan = p[0];
 
-			if (scan > 10000) {
-				scan -= 16000;
-				if (scan > 4000) {
-					scan -= 8000; enc->nhw_res4[res++]= j + 1;
-					stage++;
-				}
-			} else  {
+			CHECK_TAGGED_PIXEL(j+1)
+			else  {
 			// FIXME: eliminate loop variable check
 				short *q = &p[step];
 
@@ -659,7 +638,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 					char cond = IS_ODD(q[0]) && IS_ODD(q[1]) && !IS_ODD(q[2]);
 
 					if (i<(im_size-step-2) && cond) { // FIXME
-						if (q[0] < 10000) q[0]++;
+						if (!IS_TAG(q[0])) q[0]++;
 					}
 				} else
 				// FIXME (i)
@@ -667,7 +646,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 					if (IS_ODD(scan)) {
 						if (IS_ODD(q[0]) && IS_ODD(q[1])) {
 							if (IS_ODD(q[step]) && !IS_ODD(q[(2*step)])) {
-								if (q[0] < 10000) q[0]++;
+								if (!IS_TAG(q[0])) q[0]++;
 							}
 						}
 					}
@@ -759,11 +738,18 @@ int mark_res_q3(image_buffer *im)
 			    IS_ODD(p[3]) &&
 			    abs(p[0]-p[3])>1)
 			{
-				p[0] +=24000;
-				p[1] +=16000;
-				p[2] +=16000;
-				p[3] +=16000;
-				res++;stage++;j+=3;count+=3;
+				assert(p[0] > -256);
+				assert(p[1] > -256);
+				assert(p[2] > -256);
+				assert(p[3] > -256);
+
+				TAG_PIXEL(p[0], MARK_24000);
+				TAG_PIXEL(p[1], MARK_16000);
+				TAG_PIXEL(p[2], MARK_16000);
+				TAG_PIXEL(p[3], MARK_16000);
+				res++;stage++;j+=3;p+=3;
+
+
 			}
 		}
 

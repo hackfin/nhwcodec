@@ -337,7 +337,7 @@ void ywl(image_buffer *im, int ratio, const short *y_wl);
 void scan_run_code(image_buffer *im, encode_state *enc);
 void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv);
 void copy_thresholds(short *process, const short *resIII, int size, int step);
-int process_res_q3(image_buffer *im);
+int mark_res_q3(image_buffer *im);
 void tree_compress(image_buffer *im, encode_state *enc);
 void tree_compress_q(image_buffer *im, encode_state *enc);
 void tree_compress_q3(image_buffer *im,  encode_state *enc);
