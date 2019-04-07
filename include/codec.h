@@ -168,11 +168,11 @@ typedef struct{
 	ResIndex *nhw_res4;
 	ResIndex *nhw_res6;
 	unsigned char *nhw_res6_bit;
-	unsigned char *nhw_res5_word;
 	unsigned char *nhw_res6_word;
 
 	unsigned short *nhw_char_res1;
 	unsigned short nhw_char_res1_len;
+
 	unsigned short nhw_select1;
 	unsigned short nhw_select2;
 	unsigned char *nhw_select_word1;
@@ -204,29 +204,19 @@ typedef struct{
 	unsigned int *packet2;
 	int d_size_data1;
 	int d_size_data2;
-	unsigned short nhw_res1_len;
-	unsigned short nhw_res3_len;
+
+	struct nhw_res res1;
+	struct nhw_res res3;
+	struct nhw_res res5;
+
 	unsigned short nhw_res4_len;
-	unsigned short nhw_res5_len;
 	unsigned int nhw_res6_len;
-	unsigned short nhw_res1_bit_len;
 	unsigned short nhw_res2_bit_len;
-	unsigned short nhw_res3_bit_len;
-	unsigned short nhw_res5_bit_len;
 	unsigned short nhw_res6_bit_len;
 	unsigned short nhw_select1;
 	unsigned short nhw_select2;
-	ResIndex *nhw_res1;
-	ResIndex *nhw_res3;
 	ResIndex *nhw_res4;
-	ResIndex *nhw_res5;
 	ResIndex *nhw_res6;
-	unsigned char *nhw_res1_bit;
-	unsigned char *nhw_res1_word;
-	unsigned char *nhw_res3_bit;
-	unsigned char *nhw_res3_word;
-	unsigned char *nhw_res5_bit;
-	unsigned char *nhw_res5_word;
 	unsigned char *nhw_res6_bit;
 	unsigned char *nhw_res6_word;
 	unsigned int *nhwresH3;

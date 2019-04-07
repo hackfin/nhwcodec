@@ -10,7 +10,6 @@
 #define SECOND_STAGE 1
 
 
-// #define SIMPLIFIED
 #define CRUCIAL
 
 
@@ -52,8 +51,10 @@ struct config {
 	int tilepower;
 	char loopback;
 	char verbose;
+	char testmode;
 } g_encconfig = {
 	.tilepower = 9,
+	.testmode = 0,
 	.loopback = 0,
 };
 
@@ -256,6 +257,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 
 	virtfb_set((unsigned short *) im->im_process);
 
+#ifdef NOT_CRUCIAL
 	if (quality > LOW8) {
 		// This is a big ugly function.
 		// In first pass, res256 are tagged with CODE_* values
@@ -268,6 +270,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 
 		free(highres);
 	}
+#endif
 
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 	ywl(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
@@ -333,7 +336,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	// write_image16("/tmp/wl2.png", im->im_process, n, 0);
 
-#ifdef CRUCIAL
+#ifdef NOT_CRUCIAL
 	if (quality > LOW14) // Better quality than LOW14?
 	{
 		// Tag all values in a specific threshold range with an offset.
@@ -488,11 +491,12 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	}
 #endif
 
-#ifdef SIMPLIFIED
-	encode_y_simplified(im, enc, ratio);
-#else
-	encode_y(im, enc, ratio);
-#endif
+	if (g_encconfig.testmode) {
+		printf("Running in test mode (simplified pipeline)\n");
+		encode_y_simplified(im, enc, ratio);
+	} else {
+		encode_y(im, enc, ratio);
+	}
 
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 
@@ -529,7 +533,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(im->im_nhw);
 }
 
-void init_decoder(decode_state *dec, encode_state *enc)
+void init_decoder(decode_state *dec, encode_state *enc, int q)
 {
 	memset(dec, 0, sizeof(decode_state));
 	dec->d_size_tree1 = enc->size_tree1;
@@ -541,36 +545,42 @@ void init_decoder(decode_state *dec, encode_state *enc)
 
 	dec->tree_end = enc->tree_end;
 	dec->exw_Y_end = enc->exw_Y_end;
-	dec->nhw_res1_len = enc->res1.len;
-	dec->nhw_res3_len = enc->res3.len;
-	dec->nhw_res3_bit_len = enc->res3.bit_len;
-	dec->nhw_res4_len = enc->nhw_res4_len;
-	dec->nhw_res1_bit_len = enc->res1.bit_len;
-	dec->nhw_res5_len = enc->res5.len;
-	dec->nhw_res5_bit_len = enc->res5.bit_len;
-	dec->nhw_res6_len = enc->nhw_res6_len;
-	dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
-	dec->nhw_char_res1_len = enc->nhw_char_res1_len;
-	dec->qsetting3_len = enc->qsetting3_len;
+
+	// 'fallthrough' switch case, missing break's by intention!
+	switch (q) {
+		case HIGH3:
+			dec->qsetting3_len = enc->qsetting3_len;
+		case HIGH2:
+			dec->nhw_res6_len = enc->nhw_res6_len;
+			dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
+			dec->nhw_res6 = enc->nhw_res6;
+			dec->nhw_res6_bit = enc->nhw_res6_bit;
+			dec->nhw_res6_word = enc->nhw_res6_word;
+		case HIGH1:
+			*(&enc->res5) = *(&dec->res5);
+		case NORM:
+			dec->nhw_char_res1_len = enc->nhw_char_res1_len;
+			dec->nhw_char_res1 = enc->nhw_char_res1;
+		case LOW1:
+			*(&enc->res3) = *(&dec->res3);
+		case LOW2:
+			dec->nhw_res4_len = enc->nhw_res4_len;
+			dec->nhw_res4 = enc->nhw_res4;
+		case LOW3:
+		case LOW4:
+			dec->highres_comp_len = enc->highres_comp_len;
+		case LOW5:
+		case LOW6:
+		case LOW7:
+			*(&enc->res1) = *(&dec->res1);
+		default:
+			break;
+	}
+
 	dec->nhw_select1 = enc->nhw_select1;
 	dec->nhw_select2 = enc->nhw_select2;
-	dec->highres_comp_len = enc->highres_comp_len;
 	dec->end_ch_res = enc->end_ch_res;
 	dec->exw_Y = enc->exw_Y;
-	dec->nhw_res1 = enc->res1.res;
-	dec->nhw_res1_bit = enc->res1.res_bit;
-	dec->nhw_res1_word = enc->res1.res_word;
-	dec->nhw_res4 = enc->nhw_res4;
-	dec->nhw_res3 = enc->res3.res;
-	dec->nhw_res3_bit = enc->res3.res_bit;
-	dec->nhw_res3_word = enc->res3.res_word;
-	dec->nhw_res5 = enc->res5.res;
-	dec->nhw_res5_bit = enc->res5.res_bit;
-	dec->nhw_res5_word = enc->res5.res_word;
-	dec->nhw_res6 = enc->nhw_res6;
-	dec->nhw_res6_bit = enc->nhw_res6_bit;
-	dec->nhw_res6_word = enc->nhw_res6_word;
-	dec->nhw_char_res1 = enc->nhw_char_res1;
 	dec->high_qsetting3 = enc->high_qsetting3;
 	dec->nhw_select_word1 = enc->nhw_select_word1;
 	dec->nhw_select_word2 = enc->nhw_select_word2;
@@ -641,7 +651,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:s:Lvno:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-l:h:s:LTvno:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -661,12 +671,12 @@ int main(int argc, char **argv)
 			case 'l':
 				ret = set_quality(optarg, &setup, 0);
 				break;
+			case 'T':
+				g_encconfig.testmode = 1; break;
 			case 'L':
-				g_encconfig.loopback = 1;
-				break;
+				g_encconfig.loopback = 1; break;
 			case 'v':
-				g_encconfig.verbose = 1;
-				break;
+				g_encconfig.verbose = 1; break;
 			case 's':
 				g_encconfig.tilepower = atoi(optarg);
 				break;
@@ -706,9 +716,10 @@ int main(int argc, char **argv)
 
 	if (ret == 0) {
 
-#ifdef SIMPLIFIED
-		setup.quality_setting = LOW8; // force
-#endif
+		if (g_encconfig.testmode) {
+			// setup.quality_setting = LOW8; // force
+			printf("Running with quality setting %d\n", setup.quality_setting);
+		}
 		downsample_YUV420(&im, &enc, rate);
 
 		encode_image(&im, &enc, rate);
@@ -716,7 +727,7 @@ int main(int argc, char **argv)
 		if (g_encconfig.loopback) {
 			FILE *png_out;
 			// Initialize decoder with encoder values:
-			init_decoder(&dec, &enc);
+			init_decoder(&dec, &enc, setup.quality_setting);
 			dec.res_comp=(ResIndex *)calloc((48*im.fmt.tile_size+1),sizeof(ResIndex));
 			im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
 
