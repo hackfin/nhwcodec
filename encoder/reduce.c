@@ -2,6 +2,8 @@
 #include "utils.h"
 #include <assert.h>
 
+void reduce_HL_LH_q4(image_buffer *im);
+
 #define REDUCE(x, w)    if (abs(x) < w)  x = 0
 
 #define FLOOR2(x) ( (x) & ~1)
@@ -50,7 +52,7 @@ inline void reduce(short *q, int s, char w0, char w1, char w2, int halfsize, int
 	&& abs(p[4]-p[3]) < w \
 	&& abs(p[1]-p[0]) < w \
 	&& abs(p[3]-p[1]) < w \
-	&& abs(p[3]-p[2]) < (v-2)
+	&& abs(p[3]-p[2]) < v
 
 #define CONDITION_B(p, w, v) \
 	   abs(p[4]-p[0]) < w \
@@ -90,7 +92,7 @@ void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 			w = wvlt[0];
 			v = wvlt[1];
 
-			if (CONDITION_A(p, w, v))
+			if (CONDITION_A(p, w, v-2))
 			{
 				if      ((p[3]-p[1])>5 && (p[2]-p[3]>=0)) { p[2]=p[3]; }
 				else if ((p[1]-p[3])>5 && (p[2]-p[3]<=0)) { p[2]=p[3]; }
@@ -513,7 +515,7 @@ int count_threshold(short *pr, int from, int to, int thresh)
 	return count;
 }
 
-void reduce_HL_q4(image_buffer *im)
+void SWAPOUT_FUNCTION(reduce_HL_LH_q4)(image_buffer *im)
 {
 	int i, j, scan;
 	short *pr = im->im_process;
@@ -716,7 +718,7 @@ void reduce_generic(image_buffer *im, short *resIII, char *wvlt, encode_state *e
 	}
 
 	if (quality > LOW4) { 
-		reduce_HL_q4(im);
+		reduce_HL_LH_q4(im);
 	}
 }
 

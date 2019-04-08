@@ -14,6 +14,8 @@
 #include "utils.h"
 #include "codec.h"
 
+#define MODULO8(x)  ((x) & 7)
+
 // FIXME: Indexing ineffective in software, ok in HW
 #define RESIII_GETXY(x, y)  \
 					(((((y) >> 1) + (x)) >> 1))
@@ -134,7 +136,6 @@ void reduce_HL_LH_q4(image_buffer *im)
 
 //  LL   *HL*
 //  LH    HH 
-
 	
 	for (i=step; i<(im->fmt.half-step);i+=step)
 	{
@@ -293,7 +294,116 @@ void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt)
 void reduce_generic_simplified(image_buffer *im,
 	const short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
+	printf("%s(): simplified quantization\n", __FUNCTION__);
+
 	reduce_HL(im, resIII, ratio, wvlt);
 	reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);
 }
 
+static inline
+int count_thresh_neighbours(short *p, int count, int step, int thresh)
+{
+	if (((abs(p[-1])))    >= thresh) count++;
+	if (((abs(p[1])))     >= thresh) count++;
+	if (((abs(p[-step]))) >= thresh) count++;
+	if (((abs(p[step])))  >= thresh) count++;
+	return count;
+}
+
+// FIXME: For HL/LH bands, frequency considerations should be taken
+// into account for neighbour scoring
+
+static
+void quantize_process_simple(short *p, int t0, int t1, int t2, int t3, int step, int cond)
+{
+	int a, e, f;
+	int c;
+	int p2;
+
+	// Boundary condition:
+	if (cond) {
+		p2 = p[2];
+	} else {
+		p2 = 1; // Condition never met
+	}
+
+	e = p[0]; f = p[1];
+	a = abs(e);
+	if (a >= t0) {	
+		// First pass: 
+		if (a < t1) {
+			// Score when neighbours are above threshold (6):
+			c = count_thresh_neighbours(p, 0, step, 6);
+			if ((c == 0) || (c <  3 && a < t2)) {
+				if      (e < -t3) e = -7;
+				else if (e >  t3) e =  7;
+			}
+		}
+
+		p[0] = e; p[1] = f;
+
+	}
+	else p[0]=0;
+
+}
+
+void quant_ac_final(image_buffer *im, int ratio, const short *y_wl)
+{
+	int i, c;
+	short *pr = im->im_process;
+
+	int step = im->fmt.tile_size;
+	int halfs = step / 2;
+	int im_size = im->fmt.end;
+
+	printf("%s(): simplified quantization\n", __FUNCTION__);
+
+	// Notation:
+	//
+	//  LL  *HL*  ..   ..
+	//  LH   HH
+	//  ..
+	//  ..
+
+	for (i=step; i < ((im_size>>1)-step); i += step)
+	{
+		short *p = &pr[i];
+		short *end = &p[step-1];
+
+		for (p = &p[halfs+1]; p < end; p++) {
+			quantize_process_simple(p, (ratio-2), y_wl[1], 0x7fff, 6, step, p < &end[-1]);
+		}
+	}
+
+	//  LL   HL  ..   ..
+	// *LH*  HH
+	//  ..
+	//  ..
+
+	// Scan LH:
+	for (i=(im_size>>1);i<(im_size-step);i+=step)
+	{
+		short *p = &pr[i+1];
+		short *end = &p[halfs-1];
+
+		for (;p < end; p++) {
+			quantize_process_simple(p, (ratio-2), y_wl[1], y_wl[0], 0, step, p < &end[-1]);
+		}
+	}
+
+	//  LL   HL  ..   ..
+	//  LH  *HH*
+	//  ..
+	//  ..
+
+	// Scan HH:
+	for (i = (im_size>>1); i < (im_size-step); i += step)
+	{
+		short *p = &pr[i];
+		short *end = &p[step-1];
+
+		for (p = &p[halfs+1]; p < end; p++) {
+			quantize_process_simple(p, (ratio-1), y_wl[2], 0x7fff, 0, step, p < &end[-1]);
+		}
+	}
+}

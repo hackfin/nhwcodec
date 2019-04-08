@@ -9,9 +9,27 @@
 #define FIRST_STAGE  0
 #define SECOND_STAGE 1
 
+extern unsigned char extra_words1[19];
+extern unsigned char extra_words2[19];
 
 #define CRUCIAL
+#define NOT_CRUCIAL
+// #define NOT_CRUCIAL_QUALITY_BETTER_THAN_LOW8
 
+#ifdef __linux__
+#define TMPDIR "/tmp/"
+#else
+#define TMPDIR ""
+#endif
+
+#undef DEBUG
+
+#ifdef DEBUG
+#define WRITE_IMAGE16(file, buf, ts, m) \
+	write_image16(TMPDIR file, buf, ts, m)
+#else
+#define WRITE_IMAGE16(file, buf, ts, m)
+#endif
 
 void wl_synth_luma(image_buffer *im, int norder, int last_stage);
 
@@ -70,12 +88,22 @@ void write_image(const char *filename, uint8_t *buf)
 	int s = 1 << g_encconfig.tilepower;
 	if (out) {
 		write_png(out, buf, s, s, 0, 0);
+		fclose(out);
 	} else {
 		perror("Opening file");
 	}
 }
 
 uint8_t g_lut[0x10000 * 3];
+
+// Image conversion modes:
+
+enum {
+	CONV_LL = 0,
+	CONV_LUT,
+	CONV_GRAY
+};
+
 
 void write_image16(const char *filename, const int16_t *buf, int tilesize, int mode)
 {
@@ -87,12 +115,17 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 	buf8 = malloc(3 * tilesize * tilesize * sizeof(uint8_t));
 	dst = buf8;
 	switch (mode) {
-		case 0:
+		case CONV_LL:
 			for (i = 0; i < tilesize / 2; i++) {
 			// Don't use LUT for LL quadrant
 				for (j = 0; j < tilesize / 2; j++) {
 					tmp = *buf++;
-					*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+					if (tmp <= 255) {
+						*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+					} else {
+						rgb = &g_lut[tmp * 3];
+						*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
+					}
 				}
 				for (j = 0; j < tilesize / 2; j++) {
 					tmp = *buf++;
@@ -109,17 +142,22 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 				}
 			}
 			break;
-		case 1:
+		case CONV_LUT:
 			for (i = 0; i < tilesize * tilesize; i++) {
 				tmp = *buf++;
 				rgb = &g_lut[tmp * 3];
 				*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
 			}
 			break;
-		case 2:
+		case CONV_GRAY:
 			for (i = 0; i < tilesize * tilesize; i++) {
 				tmp = *buf++;
-				*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+				if (tmp <= 255) {
+					*dst++ = tmp; *dst++ = tmp; *dst++ = tmp;
+				} else {
+					rgb = &g_lut[tmp * 3];
+					*dst++ = rgb[0]; *dst++ = rgb[1]; *dst++ = rgb[2];
+				}
 			}
 			break;
 		default:
@@ -138,7 +176,8 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 
 	FILE *out = fopen(filename, "wb");
 	if (out) {
-		write_png(out, buf8, tilesize, tilesize, 1, 1);
+		write_png(out, buf8, tilesize, tilesize, 1, 0); // never upside down
+		fclose(out);
 	} else {
 		perror("Opening file");
 	}
@@ -160,55 +199,72 @@ void set_range(uint8_t *lut, int from, int to, uint8_t *rgb)
 	}
 }
 
+unsigned char col_table[][3] = {
+	{ 64,   0,   0 },
+	{  0,  64,   0 },
+
+	{ 127,   0,   0 },
+	{  0,  127,   0 },
+
+	{ 255,   0, 255 },
+	{ 0,     0, 255 },
+
+	{ 255,   0, 0 },
+	{ 255,   0, 127 },
+	{ 255, 127, 0 },
+	{ 255, 255, 0 },
+	{ 255, 255, 255 },
+	{ 0, 255, 255 },
+	{ 127, 127, 127 },
+};
+
+#define DARK_RED       0
+#define DARK_GREEN     1
+#define MID_RED        2
+#define MID_GREEN      3
+#define FULL_PINK      4
+#define FULL_BLUE      5
+#define FULL_RED       6
+#define MEDIUM_PINK    7
+#define ORANGE         8
+#define YELLOW         9
+#define WHITE          10
+#define CYAN           11
+#define GRAY           12
+
 void custom_init_lut(uint8_t *lut, int thresh)
 {
-	int i;
-	uint8_t *p;
 	memset(lut, 0, sizeof(g_lut));
 
-	int f = 255 / thresh;
+	set_range(lut, 0x10000 - thresh, 0xffff, col_table[DARK_RED]);
+	set_range(lut, 0, thresh, col_table[DARK_GREEN]);
+	set_range(lut, 0x10000 - 2 * thresh, 0x10000 - thresh, col_table[MID_RED]);
+	set_range(lut, thresh, 2 * thresh, col_table[MID_GREEN]);
 
-	for (i = 0; i < thresh; i++) {
-		p = &lut[3*i];
-		p[0] = 0;
-		p[1] = i * f;
-		p[2] = 0;
-	}
+	set_range(lut, 0x8000, 0x10000 - thresh, col_table[GRAY]);
+	set_range(lut, 2 * thresh, 255, col_table[FULL_BLUE]);
+	set_range(lut, 256, 10000, col_table[FULL_PINK]);
 
-	for (i = thresh; i < 256; i++) {
-		p = &lut[3*i];
-		p[0] = 0;
-		p[1] = 0;
-		p[2] = 255;
-	}
-
-	for (i = 0xff00; i < 0xfff0; i++) {
-		p[0] = 255;
-		p[1] = 0;
-		p[2] = 255;
-	}
-
-	for (i = 0xfff0; i < 0xffff; i++) {
-		p = &lut[3*i];
-		p[0] = (0xffff - i) * 8 + 32;
-		p[1] = 0;
-		p[2] = 0;
-	}
-
-	uint8_t rgb[3];
-
-
-	rgb[0] = 220; rgb[1] = 220; rgb[2] = 0;
-	set_range(lut, 10000, 12000, rgb);
-	rgb[0] = 0; rgb[1] = 220; rgb[2] = 220;
-	set_range(lut, 12000, 16000, rgb);
-	rgb[0] = 220; rgb[1] = 220; rgb[2] = 220;
-	set_range(lut, 16000, 18000, rgb);
-
+	set_range(lut, 10000, 12000, col_table[YELLOW]);
+	set_range(lut, 12000, 16000, col_table[CYAN]);
+	set_range(lut, 16000, 25000, col_table[ORANGE]);
 }
 
 /*  Simplified encoder function for fixed quality
  */
+
+void offsetY(image_buffer *im,encode_state *enc, int m1)
+{
+	printf("%s(): simplified quantization\n", __FUNCTION__);
+
+	offsetY_non_LL(im);
+	
+	if (im->setup->quality_setting>LOW4) {
+		offsetY_LL_q4(im);
+	}
+
+	offsetY_process(im, m1);
+}
 
 void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 {
@@ -230,35 +286,89 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	enc->exw_Y = (unsigned char*)  malloc(32*n*sizeof(char));
 	enc->res_ch= (unsigned char *) calloc((quad_size>>2),sizeof(char));
 
-	custom_init_lut(g_lut, 20);
-	virtfb_init(n, n, g_lut);
+	// custom_init_lut(g_lut, 8);
+	// virtfb_init(n, n, g_lut);
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);                  // CAN_HW
-	// copy LL1
-	// Unused in this compression mode:
+	WRITE_IMAGE16("wl1.png", im->im_process, n, CONV_LL);
+	WRITE_IMAGE16("dc.png", im->im_jpeg, n, CONV_GRAY);
+	// Copy DC subband:
 	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
 
-	write_image16("/tmp/res256.png", res256, n / 2, 2);
+	WRITE_IMAGE16("res256.png", res256, n/2, CONV_GRAY);
 
 	im->setup->RES_HIGH=0;
 	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);             // CAN_HW
 
+	WRITE_IMAGE16("wl2.png", im->im_process, n, CONV_LL);
+
 	configure_wvlt(quality, wvlt);                  // CAN_HW
+
+#ifdef NOT_CRUCIAL_QUALITY_GREATER_THAN_LOW14
+	if (quality > LOW14) // Better quality than LOW14?
+	{
+		// Tag all values in a specific threshold range with an offset.
+		// The tags are applied to the res256 array, process is untouched.
+		//
+		// range:    ...  | -7 .. -5  | -4 .. -1 | 2 .. 4 |  5 .. 7  | ...
+		// offset:  (T16) |    T12    |     -    | (T12)  |   T16    | (T12)
+		// ( ) : dependent on special condition:
+		// When outside this range, tag them according to its modulo 8:
+		//  MOD8(abs(val)):      7 (val<0)      1 (val > 0)
+		//  offset:              T16               T12
+		//
+		// FIXME: We should probably use a separate tag buffer
+		// to save cycles
+		tag_thresh_ranges(im, res256);
+
+		WRITE_IMAGE16("thresh.png", res256, n / 2, CONV_GRAY);
+
+		offsetY_recons256(im,enc,ratio,1);
+		// Drops result in im_process:
+		wl_synth_luma(im, n>>1, FIRST_STAGE);
+		// Modifies all 3 buffers:
+		revert_compensate_offsets(im, res256);
+		WRITE_IMAGE16("compens.png", res256, n / 2, CONV_GRAY);
+		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
+		WRITE_IMAGE16("wl_feedback.png", im->im_process, n, CONV_LL);
+
+	}
+
+	reduce_lowres_generic(im, wvlt, ratio);
+#endif
 
 	// Copy process array second stage LL LH HL HH quads into resIII:
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
-	write_image16("/tmp/resIII.png", resIII, n / 2, 0);
+	WRITE_IMAGE16("resIII.png", resIII, n / 2, CONV_LL);
 
 	tree_compress(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
 	copy_to_quadrant(pr, resIII, n, n);             // CAN_HW
-	reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
 
-	virtfb_set((unsigned short *) im->im_process);
+#ifdef NOT_CRUCIAL_QUALITY_BETTER_THAN_LOW8
+	if (quality > LOW8) { // Better than LOW8?
+		// Operates on DC quad: (LL):
+		offsetY_recons256(im, enc, ratio, 0); // FIXME: Eliminate 'part'
+		//offsetY_recons256_part0(im, enc, ratio);
 
-#ifdef NOT_CRUCIAL
+		// Drops result in im_process:
+		wl_synth_luma(im, n>>1, FIRST_STAGE);
+
+		if (quality>HIGH1) {
+			im->im_wavelet_first_order=(short*)malloc(quad_size*sizeof(short));
+			copy_from_quadrant(im->im_wavelet_first_order, im->im_jpeg, n, n);
+		}
+	}
+#endif
+
+	// reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
+	reduce_generic(im, resIII, wvlt, enc, ratio); // CAN_HW
+
+	// virtfb_set((unsigned short *) im->im_process);
+
+#ifdef NOT_CRUCIAL_QUALITY_BETTER_THAN_LOW8
 	// Residual coding stage:
 	if (quality > LOW8) {
 		ResIndex *highres;
@@ -269,6 +379,8 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 		// Basically, it looks at the differences from the quantization/reduction and
 		// tags all values with the 'fixup' CODE that are outside a specific tolerance.
 		preprocess_res_q8(im, res256, enc);
+
+		WRITE_IMAGE16("rtags.png", res256, n / 2, CONV_GRAY);
 
 		highres=(ResIndex*)calloc(((48*im->fmt.tile_size)+1),sizeof(ResIndex));
 
@@ -283,13 +395,20 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	//   else it's nulled
 	// - All other subbands are copied without condition
 	//
+
+	WRITE_IMAGE16("r3_thresh.png", resIII, n / 2, CONV_LL);
+
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 	// again, quantize AC sub bands if smaller than above threshold:
+
 	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
-	// Quantize DC quadrant:
+	WRITE_IMAGE16("ac.png", im->im_process, n, CONV_LL);
+	// Add offset of 128 and do some more processing:
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
-	virtfb_close();
+	WRITE_IMAGE16("offset.png", im->im_process, n, CONV_GRAY);
+
+	// virtfb_close();
 	free(enc->res_ch);
 }
 
@@ -333,8 +452,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);
 
-	// write_image16("/tmp/wl1.png", im->im_process, n, 0);
-
+	// WRITE_IMAGE16("wl1.png", im->im_process, n, 0);
 
 	// Add some head room for padding (PAD is initialized to 0!)
 	res256 = (short*) calloc((quad_size + n), sizeof(short));
@@ -347,29 +465,20 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 
-	// write_image16("/tmp/wl2.png", im->im_process, n, 0);
+	// WRITE_IMAGE16("wl2.png", im->im_process, n, 0);
 
 	if (quality > LOW14) // Better quality than LOW14?
 	{
-		// Tag all values in a specific threshold range with an offset.
-		// The tags are applied to the res256 array, process is untouched.
-		//
-		// range:    ...  | -7 .. -5  | -4 .. -1 | 2 .. 4 |  5 .. 7  | ...
-		// offset:  (T16) |    T12    |     -    | (T12)  |   T16    | (T12)
-		// ( ) : dependent on special condition:
-		// When outside this range, tag them according to its modulo 8:
-		//  MOD8(abs(val)):      7 (val<0)      1 (val > 0)
-		//  offset:              T16               T12
 		tag_thresh_ranges(im, res256);
 
-		// write_image16("/tmp/res_p14.png", res256, n / 2, 0);
+		// WRITE_IMAGE16("res_p14.png", res256, n / 2, 0);
 
 		offsetY_recons256(im,enc,ratio,1);
 		// Drops result in im_process:
 		wl_synth_luma(im, n>>1, FIRST_STAGE);
 		// Modifies all 3 buffers:
 		revert_compensate_offsets(im, res256);
-		// write_image16("/tmp/res_p14_pp.png", res256, n / 2, 0);
+		// WRITE_IMAGE16("res_p14_pp.png", res256, n / 2, 0);
 		wavelet_analysis(im, n >> 1, SECOND_STAGE, 1);
 	}
 	
@@ -419,7 +528,7 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 
 	reduce_generic(im, resIII, wvlt, enc, ratio);
 
-	// write_image16("/tmp/reduced.png", im->im_process, n, 0);
+	// WRITE_IMAGE16("reduced.png", im->im_process, n, 0);
 
 	if (quality > LOW8)
 	{
@@ -440,9 +549,9 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	copy_thresholds(pr, resIII, im->fmt.end / 4, n);
 
 	free(resIII);
-	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));
+	origquant_ac_final(im, ratio, lookup_ywlthreshold(quality));
 	// Quantize DC quadrant:
-	offsetY(im,enc,ratio);
+	origoffsetY(im,enc,ratio);
 
 	if (quality>HIGH1) {
 		im->im_wavelet_band=(short*)calloc(quad_size,sizeof(short));
@@ -496,7 +605,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	//if (im->setup->quality_setting<=LOW6) block_variance_avg(im);
 
-#ifdef CRUCIAL
+#ifdef NOT_CRUCIAL
 	if (im->setup->quality_setting<HIGH2) 
 	{
 		pre_processing(im);
@@ -504,7 +613,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 #endif
 
 	if (g_encconfig.testmode) {
-		printf("Running in test mode (simplified pipeline)\n");
+		// printf("Running in test mode (simplified pipeline)\n");
 		encode_y_simplified(im, enc, ratio);
 	} else {
 		encode_y(im, enc, ratio);
@@ -604,7 +713,7 @@ void init_decoder(decode_state *dec, encode_state *enc, int q)
 	dec->packet2 = &enc->encode[enc->size_data1];
 }
 
-void dump_stats(image_buffer *im, encode_state *enc)
+int record_stats(image_buffer *im, encode_state *enc)
 {
 	int n = 0;
 
@@ -631,9 +740,117 @@ void dump_stats(image_buffer *im, encode_state *enc)
 	n += enc->highres_comp_len;
 	n += enc->end_ch_res;
 
-	printf("Effective payload size: %d, compression rate: 1:%0.1f\n",
-		n, (float) im->fmt.end * 3.0 / (float) n );
-	
+	return n;
+}
+
+int nhw_encode(image_buffer *im, const char *output_filename, int rate)
+{
+	encode_state enc;
+	decode_state dec;
+
+	memset(&enc, 0, sizeof(encode_state)); // Set all to 0
+
+	printf("Running with quality setting %d\n", im->setup->quality_setting);
+	downsample_YUV420(im, &enc, rate);
+
+	encode_image(im, &enc, rate);
+
+	write_compressed_file(im, &enc, output_filename);
+	free(enc.tree1);
+	free(enc.tree2);
+	return 0;
+}
+
+void copy_to_tile(image_buffer *im, const unsigned char *img, int width)
+{
+	int i;
+	int s = 3 * im->fmt.tile_size;
+	int n = 3 * im->fmt.end;
+
+	for (i = 0; i < n; i += s) {
+		memcpy(&im->im_buffer4[i], img, s);
+		img += width;
+	}
+}
+
+void copy_from_tile(unsigned char *img, const image_buffer *im, int width)
+{
+	int i;
+	int s = 3 * im->fmt.tile_size;
+	int n = 3 * im->fmt.end;
+
+	for (i = 0; i < n; i += s) {
+		memcpy(img, &im->im_buffer4[i], s);
+		img += width; // next line
+	}
+}
+
+int encode_tiles(image_buffer *im, const unsigned char *img, int width, int height,
+	const char *output_filename, int rate)
+{
+	int i, j;
+	encode_state enc;
+	decode_state dec;
+
+	unsigned char *out = (unsigned char *) malloc(width * height * 3 * sizeof(char));
+
+	int compressed_length = 0;
+
+
+	for (i = 0; i < height; i += im->fmt.tile_size) {
+		for (j = 0; j < width; j += im->fmt.tile_size) {
+		
+			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
+
+			memset(&dec, 0, sizeof(decode_state)); // Set all to 0
+			memset(&enc, 0, sizeof(encode_state)); // Set all to 0
+
+			int offset = 3 * (j + i * width);
+
+			copy_to_tile(im, &img[offset], 3 * width);
+
+			printf("Tile @(%d, %d) quality: %d\n", j, i, im->setup->quality_setting);
+			downsample_YUV420(im, &enc, rate);
+
+			encode_image(im, &enc, rate);
+
+			init_decoder(&dec, &enc, im->setup->quality_setting);
+			dec.res_comp=(ResIndex *)calloc((48*im->fmt.tile_size+1),sizeof(ResIndex));
+			im->im_process=(short*)calloc(im->fmt.end,sizeof(short));
+
+			process_hrcomp(im, &dec);
+			decode_image(im, &dec);
+			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
+			yuv_to_rgb(im);
+
+			copy_from_tile(&out[offset], im, 3 * width);
+
+			free(im->im_bufferY); // malloced by decode_image()
+			free(im->im_bufferU);
+			free(im->im_bufferV);
+			free(im->im_buffer4);
+
+			compressed_length += record_stats(im, &enc);
+
+		}
+	}
+
+	FILE *png_out;
+	png_out = fopen(output_filename, "wb");
+	int s = im->fmt.tile_size;
+	if (png_out != NULL) {
+		write_png(png_out, out, width, height, 1, 1);
+		fclose(png_out);
+	} else {
+		perror("opening file for writing");
+	}
+
+	if (g_encconfig.verbose) {
+		printf("Effective payload size: %d, compression rate: 1:%0.1f\n",
+			compressed_length, (float) height * width * 3.0 / (float) compressed_length );
+	}
+
+	return 0;
 }
 
 int main(int argc, char **argv) 
@@ -642,13 +859,15 @@ int main(int argc, char **argv)
 	int ret;
 	const char *str;
 	image_buffer im;
-	encode_state enc;
-	decode_state dec;
 	codec_setup setup;
 	int rate = 8;
 	const char *output_filename = NULL;
 	const char *input_filename;
 	char outfile[256];
+
+	unsigned char *img;
+	int width;
+	int height;
 
 	setup.quality_setting = NORM;
 	setup.colorspace = YUV;
@@ -657,7 +876,6 @@ int main(int argc, char **argv)
 	setup.RES_LOW = 3;
 	setup.wvlts_order = 2;
 
-	memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 	im.setup = &setup;
 
 	while (1) {
@@ -706,14 +924,18 @@ int main(int argc, char **argv)
 
 	imgbuf_init(&im, g_encconfig.tilepower);
 
-	im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
 
 	if ((image = fopen(input_filename, "rb")) == NULL ) {
 		fprintf(stderr, "\n Could not open file \n");
 		exit(-1);
 	}
 
-	ret = read_png(image, im.im_buffer4, im.fmt.tile_size); 
+	if (g_encconfig.testmode) {
+		ret = read_png(image, &img, &width, &height);
+	} else {
+		im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
+		ret = read_png_tile(image, im.im_buffer4, im.fmt.tile_size);
+	}
 	fclose(image);
 
 	switch (ret) {
@@ -727,53 +949,20 @@ int main(int argc, char **argv)
 	}
 
 	if (ret == 0) {
-
 		if (g_encconfig.testmode) {
-			// setup.quality_setting = LOW8; // force
-			printf("Running with quality setting %d\n", setup.quality_setting);
-		}
-		downsample_YUV420(&im, &enc, rate);
-
-		encode_image(&im, &enc, rate);
-
-		if (g_encconfig.loopback) {
-			FILE *png_out;
-			// Initialize decoder with encoder values:
-			init_decoder(&dec, &enc, setup.quality_setting);
-			dec.res_comp=(ResIndex *)calloc((48*im.fmt.tile_size+1),sizeof(ResIndex));
-			im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
-
-			process_hrcomp(&im, &dec);
-			decode_image(&im, &dec);
-			im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
-			yuv_to_rgb(&im);
-
-			png_out = fopen(output_filename, "wb");
-			int s = im.fmt.tile_size;
-			if (png_out != NULL) {
-				write_png(png_out, im.im_buffer4, s, s, 1, 1);
-				fclose(png_out);
+			if (height % im.fmt.tile_size || width % im.fmt.tile_size) {
+				fprintf(stderr, "Not a integer multiple of tile size!\n");
 			} else {
-				perror("opening file for writing");
+				encode_tiles(&im, img, width, height, output_filename, rate);
 			}
-
-			if (g_encconfig.verbose) {
-				dump_stats(&im, &enc);
-			}
-			free(im.im_bufferY); // malloced by decode_image()
-			free(im.im_bufferU);
-			free(im.im_bufferV);
-			free(im.im_buffer4);
-			free(dec.packet1); // HACK
+			free(img);
 		} else {
-			write_compressed_file(&im, &enc, output_filename);
-			free(enc.tree1);
-			free(enc.tree2);
+			nhw_encode(&im, output_filename, rate);
 		}
-
 	} else {
 		fprintf(stderr, "Error: %s\n", str);
 	}
+
 	return ret;
 }
 

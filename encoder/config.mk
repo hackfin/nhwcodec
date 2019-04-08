@@ -4,10 +4,7 @@ include $(NETPP)/xml/prophandler.mk
 
 CFLAGS += -Wall
 CFLAGS += -I$(NETPP)/include -I$(NETPP)/devices
-CFLAGS += -DCOMPILE_WITHOUT_BOUNDARY_CHECKS
-ifdef SIMPLE
-CFLAGS += -DSIMPLIFIED
-endif
+CFLAGS += -DCOMPILE_WITHOUT_BOUNDARY_CHECKS -DDEBUG
 
 SWAP = y
 

@@ -27,8 +27,12 @@ NHWIMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).nhw)
 
 LOOPBACK_IMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).png)
 
+ifdef TEST
+TEST_MODE = -T
+endif
+
 ifdef SWAP
-NHW_ENCODE = $(NHWENC) $< -$(SETTING) -o $@
+NHW_ENCODE = $(NHWENC) $< -$(SETTING) -o $@ $(TEST_MODE)
 else
 NHW_ENCODE = $(NHWENC) $< -$(SETTING); mv $(TESTDIR)/$*.nhw $@
 endif

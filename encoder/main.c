@@ -28,7 +28,7 @@ int menu(char **argv,image_buffer *im,encode_state *os,int rate)
 	}
 
 	// READ IMAGE DATA (tile)
-	ret = read_png(im256, im->im_buffer4, im->fmt.tile_size); 
+	ret = read_png_tile(im256, im->im_buffer4, im->fmt.tile_size); 
 	fclose(im256);
 
 	switch (ret) {

@@ -207,7 +207,7 @@ void tag_thresh_ranges(image_buffer *im, short *result)
 			if (i >= quad_size || j >= halfn>>1)
 			{
 				// CUR
-				cur = pr[scan];
+				cur = p[0];
 
 				switch (cur) {
 					case -7: case -6: case -5:
@@ -252,23 +252,31 @@ void fixup_pixel_offset(short *p, short *q)
 
 // Can be done with LUT:
 
+const short lut_d0[13] = {
+	 0, 0, -1, -1,
+	-1, 1,  2,  2,
+     4, 4,  4,  4,
+	 7
+};
+
+const short lut_comp[13] = {
+	 0, 0,  0,  0,
+	 0, 1,  2,  2,
+     4, 4,  4,  4,
+	 7
+};
+
 inline
-int reduce_offset_comp_LL(int a)
+int reduce_offset_comp_LL(int val)
 {
-	if (abs(a) > 4) {
-		if (a > 0) {
-			if      (a>11)  a-=7;
-			else if (a>7)   a-=4;
-			else if (a>5)   a-=2;
-			else            a--;
-		} else {
-			if      (a<-11) a+=7;
-			else if (a<-7)  a+=4;
-			else if (a<-5)  a+=2;
-			else            a++;
-		}
-	}
-	return a;
+	int a, s;
+
+	s = val < 0 ? -1 : 1;
+	a = abs(val);
+
+	val -= s * lut_comp[(a >= 12 ? a = 12 : a)];
+
+	return val;
 }
 
 MAYBE_STATIC
@@ -294,11 +302,6 @@ void offset_compensation_LL(image_buffer *im, short *res256)
 	//                   (END) 
 	int i, j;
 
-	const short lut_d0[13] = {
-		0, 0, -1, -1, -1,
-		1, 2,  2,  4,  4,
-		4, 4, 7
-	};
 
 	const short lut_d1[] = {
 		-1, -1, -1, 0, 1, 2
@@ -326,7 +329,6 @@ void offset_compensation_LL(image_buffer *im, short *res256)
 			d0 = p[0] - r[0];
 			short comp;
 			int sgn;
-#define _MOD(x) comp = x;
 			if (d0 < 0) { d0 = -d0; sgn = -1; }
 			else          {  sgn = 1; }
 
@@ -349,11 +351,11 @@ void offset_compensation_LL(image_buffer *im, short *res256)
 				l = d1;
 				d1 *= sgn;
 
-				if      (d0 == 4 && d1 >=1)    {  _MOD(1); comp *= sgn; }
-				else if (d0 == 3 && d1 >=0)    {  _MOD(1); comp *= sgn; }
+				if      (d0 == 4 && d1 >=1)    {  comp = 1; comp *= sgn; }
+				else if (d0 == 3 && d1 >=0)    {  comp = 1; comp *= sgn; }
 				else if (abs(d1)>=3)  // case
 				{
-					if (d0 == 2 && d1 >= 1)     {  _MOD(1); comp *= sgn; }
+					if (d0 == 2 && d1 >= 1)     {  comp = 1; comp *= sgn; }
 					else {
 						if (l < 0) { l = -l; sgn_d1 = -1; }
 						l = l > LAST_ELEMENT(lut_d1) ? LAST_ELEMENT(lut_d1) : l;
@@ -361,7 +363,7 @@ void offset_compensation_LL(image_buffer *im, short *res256)
 						comp *= sgn_d1;
 					}
 				}
-				else _MOD(0)
+				else comp = 0;
 
 				comp = -comp;
 			}
@@ -415,6 +417,7 @@ void revert_compensate_offsets(image_buffer *im, short *res256)
 		int k;
 		line += s2;
 
+		// We never tag the top left LL quadrant
 #ifdef CONDITION_POSSIBLY_NEVER_MET
 		// LL:
 		for (j = 0;j < s4; j++, p++) {
@@ -492,6 +495,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	int i, j, scan;
 	int stage, res;
 	int a, e;
+	int y;
 
 	int im_size = im->fmt.end / 4;
 
@@ -557,7 +561,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 		e = code_tree(scan, 0, j, a, e, enc); a++;
 	}
 
-	// Last two rows:
+	// Last two columns:
 
 	for (; j < (step>>2); j++, p++) {
 		scan = p[0];
@@ -580,11 +584,9 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 	if (!stage) enc->nhw_res4[res++]  = 128;
 	else        enc->nhw_res4[res-1] += 128; // Potential out of bounds
 	stage=0;
-
 	// Second line:
-	for (i = step; i < im_size; i += step)
+	for (i = step, y = 1; i < im_size; i += step, y++)
 	{
-		int line_index = i >> i >> im->fmt.tile_power;
 		p = &pr[i];
 		scan = p[0];
 
@@ -595,7 +597,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 		if (i < (im_size-(3*step))) {
 			cond_modify0(scan, step, &p[step]);
 		}
-		e = code_tree(scan, line_index, j, a, e, enc); a++;
+		e = code_tree(scan, y, j, a, e, enc); a++;
 		p[0] = 0;
 		p++;
 
@@ -625,7 +627,7 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 					cond_modify0(scan, step, q);
 				}
 			} 
-			e = code_tree(scan, line_index, j, a, e, enc); a++;
+			e = code_tree(scan, y, j, a, e, enc); a++;
 			p[0] = 0;
 		}
 
@@ -656,44 +658,47 @@ void tree_compress_q3(image_buffer *im,  encode_state *enc)
 					}
 				}
 			}
-			e = code_tree(scan, line_index, j, a, e, enc); a++;
+			e = code_tree(scan, y, j, a, e, enc); a++;
 			p[0] = 0;
 		}
 		if (!stage) enc->nhw_res4[res++] =  128;
 		else        enc->nhw_res4[res-1] += 128;
 		stage = 0;
 	}
-	// Last two rows:
-
 
 	enc->exw_Y_end = e;
 }
 
 void tree_compress_q(image_buffer *im, encode_state *enc)
 {
-	int i, j, scan;
+	int i, j;
 	int a, e;
+	int y;
 
 	short *pr = im->im_process;
-	int step = im->fmt.tile_size;
+	int dim = im->fmt.tile_size;
 	int im_size = im->fmt.end / 4;
 
-	for (i=0,a=0,e=0;i<im_size;i+=step)
-	{
-		short *p = &pr[i];
-		for (j=0;j<(step>>2);j++, p++)
-		{
-			scan = p[0];
-			if (j>0 || i>0) { // FIXME: move outside loop
-				e = code_tree(scan, i >> im->fmt.tile_power, j, a, e, enc);
-			} else {
-				enc->res_ch[a] = scan;
-				enc->tree1[a] = scan & ~1;
-			}
-			a++;
-			p[0]=0;
+	a = 0;
+	e = 0; // Counter
 
+	// First pixel:
+	enc->res_ch[0] = pr[a];
+	enc->tree1[0]  = pr[a] & ~1;    a++;
+
+	short *p = &pr[1];
+	for (j=1;j<(dim>>2);j++, p++) {
+		e = code_tree(p[0], 0, j, a++, e, enc);
+		p[0]=0;
+	}
+	y = 1;
+	for (i=dim;i<im_size;i+=dim) {
+		p = &pr[i];
+		for (j=0;j<(dim>>2);j++, p++) {
+			e = code_tree(p[0], y, j, a++, e, enc);
+			p[0]=0;
 		}
+		y++;
 	}
 	enc->exw_Y_end = e;
 }
@@ -1280,8 +1285,9 @@ void copy_thresholds(short *process, const short *resIII, int size, int step)
 		short *p = &process[i];
 		// LL:
 		for (j = 0; j < im_dim >> 1; j++, r++) { 
+// Possibly this condition is never met, because we never tag the resIII array...
 			if (*r > 8000) {
-				*p++ = *r;
+				*p++ = *r; assert(0);
 			} else {
 				*p++ = 0;
 			}

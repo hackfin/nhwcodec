@@ -52,18 +52,14 @@
 #include "codec.h"
 #include "tree.h"
 
-#define ROUND_8(x)  ((x) & ~7)
-#define ROUND_4(x)  ((x) & ~3)
-#define ROUND_2(x)  ((x) & ~1)
-
 // GLOBALS:
 //
 
 // FIXME: Eliminate
 #define DEPRECATED_LOOP_CONDITION(i, step)  ( (i& (step-1) ) < (step-1) )
 
-static unsigned char extra_words1[19]={10,12,14,18,20,22,26,28,30,34,36,38,42,44,46,50,52,54,58};
-static unsigned char extra_words2[19]={60,62,66,68,70,74,76,78,82,84,86,90,92,94,98,100,102,106,108};
+unsigned char extra_words1[19]={10,12,14,18,20,22,26,28,30,34,36,38,42,44,46,50,52,54,58};
+unsigned char extra_words2[19]={60,62,66,68,70,74,76,78,82,84,86,90,92,94,98,100,102,106,108};
 
 static char extra_table[109] = {
 0,0,0,0,0,0,0,0,0,0,1,0,2,0,3,0,0,0,4,0,5,0,6,0,0,0,7,0,8,0,9,0,0,0,10,0, 
@@ -405,79 +401,88 @@ void offsetY_LL_q4(image_buffer *im)
 
 }
 
-
-void offsetY(image_buffer *im,encode_state *enc, int m1)
+inline int round_pixels_conditional(short *q, short a, short b, int m1)
 {
-	int i,exw,a;
-	short *pr;
-	int step = im->fmt.tile_size;
+	int exw;
 
-	pr = (short*) im->im_process;
+	switch (a) {
 
-	offsetY_non_LL(im);
-	
-	if (im->setup->quality_setting>LOW4) {
-		offsetY_LL_q4(im);
-	}
+		case MARK_128:  q[0] = 128; break;
+		case MARK_127:  q[0] = 127; break;
+		case MARK_129:  q[0] = 129; break;
+		case MARK_125:  q[0] = 125; break;
+		case MARK_126:  q[0] = 126; break;
+		case MARK_121:  q[0] = 121; break;
+		case MARK_122:  q[0] = 122; break;
 
-	for (i=0;i<im->fmt.end;i++)
-	{
-		short *q = &pr[i];
-		a = q[0];
-
-		switch (a) {
-
-			case MARK_128:  q[0] = 128; break;
-			case MARK_127:  q[0] = 127; break;
-			case MARK_129:  q[0] = 129; break;
-			case MARK_125:  q[0] = 125; break;
-			case MARK_126:  q[0] = 126; break;
-			case MARK_121:  q[0] = 121; break;
-			case MARK_122:  q[0] = 122; break;
-
-			default:
-			{
-				int cond = DEPRECATED_LOOP_CONDITION(i, step);
-				if (a>127) {
-					exw = (ROUND_8(a) - 128) >> 3;
-					if (exw > 18) exw=18;
-					q[0]=extra_words1[exw];
-				} else if (a<-127) {
-					exw = (ROUND_8(-a) - 128) >> 3;
-					if (exw > 18) exw=18;
-					q[0]=extra_words2[exw];
-				} else {
-					if (cond) { // FIXME: Outside loop
-						
-						if (a < 0) {
-							if (a==-7 && q[1] == 8) {q[0] = -8; a = -8;}
-							else if (a<-12 && ((-a) & 7) == 6) {
-								if (q[1]==-7) q[1]=-9;
-							}
-							if (((-a) & 7) < 7) { a = -ROUND_8(-a); }
-						} else {
-							if (a == 8 && q[1] == -7) q[1] = -8;
-							else if (a > 12 && (a & 7) >= 6) {
-								if (q[1]==7) q[1]=9;
-							}
-						}
-					} else {
-						if (a<0) {
-							if (((-a) & 7) < 7) { a = -ROUND_8(-a); }
-						}
+		default:
+		{
+			if (a>127) {
+				exw = (ROUND_8(a) - 128) >> 3;
+				if (exw > 18) exw=18;
+				q[0]=extra_words1[exw];
+			} else if (a<-127) {
+				exw = (ROUND_8(-a) - 128) >> 3;
+				if (exw > 18) exw=18;
+				q[0]=extra_words2[exw];
+			} else {
+				if (a < 0) {
+					if (a==-7 && b == 8) {q[0] = -8; a = -8;}
+					else if (a<-12 && ((-a) & 7) == 6) {
+						if (b==-7) b=-9;
 					}
-
-					if (a < m1 && a > -m1)  {
-						q[0]=128;
-					} else {
-						a += 128;
-						q[0]= ROUND_8(a);
+					if (((-a) & 7) < 7) { a = -ROUND_8(-a); }
+				} else {
+					if (a == 8 && b == -7) b = -8;
+					else if (a > 12 && (a & 7) >= 6) {
+						if (b==7) b=9;
 					}
 				}
 
+				if (a < m1 && a > -m1)  {
+					q[0]=128;
+				} else {
+					a += 128;
+					q[0]= ROUND_8(a);
+				}
 			}
+
 		}
 	}
+	return b;
+}
+
+void offsetY_process(image_buffer *im, int m1)
+{
+	int a, b;
+	int i;
+
+	int step = im->fmt.tile_size;
+
+	short *q = im->im_process;
+	short *p;
+
+	for (i=0;i<im->fmt.tile_size;i++)
+	{
+		p = &q[step-1];
+		while (q < p) {
+			q[1] = round_pixels_conditional(q, q[0], q[1], m1);
+			q++;
+		}
+		// Last:
+		round_pixels_conditional(q, q[0], 0xffff, m1);
+		q++;
+	}
+}
+
+
+void SWAPOUT_FUNCTION(offsetY)(image_buffer *im,encode_state *enc, int m1)
+{
+	offsetY_non_LL(im);
+	if (im->setup->quality_setting>LOW4) {
+		offsetY_LL_q4(im);
+	}
+	offsetY_process(im, m1);
 }
 
 void im_recons_wavelet_band(image_buffer *im)

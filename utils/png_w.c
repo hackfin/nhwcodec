@@ -8,7 +8,7 @@
 #include "imgio.h"
 #include <png.h>
 
-int write_png(FILE *fp, unsigned char *imagebuf, int height, int width, int isrgb,
+int write_png(FILE *fp, unsigned char *imagebuf, int width, int height, int isrgb,
 	int upside_down)
 {
 	png_structp pngp;

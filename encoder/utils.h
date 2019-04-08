@@ -6,6 +6,12 @@
 #define CLAMPL(x, low)  \
 		if (x < low) { x = low ; }
 
+
+#define ROUND_8(x)  ((x) & ~7)
+#define ROUND_4(x)  ((x) & ~3)
+#define ROUND_2(x)  ((x) & ~1)
+
+
 ////////////////////////////////////////////////////////////////////////////
 // Special code markers:
 
