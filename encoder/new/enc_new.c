@@ -355,7 +355,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	// reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
 	reduce_generic(im, resIII, wvlt, enc, ratio); // CAN_HW
 
-#ifdef have_netpp
+#ifdef HAVE_NETPP
 	virtfb_set((unsigned short *) im->im_process);
 #endif
 

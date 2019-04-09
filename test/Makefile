@@ -3,6 +3,8 @@ NHWDEC = ../decoder/nhwdec
 
 -include ../encoder/config.mk
 
+SWAP ?= y
+
 # Default setting:
 SETTING = norm
 

@@ -37,8 +37,6 @@ The libpng library package is required to compile.
 
 For Linux: see Makefiles in sub folders
 
-To encode an image (512x512 bitmap color image for now):
-
 Docker container:
 =================
 
