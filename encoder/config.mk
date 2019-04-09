@@ -9,7 +9,7 @@ CFLAGS += -DCOMPILE_WITHOUT_BOUNDARY_CHECKS -DDEBUG
 SWAP = y
 
 ifdef SWAP
-CFLAGS += -DSWAPOUT -DUSE_OPCODES
+CFLAGS += -DSWAPOUT -DUSE_OPCODES -DHAVE_NETPP
 CFLAGS += -I$(NETPP)/devices
 CFLAGS += -I.
 OBJS += new/enc_new.o new/remote.o new/processing.o new/quantize.o

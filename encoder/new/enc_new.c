@@ -286,8 +286,10 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	enc->exw_Y = (unsigned char*)  malloc(32*n*sizeof(char));
 	enc->res_ch= (unsigned char *) calloc((quad_size>>2),sizeof(char));
 
-	// custom_init_lut(g_lut, 8);
-	// virtfb_init(n, n, g_lut);
+	custom_init_lut(g_lut, 8);
+#ifdef HAVE_NETPP
+	virtfb_init(n, n, g_lut);
+#endif
 
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);                  // CAN_HW
@@ -366,7 +368,9 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	// reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
 	reduce_generic(im, resIII, wvlt, enc, ratio); // CAN_HW
 
-	// virtfb_set((unsigned short *) im->im_process);
+#ifdef have_netpp
+	virtfb_set((unsigned short *) im->im_process);
+#endif
 
 #ifdef NOT_CRUCIAL_QUALITY_BETTER_THAN_LOW8
 	// Residual coding stage:
@@ -408,7 +412,9 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 
 	WRITE_IMAGE16("offset.png", im->im_process, n, CONV_GRAY);
 
-	// virtfb_close();
+#ifdef HAVE_NETPP
+	virtfb_close();
+#endif
 	free(enc->res_ch);
 }
 
