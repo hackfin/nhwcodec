@@ -11,7 +11,7 @@ all: nhwenc
 # Create this for local config:
 -include config.mk
 
-CFLAGS  += -I../include -Wall -I.
+CFLAGS  += -I../include -Wall -I. -I$(LIBPNG)/include
 
 SWAP = y
 
@@ -21,9 +21,7 @@ ifdef SWAP
 CFLAGS += -DSWAPOUT
 endif
 
-
-
-LDFLAGS += -lm -lpng 
+LDFLAGS += -lm -lpng -L$(LIBPNG)/lib -lz
 ifdef DEBUG
 	CFLAGS  += -g
 else

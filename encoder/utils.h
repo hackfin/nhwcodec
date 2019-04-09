@@ -98,8 +98,8 @@
 #define IS_TAG_RES(x)  (x > (MARK_24000))
 
 
-#ifndef __CONCAT
-#define __CONCAT(x, y) x##y
+#ifndef __CONCAT1
+#define __CONCAT1(x, y) x##y
 #endif
 
 void copy_bitplane0(unsigned char *sp, int n, unsigned char *res);

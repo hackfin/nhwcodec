@@ -897,7 +897,7 @@ void preprocess_res_q8(image_buffer *im, short *res256, encode_state *enc)
 ////////////////////////////////////////////////////////////////////////////
 
 #define _MOD_ASSIGN(x, y) \
-	{ res256[count]=__CONCAT(CODE_,x); *p1 += y; *p2 += y; }
+	{ res256[count]=__CONCAT1(CODE_,x); *p1 += y; *p2 += y; }
 
 
 
