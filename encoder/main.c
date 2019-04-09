@@ -163,15 +163,15 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 
 			// Turn on debug mode for specific tile
-			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y) {
+			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y == y) {
 				enc.debug = g_encconfig.debug;
+				printf("Dumping tile @(%d, %d) : %s\n", x, y, enc.debug ? "yes" : "no");
 			}
 
 			int offset = 3 * (j + i * width);
 
 			copy_to_tile(im, &img[offset], 3 * width);
 
-			printf("Tile @(%d, %d) quality: %d\n", x, y, im->setup->quality_setting);
 			downsample_YUV420(im, &enc, rate);
 
 			encode_image(im, &enc, rate);

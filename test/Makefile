@@ -160,13 +160,15 @@ valgrind: $(TESTDIR)/$(TESTIMAGE).png
 	@echo ============= Quality '$(SETTING)' ===============
 	valgrind $(VALGRIND_OPTS) \
 		--read-var-info=yes \
-	$(NHWENC) $< -$(SETTING) 
+	$(NHW_ENCODE) -LT -s$(POWER) $(SETTING) $<
 	@echo ===============  DONE  ==================
 
+.PHONY: valgrind
 
 clean::
 	rm -f $(TESTDIR)/*.nhw
 	rm -f $(WORKDIR)/*.nhw $(WORKDIR)/*.hex $(REFDIR)/*.hex 
+	rm -f $(TILE_IMAGES)
 
 nhw: $(NHWIMAGES)
 

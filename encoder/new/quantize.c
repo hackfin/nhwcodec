@@ -294,7 +294,7 @@ void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt)
 void reduce_generic_simplified(image_buffer *im,
 	const short *resIII, char *wvlt, encode_state *enc, int ratio)
 {
-	printf("%s(): simplified quantization\n", __FUNCTION__);
+	// printf("%s(): simplified quantization\n", __FUNCTION__);
 
 	reduce_HL(im, resIII, ratio, wvlt);
 	reduce_generic_LH_HH(im, resIII, ratio, wvlt, 16);
@@ -356,7 +356,7 @@ void quant_ac_final(image_buffer *im, int ratio, const short *y_wl)
 	int halfs = step / 2;
 	int im_size = im->fmt.end;
 
-	printf("%s(): simplified quantization\n", __FUNCTION__);
+	// printf("%s(): simplified quantization\n", __FUNCTION__);
 
 	// Notation:
 	//

@@ -163,6 +163,7 @@ void write_image16(const char *filename, const int16_t *buf, int tilesize, int m
 
 	FILE *out = fopen(filename, "wb");
 	if (out) {
+		printf("Write image %s\n", filename);
 		write_png(out, buf8, tilesize, tilesize, 1, 0); // never upside down
 		fclose(out);
 	} else {
@@ -242,8 +243,6 @@ void custom_init_lut(uint8_t *lut, int thresh)
 
 void offsetY(image_buffer *im,encode_state *enc, int m1)
 {
-	printf("%s(): simplified quantization\n", __FUNCTION__);
-
 	offsetY_non_LL(im);
 	
 	if (im->setup->quality_setting>LOW4) {
@@ -331,6 +330,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	copy_from_quadrant(resIII, pr, n, n);           // CAN_HW
 	WRITE_IMAGE16("resIII.png", resIII, n / 2, CONV_LL);
 
+	WRITE_IMAGE16("wl_yres.png", im->im_process, n, CONV_LL);
 	tree_compress(im, enc);                // CAN_HW (< LOW3)
 	Y_highres_compression(im, enc);  // Very complex. TODO: Simplify
 
