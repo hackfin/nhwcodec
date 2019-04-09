@@ -29,6 +29,9 @@ NHWIMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).nhw)
 
 LOOPBACK_IMAGES = $(IMAGES:%=$(WORKDIR)/%_$(SETTING).png)
 
+# Default tile power
+POWER = 6
+
 ifdef TEST
 TEST_MODE = -T
 endif
@@ -116,6 +119,7 @@ hexdiff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).hex \
 		$(REFDIR)/$(TESTIMAGE)_$(SETTING).hex
 		meld $^
 
+
 diff: $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw
 	@echo ============= Quality '$(SETTING)' ===============
 	@diff $(WORKDIR)/$(TESTIMAGE)_$(SETTING).nhw \
@@ -139,6 +143,15 @@ allhex:
 	@for i in $(ALL_SETTINGS); do \
 		$(MAKE) hexfiles SETTING=$$i; \
 	done
+
+$(WORKDIR)/%_t$(POWER)_$(SETTING).png: $(TESTDIR)/%.png
+	@echo ============= Quality '$(SETTING)' ===============
+	$(NHW_ENCODE) -LT -s$(POWER) $(SETTING) $<
+	@echo ===============  DONE  ==================
+
+TILE_IMAGES = $(IMAGES:%=$(WORKDIR)/%_t$(POWER)_$(SETTING).png)
+
+tile: $(TILE_IMAGES)
 
 VALGRIND_OPTS = --track-origins=yes --leak-check=full --error-exitcode=1
 VALGRIND_OPTS += --read-var-info=yes

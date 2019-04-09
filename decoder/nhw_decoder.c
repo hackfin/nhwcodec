@@ -1241,7 +1241,8 @@ void decode_image(image_buffer *im,decode_state *os)
 		if (os->exw_Y[i+1]>=128) {scan=os->exw_Y[i+2]+255;os->exw_Y[i+1]-=128;}
 		else {scan=-os->exw_Y[i+2];}
 
-		count=(os->exw_Y[i]<<9)+os->exw_Y[i+1]; // FIXME
+		// Coordinate to offset:
+		count=(os->exw_Y[i]<<im->fmt.tile_power)+os->exw_Y[i+1]; // FIXME
 
 		assert(count < im->fmt.end);
 		im->im_jpeg[count]=scan;

@@ -61,6 +61,9 @@ struct config {
 	char loopback;
 	char verbose;
 	char testmode;
+	int debug;
+	int debug_tile_x;
+	int debug_tile_y;
 };
 
 extern struct config g_encconfig;
@@ -208,6 +211,7 @@ typedef struct{
 	unsigned char *exw_Y;
 	unsigned char *res_ch;
 	unsigned int *high_res;
+	int debug;
 }encode_state;
 
 typedef struct{

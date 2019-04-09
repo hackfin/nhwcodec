@@ -1,6 +1,7 @@
 #include "imgio.h"
 #include "codec.h"
 #include <getopt.h>
+#include <stdio.h>
 #include <stdint.h>
 
 int encode_tiles(image_buffer *im, const unsigned char *img, int width, int height,
@@ -20,6 +21,9 @@ static struct option long_options[] = {
 struct config g_encconfig = {
 	.tilepower = 9,
 	.testmode = 0,
+	.debug = 0,
+	.debug_tile_x = 0,
+	.debug_tile_y = 0,
 	.loopback = 0,
 };
 
@@ -148,20 +152,26 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 
 	int compressed_length = 0;
 
-
-	for (i = 0; i < height; i += im->fmt.tile_size) {
-		for (j = 0; j < width; j += im->fmt.tile_size) {
+	int x, y;
+	
+	for (i = 0, y = 0; i < height; i += im->fmt.tile_size, y++) {
+		for (j = 0, x = 0; j < width; j += im->fmt.tile_size, x++) {
 		
 			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
 
 			memset(&dec, 0, sizeof(decode_state)); // Set all to 0
 			memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 
+			// Turn on debug mode for specific tile
+			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y) {
+				enc.debug = g_encconfig.debug;
+			}
+
 			int offset = 3 * (j + i * width);
 
 			copy_to_tile(im, &img[offset], 3 * width);
 
-			printf("Tile @(%d, %d) quality: %d\n", j, i, im->setup->quality_setting);
+			printf("Tile @(%d, %d) quality: %d\n", x, y, im->setup->quality_setting);
 			downsample_YUV420(im, &enc, rate);
 
 			encode_image(im, &enc, rate);
@@ -232,7 +242,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:s:LTvno:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-l:h:s:LTvdno:t:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -252,6 +262,16 @@ int main(int argc, char **argv)
 			case 'l':
 				ret = set_quality(optarg, &setup, 0);
 				break;
+			case 't':
+				ret = sscanf(optarg, "%d,%d",
+					&g_encconfig.debug_tile_x, &g_encconfig.debug_tile_y);
+				if (ret =! 2) {
+					g_encconfig.debug_tile_x =
+					g_encconfig.debug_tile_y = 0;
+				}
+				break;
+			case 'd':
+				g_encconfig.debug = 1; break;
 			case 'T':
 				g_encconfig.testmode = 1; break;
 			case 'L':

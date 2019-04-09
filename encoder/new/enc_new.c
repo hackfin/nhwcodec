@@ -32,11 +32,11 @@ void SWAPOUT_FUNCTION(quant_ac_final)(image_buffer *im, int ratio, const short *
 #define TMPDIR ""
 #endif
 
-#undef DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define WRITE_IMAGE16(file, buf, ts, m) \
-	write_image16(TMPDIR file, buf, ts, m)
+	if (enc->debug) write_image16(TMPDIR file, buf, ts, m)
 #else
 #define WRITE_IMAGE16(file, buf, ts, m)
 #endif

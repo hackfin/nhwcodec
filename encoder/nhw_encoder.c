@@ -686,6 +686,9 @@ void tree_compress_q(image_buffer *im, encode_state *enc)
 	enc->res_ch[0] = pr[a];
 	enc->tree1[0]  = pr[a] & ~1;    a++;
 
+	// Collect all coordinates of marked pixels in LL
+	// in the exw_Y array:
+
 	short *p = &pr[1];
 	for (j=1;j<(dim>>2);j++, p++) {
 		e = code_tree(p[0], 0, j, a++, e, enc);
