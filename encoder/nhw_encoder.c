@@ -718,7 +718,7 @@ void tree_compress(image_buffer *im, encode_state *enc)
 MAYBE_STATIC
 int mark_res_q3(image_buffer *im)
 {
-	int i, j, count;
+	int i, j;
 	int res;
 	int stage;
 
@@ -1253,7 +1253,6 @@ void SWAPOUT_FUNCTION(process_res_hq)(image_buffer *im, const short *res256)
 			}
 #else
 			if (r !=0) {
-				short tmp, tmp2 = 0;
 				switch (r) {
 					case OP_R11_N: w[0] += -5;                      break;
 					case OP_R10_P: w[0] +=  5;                      break;
@@ -1859,5 +1858,23 @@ int write_compressed_file(image_buffer *im,encode_state *enc, const char *outfil
 	return 0;
 }
 
+/* Legacy NHW tile file encoding */
+int nhw_encode(image_buffer *im, const char *output_filename, int rate)
+{
+	encode_state enc;
+	decode_state dec;
+
+	memset(&enc, 0, sizeof(encode_state)); // Set all to 0
+
+	printf("Running with quality setting %d\n", im->setup->quality_setting);
+	downsample_YUV420(im, &enc, rate);
+
+	encode_image(im, &enc, rate);
+
+	write_compressed_file(im, &enc, output_filename);
+	free(enc.tree1);
+	free(enc.tree2);
+	return 0;
+}
 
 

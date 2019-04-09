@@ -53,6 +53,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Main encoder options/config:
+
+struct config {
+	char *outfilename;
+	int tilepower;
+	char loopback;
+	char verbose;
+	char testmode;
+};
+
+extern struct config g_encconfig;
 
 /*==========================================*/
 
