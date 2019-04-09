@@ -23,7 +23,7 @@ Usage example:
 
 * Recode image with 32x32 tiles in LOW12 quality:
 
-> ./nhwenc -LT -o /tmp/output.png -l12 -s6 /tmp/beach.png
+> ./nhwenc -LT -o /tmp/output.png -l12 -s5 /tmp/beach.png
 
 * Recode image with 128x128 tiles in HIGH3 quality:
 
