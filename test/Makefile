@@ -37,9 +37,9 @@ TEST_MODE = -T
 endif
 
 ifdef SWAP
-NHW_ENCODE = $(NHWENC) $< -$(SETTING) -o $@ $(TEST_MODE)
+NHW_ENCODE = $(DEBUG) $(NHWENC) -$(SETTING) -o $@ $(TEST_MODE) $<
 else
-NHW_ENCODE = $(NHWENC) $< -$(SETTING); mv $(TESTDIR)/$*.nhw $@
+NHW_ENCODE = $(DEBUG) $(NHWENC) $< -$(SETTING); mv $(TESTDIR)/$*.nhw $@
 endif
 
 $(WORKDIR)/%_$(SETTING).nhw: $(TESTDIR)/%.png
@@ -146,7 +146,7 @@ allhex:
 
 $(WORKDIR)/%_t$(POWER)_$(SETTING).png: $(TESTDIR)/%.png
 	@echo ============= Quality '$(SETTING)' ===============
-	$(NHW_ENCODE) -LT -s$(POWER) $(SETTING) $<
+	$(NHW_ENCODE) -L -s$(POWER)
 	@echo ===============  DONE  ==================
 
 TILE_IMAGES = $(IMAGES:%=$(WORKDIR)/%_t$(POWER)_$(SETTING).png)
@@ -160,7 +160,7 @@ valgrind: $(TESTDIR)/$(TESTIMAGE).png
 	@echo ============= Quality '$(SETTING)' ===============
 	valgrind $(VALGRIND_OPTS) \
 		--read-var-info=yes \
-	$(NHW_ENCODE) -LT -s$(POWER) $(SETTING) $<
+	$(NHW_ENCODE) -LT -s$(POWER)
 	@echo ===============  DONE  ==================
 
 .PHONY: valgrind

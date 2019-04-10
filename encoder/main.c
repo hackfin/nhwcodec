@@ -301,7 +301,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	if (g_encconfig.testmode) {
+	if (g_encconfig.loopback) {
 		ret = read_png(image, &img, &width, &height);
 	} else {
 		im.im_buffer4 = (unsigned char*) malloc(3*im.fmt.end*sizeof(char));
@@ -320,7 +320,7 @@ int main(int argc, char **argv)
 	}
 
 	if (ret == 0) {
-		if (g_encconfig.testmode) {
+		if (g_encconfig.loopback) {
 			if (height % im.fmt.tile_size || width % im.fmt.tile_size) {
 				fprintf(stderr, "Not a integer multiple of tile size!\n");
 			} else {
