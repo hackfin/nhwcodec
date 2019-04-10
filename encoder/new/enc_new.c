@@ -226,10 +226,10 @@ void custom_init_lut(uint8_t *lut, int thresh)
 
 	set_range(lut, 0x10000 - thresh, 0xffff, col_table[DARK_RED]);
 	set_range(lut, 0, thresh, col_table[DARK_GREEN]);
-	set_range(lut, 0x10000 - 2 * thresh, 0x10000 - thresh, col_table[MID_RED]);
+	set_range(lut, 0x10000 - 2 * thresh, 0xffff - thresh, col_table[MID_RED]);
 	set_range(lut, thresh, 2 * thresh, col_table[MID_GREEN]);
 
-	set_range(lut, 0x8000, 0x10000 - thresh, col_table[GRAY]);
+	set_range(lut, 0x8000, 0xffff - 2 * thresh, col_table[GRAY]);
 	set_range(lut, 2 * thresh, 255, col_table[FULL_BLUE]);
 	set_range(lut, 256, 10000, col_table[FULL_PINK]);
 
@@ -280,7 +280,6 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	// This always places the result in pr:
 	wavelet_analysis(im, n, FIRST_STAGE, 1);                  // CAN_HW
 	WRITE_IMAGE16("wl1.png", im->im_process, n, CONV_LL);
-	WRITE_IMAGE16("dc.png", im->im_jpeg, n, CONV_GRAY);
 	// Copy DC subband:
 	copy_from_quadrant(res256, im->im_jpeg, n, n);  // CAN_HW
 
@@ -352,8 +351,11 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	}
 #endif
 
-	// reduce_generic_simplified(im, resIII, wvlt, enc, ratio); // CAN_HW
+	WRITE_IMAGE16("reduced0.png", im->im_process, n, 0);
+	
+	// If LOW3 or better, im_process pixels are tagged by this one:
 	reduce_generic(im, resIII, wvlt, enc, ratio); // CAN_HW
+	WRITE_IMAGE16("reduced1.png", im->im_process, n, 0);
 
 #ifdef HAVE_NETPP
 	virtfb_set((unsigned short *) im->im_process);
@@ -395,6 +397,7 @@ void encode_y_simplified(image_buffer *im, encode_state *enc, int ratio)
 	quant_ac_final(im, ratio, lookup_ywlthreshold(quality));   // CAN_HW
 	WRITE_IMAGE16("ac.png", im->im_process, n, CONV_LL);
 	// Add offset of 128 and do some more processing:
+	// This also fixes up the tagged pixels from reduce_generic()
 	offsetY(im,enc,ratio);                          // CAN_HW, complex
 
 	WRITE_IMAGE16("offset.png", im->im_process, n, CONV_GRAY);

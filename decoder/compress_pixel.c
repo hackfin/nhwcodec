@@ -291,7 +291,16 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 			{
 L_STREAM:			dec&=MSW;
 				if (dec>=ZONE1) if (zone_number==1) dec+=UNZONE1; 
-SKIP_ZONE: 			word=(unsigned char)nhw_book[dec];
+SKIP_ZONE: 		
+				if (dec >= os->d_size_tree1) {
+					fprintf(stderr,
+						"%s:%d Out of bounds in nhw_book[]\n",
+						__FILE__, __LINE__);
+
+					word = 0; // XXX
+				} else {
+					word=(unsigned char)nhw_book[dec];
+				}
 
 				if (word==0x80) 
 				{
@@ -301,7 +310,13 @@ SKIP_ZONE: 			word=(unsigned char)nhw_book[dec];
 					{
 						if (e>=5 && !im3[e-2] && !im3[e-3] && !im3[e-4] && !im3[e-5])
 						{
-							if (!dec_select_word2[t2++]) im3[e++]=-11;else im3[e++]=11;
+							if (t2 >= os->nhw_select2<<3) {
+								fprintf(stderr,
+									"%s:%d Out of bounds in dec_select_word2[]\n",
+									__FILE__, __LINE__);
+							} else {
+								if (!dec_select_word2[t2++]) im3[e++]=-11;else im3[e++]=11;
+							}
 						}
 						else if (nhw_rle[dec]>=4 && !im3[e-2])
 						{

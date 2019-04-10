@@ -224,6 +224,7 @@ void tag_thresh_ranges(image_buffer *im, short *result)
 						TAG_PIXEL(*result, MARK_16000);
 						break;
 					default:
+						assert(cur > -128);
 						if (cur < -7) {
 							offset_code = MARK_16000;
 							cur = -cur; m = 7;
@@ -750,10 +751,10 @@ int mark_res_q3(image_buffer *im)
 			    IS_ODD(p[3]) &&
 			    abs(p[0]-p[3])>1)
 			{
-				assert(p[0] > -256);
-				assert(p[1] > -256);
-				assert(p[2] > -256);
-				assert(p[3] > -256);
+				assert(p[0] > -128);
+				assert(p[1] > -128);
+				assert(p[2] > -128);
+				assert(p[3] > -128);
 
 				TAG_PIXEL(p[0], MARK_24000);
 				TAG_PIXEL(p[1], MARK_16000);
