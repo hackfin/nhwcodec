@@ -7,6 +7,8 @@
 int encode_tiles(image_buffer *im, const unsigned char *img, int width, int height,
 	const char *output_filename, int rate);
 
+int nhw_encode(image_buffer *im, const char *output_filename, int rate);
+
 enum {
 	OPT_HELP,
 	OPT_OUTPUT,
@@ -109,6 +111,8 @@ void init_decoder(decode_state *dec, encode_state *enc, int q)
 	dec->res_ch = enc->res_ch;
 	dec->packet1 = enc->encode;
 	dec->packet2 = &enc->encode[enc->size_data1];
+
+	// Need to copy some more, in case we're bypassing decompression:
 }
 
 int record_stats(image_buffer *im, encode_state *enc)
@@ -163,9 +167,14 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 
 			// Turn on debug mode for specific tile
+
+			if (g_encconfig.verbose) {
+				printf("Process tile @(%d, %d)\n", x, y);
+			}
+
 			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y == y) {
 				enc.debug = g_encconfig.debug;
-				printf("Dumping tile @(%d, %d) : %s\n", x, y, enc.debug ? "yes" : "no");
+				if (enc.debug) printf("Dump tile\n");
 			}
 
 			int offset = 3 * (j + i * width);
@@ -181,7 +190,7 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			im->im_process=(short*)calloc(im->fmt.end,sizeof(short));
 
 			process_hrcomp(im, &dec);
-			decode_image(im, &dec);
+			decode_image(im, &dec, 0); // bypass compression
 			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
 			yuv_to_rgb(im);
 
@@ -214,6 +223,48 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 
 	return 0;
 }
+
+const char lq_table[] = {
+	LOW1, LOW2, LOW3, LOW4, LOW5, LOW6, 
+	LOW7, LOW8, LOW9, LOW10, LOW11, LOW12,
+	LOW13, LOW14, LOW15, LOW16, LOW17, LOW18,
+	LOW19
+};
+
+const char hq_table[] = {
+	HIGH1, HIGH2, HIGH3 
+};
+
+
+int set_quality(const char *optarg, codec_setup *setup, char high)
+{
+	if (strcmp("norm", optarg) == 0) {
+		setup->quality_setting = NORM;
+		return 0;
+	}
+	int n = atoi(&optarg[1]);
+	n--;
+	if (n < 0) {
+		fprintf(stderr, "Bad quality mode given, using norm\n");
+		return -1;
+	}
+	if (optarg[0] == 'h') {
+		if (n < sizeof(hq_table)) {
+			printf("HIGH quality mode %d\n", n);
+			setup->quality_setting = hq_table[n]; return 0;
+		}
+	} else {
+		if (n < sizeof(lq_table)) {
+			printf("LOW quality mode %d\n", n);
+			setup->quality_setting = lq_table[n];
+			return 0;
+		}
+	}
+	return -1;
+}
+
+
+
 int main(int argc, char **argv) 
 {
 	FILE *image;
@@ -222,9 +273,8 @@ int main(int argc, char **argv)
 	image_buffer im;
 	codec_setup setup;
 	int rate = 8;
-	const char *output_filename = NULL;
-	const char *input_filename;
-	char outfile[256];
+	char output_filename[256] = "";
+	char input_filename[256];
 
 	unsigned char *img;
 	int width;
@@ -242,7 +292,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-l:h:s:LTvdno:t:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-q:s:LTvdno:t:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -252,20 +302,15 @@ int main(int argc, char **argv)
 				);
 				return 0;
 			case 'o':
-				output_filename = optarg;
+				strncpy(output_filename, optarg, sizeof(output_filename) - 1);
 				break;
-			case 'h':
+			case 'q':
 				ret = set_quality(optarg, &setup, 1);
-				break;
-			case 'n':
-				break;
-			case 'l':
-				ret = set_quality(optarg, &setup, 0);
 				break;
 			case 't':
 				ret = sscanf(optarg, "%d,%d",
 					&g_encconfig.debug_tile_x, &g_encconfig.debug_tile_y);
-				if (ret =! 2) {
+				if (ret != 2) {
 					g_encconfig.debug_tile_x =
 					g_encconfig.debug_tile_y = 0;
 				}
@@ -282,14 +327,13 @@ int main(int argc, char **argv)
 				g_encconfig.tilepower = atoi(optarg);
 				break;
 			default:
-				input_filename = optarg;
+				if (optarg) strncpy(input_filename, optarg, sizeof(input_filename) - 1);
 		}
 	}
 
-	if (output_filename == NULL ) {
-		sprintf(outfile, "%s.nhw", input_filename);
-		fprintf(stderr, "Output file not specified, using %s\n", outfile);
-		output_filename = outfile;
+	if (output_filename[0] == 0 ) {
+		sprintf(output_filename, "%s.nhw", input_filename);
+		fprintf(stderr, "Output file not specified, using %s\n", output_filename);
 	}
 
 

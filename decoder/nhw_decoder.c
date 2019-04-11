@@ -54,7 +54,12 @@
 
 #define CLIP(x) ( (x<0) ? 0 : ((x>255) ? 255 : x) );
 
+#define FREAD ret = fread
 
+#define TMPDIR "/tmp/"
+
+#define WRITE_IMAGE16(file, buf, ts, m) \
+	write_image16(TMPDIR file, buf, ts, m)
 
 // #define BUILD_INDEX(y, x, s) ((y) + ((x) << s))
 #define BUILD_INDEX(y, x, d) \
@@ -270,7 +275,7 @@ int SWAPOUT_FUNCTION(main)(int argc, char **argv)
 	process_hrcomp(&im, &dec);
 
 	/* Decode Image */
-	decode_image(&im, &dec);
+	decode_image(&im, &dec, 0);
 
 	free(dec.packet1);
 	free(dec.packet2);
@@ -679,10 +684,10 @@ L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
 
 }
 
-void decode_image(image_buffer *im,decode_state *os)
+void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 {
 	int nhw,stage,end_transform,i,j,e=0,count,scan,exw1,res,nhw_selectII;
-	short *im_nhw,*im_nhw2;
+	short *im_nhw,*pr;
 	unsigned char *nhw_scale,*nhw_chr;
 	NhwIndex *nhwresH1,*nhwresH2,*nhwresH1I;
 	NhwIndex *nhwresH3I;
@@ -692,10 +697,13 @@ void decode_image(image_buffer *im,decode_state *os)
 	int IM_SIZE = im->fmt.end / 4;
 	int IM_DIM = im->fmt.tile_size / 2;
 
-	retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,im->im_process);
 	im->im_jpeg=(short*)malloc(4*IM_SIZE*sizeof(short));
 	im_nhw=(short*)im->im_jpeg;
-	im_nhw2=(short*)im->im_process;
+	pr=(short*)im->im_process;
+
+	if (!bypass_compression) {
+		retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,pr);
+	}
 
 	int shift = im->fmt.tile_power;
 
@@ -704,16 +712,16 @@ void decode_image(image_buffer *im,decode_state *os)
 	{
 		for (i=0;i<IM_DIM;i++)
 		{
-			im_nhw[j]=im_nhw2[count];
-			im_nhw[j+1]=im_nhw2[count+1];
-			im_nhw[j+2]=im_nhw2[count+2];
-			im_nhw[j+3]=im_nhw2[count+3];
+			im_nhw[j]=pr[count];
+			im_nhw[j+1]=pr[count+1];
+			im_nhw[j+2]=pr[count+2];
+			im_nhw[j+3]=pr[count+3];
 	
 			j+=im->fmt.tile_size;
-			im_nhw[j+3]=im_nhw2[count+4];
-			im_nhw[j+2]=im_nhw2[count+5];
-			im_nhw[j+1]=im_nhw2[count+6];
-			im_nhw[j]=im_nhw2[count+7];
+			im_nhw[j+3]=pr[count+4];
+			im_nhw[j+2]=pr[count+5];
+			im_nhw[j+1]=pr[count+6];
+			im_nhw[j]=pr[count+7];
 
 			j+=im->fmt.tile_size;
 			count+=8;
@@ -1076,6 +1084,8 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	}
 
+	// PROCESS code values
+
 	for (i=0;i<(2*IM_SIZE);i+=(2*IM_DIM))
 	{
 		for (scan=i,j=0;j<(2*IM_DIM);j++,scan++)
@@ -1114,6 +1124,8 @@ void decode_image(image_buffer *im,decode_state *os)
 		}
 	}
 
+	int mask = im->fmt.tile_size - 1;
+
 	for (i=(2*IM_SIZE);i<(4*IM_SIZE);i+=(2*IM_DIM))
 	{
 		for (scan=i,j=0;j<(IM_DIM);j++,scan++)
@@ -1131,13 +1143,13 @@ void decode_image(image_buffer *im,decode_state *os)
 				else if (im_nhw[scan]==1006)
 				{
 					if (scan<(2*IM_SIZE)) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
-					else if ((scan&511)<IM_DIM) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
+					else if ((scan&mask)<IM_DIM) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
 					else {im->im_jpeg[scan-IM_DIM]=-7;im->im_jpeg[scan-(3*IM_DIM)]=-7;im->im_jpeg[scan]=0;}
 				}
 				else if (im_nhw[scan]==1007)
 				{
 					if (scan<(2*IM_SIZE)) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
-					else if ((scan&511)<IM_DIM) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
+					else if ((scan&mask)<IM_DIM) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
 					else {im->im_jpeg[scan-IM_DIM]=7;im->im_jpeg[scan-(3*IM_DIM)]=7;im->im_jpeg[scan]=0;}
 				}
 			}
@@ -1161,13 +1173,13 @@ void decode_image(image_buffer *im,decode_state *os)
 				else if (im_nhw[scan]==1006)
 				{
 					if (scan<(2*IM_SIZE)) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
-					else if ((scan&511)<IM_DIM) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
+					else if ((scan&mask)<IM_DIM) {im->im_jpeg[scan]=-7;im->im_jpeg[scan+1]=-7;}
 					else {im->im_jpeg[scan-IM_DIM]=-7;im->im_jpeg[scan-(3*IM_DIM)]=-7;im->im_jpeg[scan]=0;}
 				}
 				else if (im_nhw[scan]==1007)
 				{
 					if (scan<(2*IM_SIZE)) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
-					else if ((scan&511)<IM_DIM) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
+					else if ((scan&mask)<IM_DIM) {im->im_jpeg[scan]=7;im->im_jpeg[scan+1]=7;}
 					else {im->im_jpeg[scan-IM_DIM]=7;im->im_jpeg[scan-(3*IM_DIM)]=7;im->im_jpeg[scan]=0;}
 				}
 			}
@@ -1193,6 +1205,8 @@ void decode_image(image_buffer *im,decode_state *os)
 			}
 		}
 	}
+
+	// START processing residual compensation:
 
 	nhw=0;
 	for (i=0;i<(4*IM_SIZE>>2);i+=(2*IM_DIM))
@@ -1242,7 +1256,7 @@ void decode_image(image_buffer *im,decode_state *os)
 		else {scan=-os->exw_Y[i+2];}
 
 		// Coordinate to offset:
-		count=(os->exw_Y[i]<<im->fmt.tile_power)+os->exw_Y[i+1]; // FIXME
+		count=(os->exw_Y[i]<<im->fmt.tile_power)+os->exw_Y[i+1];
 
 		assert(count < im->fmt.end);
 		im->im_jpeg[count]=scan;
@@ -1277,7 +1291,7 @@ void decode_image(image_buffer *im,decode_state *os)
 	im->setup->wavelet_type=WVLTS_53;
 	// wavelet_order=im->setup->wvlts_order;
 	//for (stage=wavelet_order-1;stage>=0;stage--) dec_wavelet_synthesis(im,(2*IM_DIM)>>stage,end_transform++,1);
-	im_nhw2=(short*)im->im_process;
+	pr=(short*)im->im_process;
 
 	dec_wavelet_synthesis(im,(2*IM_DIM)>>1,end_transform++,1);
 
@@ -1285,13 +1299,13 @@ void decode_image(image_buffer *im,decode_state *os)
 	{
 		for (i=0;i<os->res5.bit_len;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwresH1[i])]-=3;
+			pr[NHW_INDEX(nhwresH1[i])]-=3;
 		}
 		free(nhwresH1);
 
 		for (i=0;i<os->res5.len;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwresH2[i])]+=3;
+			pr[NHW_INDEX(nhwresH2[i])]+=3;
 		}
 		free(nhwresH2);
 	}
@@ -1304,14 +1318,14 @@ void decode_image(image_buffer *im,decode_state *os)
 
 		for (i=0;i<os->res1.bit_len;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres1[i])] -= e;
+			pr[NHW_INDEX(nhwres1[i])] -= e;
 
 		}
 		free(nhwres1);
 
 		for (i=0;i<os->nhw_res2_bit_len;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres2[i])] += e;
+			pr[NHW_INDEX(nhwres2[i])] += e;
 		}
 		free(nhwres2);
 	}
@@ -1321,74 +1335,77 @@ void decode_image(image_buffer *im,decode_state *os)
 	{
 		for (i=0;i<os->end_ch_res;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres3[i])] -= 4;
-			im_nhw2[NHW_INDEX(nhwres3[i])+(2*IM_DIM)] -= 3;
+			pr[NHW_INDEX(nhwres3[i])] -= 4;
+			pr[NHW_INDEX(nhwres3[i])+(2*IM_DIM)] -= 3;
 
 		}
 		free(nhwres3);
 
 		for (i=0;i<os->d_size_tree1;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres4[i])] += 4;
-			im_nhw2[NHW_INDEX(nhwres4[i])+(2*IM_DIM)] += 3;
+			pr[NHW_INDEX(nhwres4[i])] += 4;
+			pr[NHW_INDEX(nhwres4[i])+(2*IM_DIM)] += 3;
 
 		}
 		free(nhwres4);
 
 		for (i=0;i<os->res_f1;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres5[i])] += 2;
-			im_nhw2[NHW_INDEX(nhwres5[i])+(2*IM_DIM)] += 2;
-			im_nhw2[NHW_INDEX(nhwres5[i])+(4*IM_DIM)] += 2;
+			pr[NHW_INDEX(nhwres5[i])] += 2;
+			pr[NHW_INDEX(nhwres5[i])+(2*IM_DIM)] += 2;
+			pr[NHW_INDEX(nhwres5[i])+(4*IM_DIM)] += 2;
 		}
 		free(nhwres5);
 
 		for (i=0;i<os->res_f2;i++) 
 		{
-			im_nhw2[NHW_INDEX(nhwres6[i])] -= 2;
-			im_nhw2[NHW_INDEX(nhwres6[i])+(2*IM_DIM)] -= 2;
-			im_nhw2[NHW_INDEX(nhwres6[i])+(4*IM_DIM)] -= 2;
+			pr[NHW_INDEX(nhwres6[i])] -= 2;
+			pr[NHW_INDEX(nhwres6[i])+(2*IM_DIM)] -= 2;
+			pr[NHW_INDEX(nhwres6[i])+(4*IM_DIM)] -= 2;
 		}
 		free(nhwres6);
 	}
+
+#if 1
 
 	for (i=(2*IM_DIM),stage=0;i<((2*IM_SIZE)-(2*IM_DIM));i+=(2*IM_DIM))
 	{
 		for (scan=i+1,j=1;j<(IM_DIM-2);j++,scan++)
 		{
-			res	   =   (im_nhw2[scan]<<3) -
-						im_nhw2[scan-1]-im_nhw2[scan+1]-
-						im_nhw2[scan-(2*IM_DIM)]-im_nhw2[scan+(2*IM_DIM)]-
-						im_nhw2[scan-(2*IM_DIM+1)]-im_nhw2[scan+(2*IM_DIM-1)]-
-						im_nhw2[scan-(2*IM_DIM-1)]-im_nhw2[scan+(2*IM_DIM+1)];
+			res	   =   (pr[scan]<<3) -
+						pr[scan-1]-pr[scan+1]-
+						pr[scan-(2*IM_DIM)]-pr[scan+(2*IM_DIM)]-
+						pr[scan-(2*IM_DIM+1)]-pr[scan+(2*IM_DIM-1)]-
+						pr[scan-(2*IM_DIM-1)]-pr[scan+(2*IM_DIM+1)];
 
 			j++;scan++;
 
-			count   =  (im_nhw2[scan]<<3) -
-						im_nhw2[scan-1]-im_nhw2[scan+1]-
-						im_nhw2[scan-(2*IM_DIM)]-im_nhw2[scan+(2*IM_DIM)]-
-						im_nhw2[scan-(2*IM_DIM+1)]-im_nhw2[scan+(2*IM_DIM-1)]-
-						im_nhw2[scan-(2*IM_DIM-1)]-im_nhw2[scan+(2*IM_DIM+1)];
+			count   =  (pr[scan]<<3) -
+						pr[scan-1]-pr[scan+1]-
+						pr[scan-(2*IM_DIM)]-pr[scan+(2*IM_DIM)]-
+						pr[scan-(2*IM_DIM+1)]-pr[scan+(2*IM_DIM-1)]-
+						pr[scan-(2*IM_DIM-1)]-pr[scan+(2*IM_DIM+1)];
 
 
 			if (res>41 && res<108 && count<16)
 			{
-				im_nhw2[scan-1]+=16000;stage++;
+				pr[scan-1]+=16000;stage++;
 			}
 			else if (res<-41 && res>-108 && count>-16)
 			{
-				im_nhw2[scan-1]+=16000;stage++;
+				pr[scan-1]+=16000;stage++;
 			}
 			else if (count>41 && count<108 && res<16)
 			{
-				im_nhw2[scan]+=16000;stage++;
+				pr[scan]+=16000;stage++;
 			}
 			else if (count<-41 && count>-108 && res>-16)
 			{
-				im_nhw2[scan]+=16000;stage++;
+				pr[scan]+=16000;stage++;
 			}
 		}
 	}
+#endif
 
 	// Index list for values to be offset corrected:
 	NhwIndex *offset_list;
@@ -1399,21 +1416,22 @@ void decode_image(image_buffer *im,decode_state *os)
 		for (scan=i,j=0;j<IM_DIM;j++,scan++)
 		{
 			unsigned long tmp = PACK_COORDINATES(j, i);
-			if (im_nhw2[scan]>10000)
+			if (pr[scan]>10000)
 			{
 				offset_list[count++]= tmp;
 				// printf("scan: %d  0x%x\n", PACK_COORDINATES(j, i),
 					// PACK_COORDINATES(j, i));
 
-				im_nhw2[scan]-=16000;
+				pr[scan]-=16000;
 			}
 		}
 	}
 
 	for (i=0;i<IM_DIM;i++,im_nhw+=(2*IM_DIM))
 	{
-		for (scan=i,j=0;j<IM_DIM;j++,scan+=(2*IM_DIM)) im_nhw[j]=im_nhw2[scan];
+		for (scan=i,j=0;j<IM_DIM;j++,scan+=(2*IM_DIM)) im_nhw[j]=pr[scan];
 	}
+
 
 	dec_wavelet_synthesis2(im,os,(2*IM_DIM),end_transform,1);
 
@@ -1443,10 +1461,11 @@ void decode_image(image_buffer *im,decode_state *os)
 		}
 	}
 
+	
 	free(offset_list);
 
 	dec_wavelet_synthesis(im,(2*IM_DIM),end_transform,3);
-	
+
 	free(im->im_jpeg);
 
 	im_nhw=(short*)im->im_process;
@@ -1471,34 +1490,36 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	// U
 	im->im_nhw3=(short*)calloc(2*IM_SIZE,sizeof(short));
-	retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
+	if (!bypass_compression) {
+		retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
+	}
 
 	im->im_jpeg=(short*)malloc(IM_SIZE*sizeof(short));
 	im_nhw=(short*)im->im_jpeg;
-	im_nhw2=(short*)im->im_nhw3;
+	pr=(short*)im->im_nhw3;
 
 	for (j=0,count=0;j<(IM_DIM);)
 	{
 		for (i=0;i<(IM_DIM>>1);i++)
 		{
-			im_nhw[j]=im_nhw2[count];
-			im_nhw[j+1]=im_nhw2[count+2];
-			im_nhw[j+2]=im_nhw2[count+4];
-			im_nhw[j+3]=im_nhw2[count+6];
-			im_nhw[j+4]=im_nhw2[count+8];
-			im_nhw[j+5]=im_nhw2[count+10];
-			im_nhw[j+6]=im_nhw2[count+12];
-			im_nhw[j+7]=im_nhw2[count+14];
+			im_nhw[j]=pr[count];
+			im_nhw[j+1]=pr[count+2];
+			im_nhw[j+2]=pr[count+4];
+			im_nhw[j+3]=pr[count+6];
+			im_nhw[j+4]=pr[count+8];
+			im_nhw[j+5]=pr[count+10];
+			im_nhw[j+6]=pr[count+12];
+			im_nhw[j+7]=pr[count+14];
 	
 			j+=(IM_DIM);
-			im_nhw[j+7]=im_nhw2[count+16];
-			im_nhw[j+6]=im_nhw2[count+18];
-			im_nhw[j+5]=im_nhw2[count+20];
-			im_nhw[j+4]=im_nhw2[count+22];
-			im_nhw[j+3]=im_nhw2[count+24];
-			im_nhw[j+2]=im_nhw2[count+26];
-			im_nhw[j+1]=im_nhw2[count+28];
-			im_nhw[j]=im_nhw2[count+30];
+			im_nhw[j+7]=pr[count+16];
+			im_nhw[j+6]=pr[count+18];
+			im_nhw[j+5]=pr[count+20];
+			im_nhw[j+4]=pr[count+22];
+			im_nhw[j+3]=pr[count+24];
+			im_nhw[j+2]=pr[count+26];
+			im_nhw[j+1]=pr[count+28];
+			im_nhw[j]=pr[count+30];
 
 			j+=(IM_DIM);
 			count+=32;
@@ -1562,7 +1583,7 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	dec_wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
 
-	im_nhw2=(short*)im->im_process;
+	pr=(short*)im->im_process;
 	im_nhw=(short*)im->im_jpeg;
 
 	for (i=0;i<(IM_SIZE>>1);i+=IM_DIM)
@@ -1573,19 +1594,19 @@ void decode_image(image_buffer *im,decode_state *os)
 			{
 				if (im_nhw[scan]==5005)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]-=4;im_nhw2[scan-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]-=4;pr[scan-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5006)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]+=4;im_nhw2[scan-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]+=4;pr[scan-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5003) 
 				{
-					im_nhw2[scan-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5004)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
 				}
 			}
 		}
@@ -1601,44 +1622,44 @@ void decode_image(image_buffer *im,decode_state *os)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]-=4;im_nhw2[scan-(IM_SIZE>>1)+1]-=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]-=4;pr[scan-(IM_SIZE>>1)+1]-=4;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=4;im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=4;pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5006)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]+=4;im_nhw2[scan-(IM_SIZE>>1)+1]+=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]+=4;pr[scan-(IM_SIZE>>1)+1]+=4;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=4;im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=4;pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5003) 
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]-=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]-=6;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5004)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]+=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]+=6;im_nhw[scan]=0;
 					}
 					else 
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
 					}
 				}
 			}
@@ -1647,7 +1668,7 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	for (i=0;i<(IM_DIM>>1);i++,im_nhw+=(IM_DIM))
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=im_nhw2[scan];
+		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=pr[scan];
 	}
 
 	dec_wavelet_synthesis(im,IM_DIM,end_transform,0);
@@ -1764,30 +1785,30 @@ void decode_image(image_buffer *im,decode_state *os)
 	// V
 
 	im_nhw=(short*)im->im_jpeg;
-	im_nhw2=(short*)im->im_nhw3;
+	pr=(short*)im->im_nhw3;
 
 	for (j=0,count=1;j<(IM_DIM);)
 	{
 		for (i=0;i<(IM_DIM>>1);i++)
 		{
-			im_nhw[j]=im_nhw2[count];
-			im_nhw[j+1]=im_nhw2[count+2];
-			im_nhw[j+2]=im_nhw2[count+4];
-			im_nhw[j+3]=im_nhw2[count+6];
-			im_nhw[j+4]=im_nhw2[count+8];
-			im_nhw[j+5]=im_nhw2[count+10];
-			im_nhw[j+6]=im_nhw2[count+12];
-			im_nhw[j+7]=im_nhw2[count+14];
+			im_nhw[j]=pr[count];
+			im_nhw[j+1]=pr[count+2];
+			im_nhw[j+2]=pr[count+4];
+			im_nhw[j+3]=pr[count+6];
+			im_nhw[j+4]=pr[count+8];
+			im_nhw[j+5]=pr[count+10];
+			im_nhw[j+6]=pr[count+12];
+			im_nhw[j+7]=pr[count+14];
 	
 			j+=(IM_DIM);
-			im_nhw[j+7]=im_nhw2[count+16];
-			im_nhw[j+6]=im_nhw2[count+18];
-			im_nhw[j+5]=im_nhw2[count+20];
-			im_nhw[j+4]=im_nhw2[count+22];
-			im_nhw[j+3]=im_nhw2[count+24];
-			im_nhw[j+2]=im_nhw2[count+26];
-			im_nhw[j+1]=im_nhw2[count+28];
-			im_nhw[j]=im_nhw2[count+30];
+			im_nhw[j+7]=pr[count+16];
+			im_nhw[j+6]=pr[count+18];
+			im_nhw[j+5]=pr[count+20];
+			im_nhw[j+4]=pr[count+22];
+			im_nhw[j+3]=pr[count+24];
+			im_nhw[j+2]=pr[count+26];
+			im_nhw[j+1]=pr[count+28];
+			im_nhw[j]=pr[count+30];
 
 			j+=(IM_DIM);
 			count+=32;
@@ -1854,7 +1875,7 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	dec_wavelet_synthesis(im,(IM_DIM>>1),end_transform++,0);
 
-	im_nhw2=(short*)im->im_process;
+	pr=(short*)im->im_process;
 	im_nhw=(short*)im->im_jpeg;
 
 	for (i=0;i<(IM_SIZE>>1);i+=IM_DIM)
@@ -1865,19 +1886,19 @@ void decode_image(image_buffer *im,decode_state *os)
 			{
 				if (im_nhw[scan]==5005)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]-=4;im_nhw2[scan-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]-=4;pr[scan-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5006)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]+=4;im_nhw2[scan-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]+=4;pr[scan-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5003) 
 				{
-					im_nhw2[scan-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
 				}
 				else if (im_nhw[scan]==5004)
 				{
-					im_nhw2[scan-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
+					pr[scan-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
 				}
 			}
 		}
@@ -1894,44 +1915,44 @@ void decode_image(image_buffer *im,decode_state *os)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]-=4;im_nhw2[scan-(IM_SIZE>>1)+1]-=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]-=4;pr[scan-(IM_SIZE>>1)+1]-=4;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=4;im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=4;pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]-=4;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5006)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]+=4;im_nhw2[scan-(IM_SIZE>>1)+1]+=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]+=4;pr[scan-(IM_SIZE>>1)+1]+=4;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=4;im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=4;pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)+1]+=4;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5003) 
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]-=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]-=6;im_nhw[scan]=0;
 					}
 					else
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]-=6;im_nhw[scan]=0;
 					}
 				}
 				else if (im_nhw[scan]==5004)
 				{
 					if (j<(IM_DIM>>1))
 					{
-						im_nhw2[scan-(IM_SIZE>>1)]+=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)]+=6;im_nhw[scan]=0;
 					}
 					else 
 					{
-						im_nhw2[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
+						pr[scan-(IM_SIZE>>1)-(IM_DIM>>1)]+=6;im_nhw[scan]=0;
 					}
 				}
 			}
@@ -1940,7 +1961,7 @@ void decode_image(image_buffer *im,decode_state *os)
 
 	for (i=0;i<(IM_DIM>>1);i++,im_nhw+=(IM_DIM))
 	{
-		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=im_nhw2[scan];
+		for (scan=i,j=0;j<(IM_DIM>>1);j++,scan+=(IM_DIM)) im_nhw[j]=pr[scan];
 	}
 
 	dec_wavelet_synthesis(im,IM_DIM,end_transform,0);
@@ -2059,6 +2080,7 @@ void decode_image(image_buffer *im,decode_state *os)
 int parse_file(image_buffer *imd,decode_state *os,char** argv)
 {
 	FILE *compressed_file;
+	int ret;
 
 	int IM_DIM = imd->fmt.tile_size / 2;
 
@@ -2070,8 +2092,8 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 		exit(-1);
 	}
 
-	fread(&imd->setup->RES_HIGH,1,1,compressed_file);
-	fread(&imd->setup->quality_setting,1,1,compressed_file);
+	FREAD(&imd->setup->RES_HIGH,1,1,compressed_file);
+	FREAD(&imd->setup->quality_setting,1,1,compressed_file);
 
 	if (imd->setup->RES_HIGH>6)
 	{
@@ -2082,21 +2104,21 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	imd->setup->wavelet_type=WVLTS_53;
 	imd->setup->wvlts_order=2;
 
-	fread(&os->d_size_tree1,2,1,compressed_file);
-	fread(&os->d_size_tree2,2,1,compressed_file);
-	fread(&os->d_size_data1,4,1,compressed_file);
-	fread(&os->d_size_data2,4,1,compressed_file);
-	fread(&os->tree_end,2,1,compressed_file);
-	fread(&os->exw_Y_end,2,1,compressed_file);
+	FREAD(&os->d_size_tree1,2,1,compressed_file);
+	FREAD(&os->d_size_tree2,2,1,compressed_file);
+	FREAD(&os->d_size_data1,4,1,compressed_file);
+	FREAD(&os->d_size_data2,4,1,compressed_file);
+	FREAD(&os->tree_end,2,1,compressed_file);
+	FREAD(&os->exw_Y_end,2,1,compressed_file);
 	if (imd->setup->quality_setting>LOW8)
-		fread(&os->res1.len,2,1,compressed_file);
+		FREAD(&os->res1.len,2,1,compressed_file);
 	else
 		os->res1.len = 0;
 
 	if (imd->setup->quality_setting>=LOW1)
 	{
-		fread(&os->res3.len,2,1,compressed_file);
-		fread(&os->res3.bit_len,2,1,compressed_file);
+		FREAD(&os->res3.len,2,1,compressed_file);
+		FREAD(&os->res3.bit_len,2,1,compressed_file);
 	} else {
 		os->res3.len = 0;
 		os->res3.bit_len = 0;
@@ -2104,20 +2126,20 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 			
 	if (imd->setup->quality_setting>LOW3)
 	{
-		fread(&os->nhw_res4_len,2,1,compressed_file);
+		FREAD(&os->nhw_res4_len,2,1,compressed_file);
 	} else {
 		os->nhw_res4_len = 0;
 	}
 
 	if (imd->setup->quality_setting>LOW8)
-		fread(&os->res1.bit_len,2,1,compressed_file);
+		FREAD(&os->res1.bit_len,2,1,compressed_file);
 	else
 		os->res1.bit_len = 0;
 
 	if (imd->setup->quality_setting>=HIGH1)
 	{
-		fread(&os->res5.len,2,1,compressed_file);
-		fread(&os->res5.bit_len,2,1,compressed_file);
+		FREAD(&os->res5.len,2,1,compressed_file);
+		FREAD(&os->res5.bit_len,2,1,compressed_file);
 
 		os->res5.res=(ResIndex*)malloc(os->res5.len*sizeof(ResIndex));
 		os->res5.res_bit=(unsigned char*)malloc(os->res5.bit_len*sizeof(char));
@@ -2129,9 +2151,9 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 
 	if (imd->setup->quality_setting>HIGH1)
 	{
-		fread(&os->nhw_res6_len,4,1,compressed_file);
-		fread(&os->nhw_res6_bit_len,2,1,compressed_file);
-		fread(&os->nhw_char_res1_len,2,1,compressed_file);
+		FREAD(&os->nhw_res6_len,4,1,compressed_file);
+		FREAD(&os->nhw_res6_bit_len,2,1,compressed_file);
+		FREAD(&os->nhw_char_res1_len,2,1,compressed_file);
 
 		os->nhw_res6=(ResIndex*)malloc(os->nhw_res6_len*sizeof(ResIndex));
 		os->nhw_res6_bit=(unsigned char*)malloc(os->nhw_res6_bit_len*sizeof(char));
@@ -2140,7 +2162,7 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 
 		if (imd->setup->quality_setting>HIGH2)
 		{
-			fread(&os->qsetting3_len,2,1,compressed_file);
+			FREAD(&os->qsetting3_len,2,1,compressed_file);
 			os->high_qsetting3=(unsigned int*)malloc(os->qsetting3_len*sizeof(int));
 		} else {
 			os->qsetting3_len = 0;
@@ -2151,17 +2173,17 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 		os->nhw_char_res1_len = 0;
 	}
 
-	fread(&os->nhw_select1,2,1,compressed_file);
-	fread(&os->nhw_select2,2,1,compressed_file);
+	FREAD(&os->nhw_select1,2,1,compressed_file);
+	FREAD(&os->nhw_select2,2,1,compressed_file);
 	
 	if (imd->setup->quality_setting>LOW5)
 	{
-		fread(&os->highres_comp_len,2,1,compressed_file);
+		FREAD(&os->highres_comp_len,2,1,compressed_file);
 	} else {
 		os->highres_comp_len = 0;
 	}
 	
-	fread(&os->end_ch_res,2,1,compressed_file);
+	FREAD(&os->end_ch_res,2,1,compressed_file);
 
 	os->res_comp=(ResIndex*)malloc((96*IM_DIM+1)*sizeof(ResIndex));
 	os->d_tree1=(unsigned char*)calloc(os->d_size_tree1,sizeof(char));
@@ -2203,63 +2225,63 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 	os->packet2=(unsigned int*)malloc((os->d_size_data2-os->d_size_data1)*sizeof(int));
 
 	// COMPRESSED FILE DATA
-	fread(os->d_tree1,os->d_size_tree1,1,compressed_file);
-	fread(os->d_tree2,os->d_size_tree2,1,compressed_file);
-	fread(os->exw_Y,os->exw_Y_end,1,compressed_file);
+	FREAD(os->d_tree1,os->d_size_tree1,1,compressed_file);
+	FREAD(os->d_tree2,os->d_size_tree2,1,compressed_file);
+	FREAD(os->exw_Y,os->exw_Y_end,1,compressed_file);
 	
 	if (os->res1.len > 0 && os->res1.bit_len > 0)
 	{
-		fread(os->res1.res,os->res1.len,1,compressed_file);
-		fread(os->res1.res_bit,os->res1.bit_len,1,compressed_file);
-		fread(os->res1.res_word,os->res1.bit_len,1,compressed_file);
+		FREAD(os->res1.res,os->res1.len,1,compressed_file);
+		FREAD(os->res1.res_bit,os->res1.bit_len,1,compressed_file);
+		FREAD(os->res1.res_word,os->res1.bit_len,1,compressed_file);
 	}
 
 	if (os->nhw_res4_len > 0)
 	{
-		fread(os->nhw_res4,os->nhw_res4_len,1,compressed_file);
+		FREAD(os->nhw_res4,os->nhw_res4_len,1,compressed_file);
 	}
 
 	if (os->res3.len > 0 && os->res3.bit_len > 0)
 	{
-		fread(os->res3.res,os->res3.len,1,compressed_file);
-		fread(os->res3.res_bit,os->res3.bit_len,1,compressed_file);
-		fread(os->res3.res_word,(os->res3.bit_len<<1),1,compressed_file);
+		FREAD(os->res3.res,os->res3.len,1,compressed_file);
+		FREAD(os->res3.res_bit,os->res3.bit_len,1,compressed_file);
+		FREAD(os->res3.res_word,(os->res3.bit_len<<1),1,compressed_file);
 	}
 
 	if (os->res5.len > 0 && os->res5.bit_len > 0)
 	{
-		fread(os->res5.res,os->res5.len,1,compressed_file);
-		fread(os->res5.res_bit,os->res5.bit_len,1,compressed_file);
-		fread(os->res5.res_word,os->res5.bit_len,1,compressed_file);
+		FREAD(os->res5.res,os->res5.len,1,compressed_file);
+		FREAD(os->res5.res_bit,os->res5.bit_len,1,compressed_file);
+		FREAD(os->res5.res_word,os->res5.bit_len,1,compressed_file);
 	}
 
 	if (os->nhw_res6_len > 0 && os->nhw_res6_bit_len > 0
 	 && os->nhw_char_res1_len > 0)
 	{
-		fread(os->nhw_res6,os->nhw_res6_len,1,compressed_file);
-		fread(os->nhw_res6_bit,os->nhw_res6_bit_len,1,compressed_file);
-		fread(os->nhw_res6_word,os->nhw_res6_bit_len,1,compressed_file);
-		fread(os->nhw_char_res1,os->nhw_char_res1_len,2,compressed_file);
+		FREAD(os->nhw_res6,os->nhw_res6_len,1,compressed_file);
+		FREAD(os->nhw_res6_bit,os->nhw_res6_bit_len,1,compressed_file);
+		FREAD(os->nhw_res6_word,os->nhw_res6_bit_len,1,compressed_file);
+		FREAD(os->nhw_char_res1,os->nhw_char_res1_len,2,compressed_file);
 
 		if (os->qsetting3_len > 0 )
 		{
-			fread(os->high_qsetting3,os->qsetting3_len,4,compressed_file);
+			FREAD(os->high_qsetting3,os->qsetting3_len,4,compressed_file);
 		}
 	}
 
-	fread(os->nhw_select_word1,os->nhw_select1,1,compressed_file);
-	fread(os->nhw_select_word2,os->nhw_select2,1,compressed_file);
+	FREAD(os->nhw_select_word1,os->nhw_select1,1,compressed_file);
+	FREAD(os->nhw_select_word2,os->nhw_select2,1,compressed_file);
 
 	if (os->highres_comp_len > 0)
 	{
-		fread(os->res_U_64,(IM_DIM<<1),1,compressed_file);
-		fread(os->res_V_64,(IM_DIM<<1),1,compressed_file);
-		fread(os->highres_comp,os->highres_comp_len,1,compressed_file);
+		FREAD(os->res_U_64,(IM_DIM<<1),1,compressed_file);
+		FREAD(os->res_V_64,(IM_DIM<<1),1,compressed_file);
+		FREAD(os->highres_comp,os->highres_comp_len,1,compressed_file);
 	}
 
-	fread(os->res_ch,os->end_ch_res,1,compressed_file);
-	fread(os->packet1,os->d_size_data1*4,1,compressed_file);
-	fread(os->packet2,(os->d_size_data2-os->d_size_data1)*4,1,compressed_file);
+	FREAD(os->res_ch,os->end_ch_res,1,compressed_file);
+	FREAD(os->packet1,os->d_size_data1*4,1,compressed_file);
+	FREAD(os->packet2,(os->d_size_data2-os->d_size_data1)*4,1,compressed_file);
 
 	fclose(compressed_file);
 	return 0;

@@ -91,8 +91,10 @@
 #define MARK_16000 0x3000
 #define MARK_24000 0x4000
 
-#define TAG_PIXEL(x, which)     (x += (which + 128))
-#define UNTAG_PIXEL(x, which)   (x -= (which + 128))
+#define MIN_AC_VALUE -512
+
+#define TAG_PIXEL(x, which)     (x += (which - (MIN_AC_VALUE)))
+#define UNTAG_PIXEL(x, which)   (x -= (which - (MIN_AC_VALUE)))
 
 #define IS_TAG(x)      (x > (MARK_16000))
 #define IS_TAG_RES(x)  (x > (MARK_24000))

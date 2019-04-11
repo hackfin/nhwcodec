@@ -311,7 +311,7 @@ extern int wavlts2packet(image_buffer *im,encode_state *enc);
 
 /* DECODER */
 
-extern void decode_image(image_buffer *im,decode_state *os);
+void decode_image(image_buffer *im,decode_state *os, int bypass_compression);
 
 extern int parse_file(image_buffer *imd,decode_state *os,char **argv);
 extern int write_image_decompressed(char **argv,image_buffer *im);

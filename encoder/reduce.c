@@ -3,6 +3,8 @@
 #include <assert.h>
 
 void reduce_HL_LH_q4(image_buffer *im);
+void reduce_generic_LH_HH(image_buffer *im, const short *resIII, int ratio, char *wvlt, int thr);
+
 
 #define REDUCE(x, w)    if (abs(x) < w)  x = 0
 
@@ -63,7 +65,7 @@ inline void reduce(short *q, int s, char w0, char w1, char w2, int halfsize, int
 
 void reduce_lowres_LL_q7(image_buffer *im, const unsigned char *wvlt)
 {
-	int i, j, count, scan;
+	int i, j, count = 0, scan;
 	int e;
 	char w, v;
 

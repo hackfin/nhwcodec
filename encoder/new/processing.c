@@ -291,7 +291,7 @@ void process_res5_q1(image_buffer *im,
 	int quad_size = im->fmt.end / 4;
 	int step = im->fmt.tile_size / 2;
 
-	nhw_res5I_word=(unsigned char*)calloc(enc->res5.word_len,sizeof(char));
+	nhw_res5I_word=(unsigned char*)calloc(enc->res5.word_len + 8,sizeof(char));
 
 	for (i=0,count=0,e=0;i<quad_size;i+=step)
 	{

@@ -37,7 +37,7 @@ TEST_MODE = -T
 endif
 
 ifdef SWAP
-NHW_ENCODE = $(DEBUG) $(NHWENC) -$(SETTING) -o $@ $(TEST_MODE) $<
+NHW_ENCODE = $(DEBUG) $(NHWENC) -q$(SETTING) -o $@ $(TEST_MODE) $<
 else
 NHW_ENCODE = $(DEBUG) $(NHWENC) $< -$(SETTING); mv $(TESTDIR)/$*.nhw $@
 endif

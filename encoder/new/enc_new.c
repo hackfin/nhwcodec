@@ -560,31 +560,6 @@ void encode_y(image_buffer *im, encode_state *enc, int ratio)
 	}
 }
 
-const char lq_table[] = {
-	LOW1, LOW2, LOW3, LOW4, LOW5, LOW6, 
-	LOW7, LOW8, LOW9, LOW10, LOW11, LOW12,
-	LOW13, LOW14, LOW15, LOW16, LOW17, LOW18,
-	LOW19
-};
-
-const char hq_table[] = {
-	HIGH1, HIGH2, HIGH3 
-};
-
-int set_quality(const char *optarg, codec_setup *setup, char high)
-{
-	int n = atoi(optarg);
-	n--;
-	if (n < 0) return -1;
-	if (high) {
-		if (n < sizeof(hq_table))
-			{ setup->quality_setting = hq_table[n]; return 0; }
-	} else {
-		if (n < sizeof(lq_table))
-			{ setup->quality_setting = lq_table[n]; return 0; }
-	}
-	return -1;
-}
 
 void encode_image(image_buffer *im,encode_state *enc, int ratio)
 {
