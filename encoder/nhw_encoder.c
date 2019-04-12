@@ -1333,6 +1333,213 @@ const short *lookup_ywlthreshold(int quality)
 	return y_threshold_table[quality];
 }
 
+void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
+{
+	int i,j,e,res,Y,scan,count,wavelet_half_synth_res;
+	short *wavelet_half_synthesis,*data,*res_w,*data2;
+	unsigned char *nhw_res6I_word,*ch_comp,*highres,*scan_run;
+
+	wavelet_half_synthesis=(short*)malloc(im->fmt.half*sizeof(short));
+
+	res_w=(short*)wavelet_half_synthesis;
+	data=(short*)im->im_wavelet_first_order;
+	data2=(short*)im->im_wavelet_band;
+
+	int im_dim = im->fmt.tile_size / 2;
+	int im_size = im->fmt.end / 4;
+	
+	for (i=0;i<im_dim;i++)
+	{
+		upfilter53I(data,im_dim,res_w);upfilter53III(data2,im_dim,res_w);	
+		data +=(im_dim);res_w +=(2*im_dim);data2 +=(im_dim);
+	}
+
+	if (im->setup->quality_setting>HIGH2) wavelet_half_synth_res=30;
+	else wavelet_half_synth_res=34;
+
+	for (i=0,count=0,scan=0,e=0;i<(2*im_size);i++) 
+	{
+		if (abs(im->im_quality_setting[i]-wavelet_half_synthesis[i])>wavelet_half_synth_res)
+		{
+			if (im->setup->quality_setting>HIGH2 && abs(im->im_quality_setting[i]-wavelet_half_synthesis[i])>56)
+			{
+				if ((im->im_quality_setting[i]-wavelet_half_synthesis[i])>0) 
+				{
+					wavelet_half_synthesis[i]=32000;e++;
+				}
+				else 
+				{
+					wavelet_half_synthesis[i]=32500;e++;
+				}
+			}
+			else if ((im->im_quality_setting[i]-wavelet_half_synthesis[i])>0) 
+			{
+				wavelet_half_synthesis[i]=30000;count++;
+			}
+			else 
+			{
+				wavelet_half_synthesis[i]=31000;count++;
+			}
+		}
+	}
+
+
+	if (im->setup->quality_setting>HIGH2)
+	{
+		enc->high_qsetting3=(unsigned int*)malloc(e*sizeof(int));
+
+		for (i=0,e=0;i<(2*im_size);i++) 
+		{
+			if (wavelet_half_synthesis[i]==32000)
+			{
+				enc->high_qsetting3[e++]=(i<<1);
+			}
+			else if (wavelet_half_synthesis[i]==32500)
+			{
+				enc->high_qsetting3[e++]=(i<<1)+1;
+			}
+		}
+
+		enc->qsetting3_len=e;
+	}
+
+	highres=(unsigned char*) malloc((count+(2*im_dim))*sizeof(char));
+	nhw_res6I_word = (unsigned char*) calloc(count , sizeof(char));
+
+	enc->nhw_char_res1=(unsigned short*)malloc(256*sizeof(short));
+
+	for (i=0,count=0,e=0,res=0;i<(2*im_size);i+=(2*im_dim)) 
+	{
+		for (scan=i,j=0;j<(2*im_dim);j++,scan++)
+		{
+			if (j==(im_dim-2) || j==((2*im_dim)-2))
+			{
+				highres[count++]=im_dim-2;
+
+				if (j==(im_dim-2))
+				{
+					if (wavelet_half_synthesis[scan]==30000)
+					{
+						enc->nhw_char_res1[res++]=(i>>1);
+					}
+					else if (wavelet_half_synthesis[scan]==31000)
+					{
+						enc->nhw_char_res1[res++]=(i>>1)+1;
+					}
+					
+					if (wavelet_half_synthesis[scan+1]==30000)
+					{
+						enc->nhw_char_res1[res++]=(i>>1)+2;
+					}
+					else if (wavelet_half_synthesis[scan+1]==31000)
+					{
+						enc->nhw_char_res1[res++]=(i>>1)+3;
+					}
+				}
+
+				j++;scan++;
+			}
+			else if (wavelet_half_synthesis[scan]==30000)
+			{
+				highres[count++]=(j&255); nhw_res6I_word[e++]=0;
+			}
+			else if (wavelet_half_synthesis[scan]==31000)
+			{
+				highres[count++]=(j&255); nhw_res6I_word[e++]=1;
+			}
+		}
+	}
+
+
+	free(wavelet_half_synthesis);
+
+	enc->nhw_char_res1_len=res;
+
+	ch_comp=(unsigned char*)malloc(count*sizeof(char));
+	memcpy(ch_comp,highres,count*sizeof(char));
+
+	for (i=1,res=1;i<count-1;i++)
+	{
+		if (ch_comp[i]==(im_dim-2))
+		{
+			if (ch_comp[i-1]!=(im_dim-2) && ch_comp[i+1]!=(im_dim-2))
+			{
+				if (ch_comp[i-1]<=ch_comp[i+1]) highres[res++]=ch_comp[i];
+			}
+			else highres[res++]=ch_comp[i];
+		}
+		else highres[res++]=ch_comp[i];
+	}
+
+	highres[res++]=ch_comp[count-1];
+	free(ch_comp);
+
+	enc->nhw_res6_len=res;
+	enc->nhw_res6_word_len=e;
+
+	enc->nhw_res6=(ResIndex *)malloc((enc->nhw_res6_len)*sizeof(ResIndex));
+
+	for (i=0;i<enc->nhw_res6_len;i++) enc->nhw_res6[i]=highres[i];
+
+	e = enc->nhw_res6_len;
+
+	e = (e + 7) & ~7; // Round up to next multiple of 8 for padding
+
+	scan_run = (unsigned char*) malloc(e * sizeof(char));
+
+	for (i=0;i<enc->nhw_res6_len;i++) scan_run[i]=enc->nhw_res6[i]>>1;
+
+	highres[0]=scan_run[0];
+
+	for (i=1,count=1;i<enc->nhw_res6_len-1;i++)
+	{
+		if ((scan_run[i]-scan_run[i-1])>=0 && (scan_run[i]-scan_run[i-1])<8)
+		{
+			if ((scan_run[i+1]-scan_run[i])>=0 && (scan_run[i+1]-scan_run[i])<16)
+			{
+				highres[count++]=128+((scan_run[i]-scan_run[i-1])<<4)+scan_run[i+1]-scan_run[i];
+				i++;
+			}
+			else highres[count++]=scan_run[i];
+		}
+		else highres[count++]=scan_run[i];
+	}
+
+	for (i=0,scan=0;i<enc->nhw_res6_len;i++) 
+	{
+		if (enc->nhw_res6[i]!=(im_dim-2)) scan_run[scan++]=enc->nhw_res6[i];
+	}
+
+	// CHECK:
+	// Do we need to pad the remaining? If we don't, there is remaining data from
+	// the second loop above
+	for (i = scan; i < e; i++) scan_run[i] = 0;
+
+	Y = ((scan + 7) >> 3);
+
+	enc->nhw_res6_bit_len = Y;
+	enc->nhw_res6_bit = (unsigned char*) malloc (enc->nhw_res6_bit_len*sizeof(char));
+
+	copy_bitplane0(scan_run, Y, enc->nhw_res6_bit);
+	free(scan_run); // no longer needed here
+
+	enc->nhw_res6_len=count;
+
+
+	Y = enc->nhw_res6_word_len + 7; Y >>= 3;
+	enc->nhw_res6_word_len = Y;
+
+	enc->nhw_res6_word= (unsigned char*) malloc((enc->nhw_res6_bit_len<<1) * sizeof(char));
+	copy_bitplane0(nhw_res6I_word, Y, enc->nhw_res6_word);
+
+	for (i=0;i<count;i++) enc->nhw_res6[i]=highres[i];
+
+	free(highres);
+	free(nhw_res6I_word);
+
+}
+
+
 void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
@@ -1565,7 +1772,7 @@ void encode_uv(image_buffer *im,
 
 	offsetUV_recons256(im, ratio, 1);
 
-	wavelet_synthesis(im, s2 / 2, end_transform-1,0); 
+	wl_synth_chroma(im, s2 / 2, end_transform-1); 
 
 	int t0, t1;
 
@@ -1581,7 +1788,7 @@ void encode_uv(image_buffer *im,
 	wavelet_analysis(im, s2 / 2, end_transform, 0);
 	copy_from_quadrant(resIII, im->im_process, s2, s2);
 	offsetUV_recons256(im,ratio,0);
-	wavelet_synthesis(im, s2 / 2, end_transform-1,0);
+	wl_synth_chroma(im, s2 / 2, end_transform-1); 
 
 	if (quality >= LOW2) { 
 		residual_coding_q2(im, res256, res_uv);
@@ -1620,10 +1827,6 @@ void encode_uv(image_buffer *im,
 
 	offsetUV(im,enc,ratio);
 
-	if (uv) 
-		copy_uv_chunks(&im->im_nhw[im->fmt.end+1], im->im_process, s2);
-	else
-		copy_uv_chunks(&im->im_nhw[im->fmt.end], im->im_process, s2);
 
 	free(res256);
 	free(resIII);
@@ -1647,7 +1850,7 @@ void SWAPOUT_FUNCTION(encode_image)(image_buffer *im,encode_state *enc, int rati
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3,sizeof(char));
 
 	// This fills the Y part of the im_nhw array
-	scan_run_code(im, enc);
+	code_y_chunks(im, im->im_nhw, enc);
 
 	free(im->im_process);
 	
@@ -1666,9 +1869,13 @@ void SWAPOUT_FUNCTION(encode_image)(image_buffer *im,encode_state *enc, int rati
 	// Each of the encode_uv fills the remainder of the im_nhw array
 	// with the interleaved U/V data
 	encode_uv(im, enc, ratio, res_uv, 0);
+	copy_uv_chunks(&im->im_nhw[im->fmt.end], im->im_process, im->fmt.tile_size / 2);
+
 	free(im->im_bufferU); // Previously reserved buffer XXX
 
 	encode_uv(im, enc, ratio, res_uv, 1);
+	copy_uv_chunks(&im->im_nhw[im->fmt.end+1], im->im_process, im->fmt.tile_size / 2);
+
 	free(im->im_bufferV); // Previously reserved buffer XXX
 
 	free(im->im_jpeg); // Free Work buffer }

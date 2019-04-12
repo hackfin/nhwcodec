@@ -4,7 +4,9 @@ OBJS = $(CSRCS:%.c=%.o)
 OBJS += png_r.o png_w.o filters.o
 
 OBJS += new/enc_new.o new/processing.o new/quantize.o
-OBJS += dec_compress_pixel.o dec_wavelet_filterbank.o dec_nhw_decoder.o
+OBJS += dec_compress_pixel.o dec_nhw_decoder.o dec_residuals.o
+# Common:
+OBJS += wavelet_filterbank.o
 
 all: nhwenc
 
@@ -14,8 +16,10 @@ all: nhwenc
 CFLAGS  += -I../include -Wall -I. -I$(LIBPNG)/include
 
 SWAP = y
+DEBUG = y
 
-CFLAGS += -DUSE_OPCODES
+CFLAGS += -DNHW_LIBRARY
+CFLAGS += -DUSE_OPCODES # -DBYPASS
 # When defined, swap out some legacy routines
 ifdef SWAP
 CFLAGS += -DSWAPOUT

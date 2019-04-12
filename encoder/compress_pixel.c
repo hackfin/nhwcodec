@@ -50,6 +50,7 @@
 
 #include "codec.h"
 #include "utils.h"
+#include "compression.h"
 #include "tree.h"
 
 #define PRINTF(...)
@@ -346,7 +347,7 @@ int rle_tree_bitplane_code(struct compression_context *ctx,
 		if (tmp >> 8 == 0x1)
 			enc->tree1[e++]= (unsigned char)((tmp & 0xff));
 		else {
-			enc->tree1[e++] = 3;
+			enc->tree1[e++] = CODE_TREE1_RLE;
 			enc->tree1[e++] = (tmp >> 8);
 		}
 	}
@@ -356,9 +357,11 @@ int rle_tree_bitplane_code(struct compression_context *ctx,
 	for (i=0;i<e;i+=2) *cur++ = enc->tree1[i];
 	for (i=1;i<e;i+=2) *cur++ = enc->tree1[i];
 
-
+	printf("Size enc->tree1: %d\n", e);
+//
+//	for (i=0;i<e;i++) printf("%d %d\n",i,codebook[i]);
 	b = code_occurence(codebook, e, 3, enc->tree1);
-	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree1[i]);
+	// for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree1[i]);
 	return b;
 }
 
@@ -390,25 +393,6 @@ void rle_tree2_code(struct compression_context *ctx,
 
 	b = code_occurence(codebook, e, 128, enc->tree2);
 
-	#if 0
-	for (i=0,b=0;i<e;i++)
-	{
-L_COD2:
-#warning "OUT_OF_BOUNDS access"
-		assert(i < e);
-		if (codebook[i]==128)
-		{
-			c++;i++;goto L_COD2;
-		}
-		else
-		{
-			if (c>0) {enc->tree2[b++]=128;enc->tree2[b++]=c;c=0;i--;}
-			else {enc->tree2[b++]=codebook[i];}
-		}
-	}
-	#endif
-
-	//for (i=0;i<b;i++) printf("%d %d\n",i,enc->tree2[i]);
 	enc->size_tree2=b;
 }
 
@@ -450,7 +434,7 @@ void rle_pixelcount(struct compression_context *ctx,
 			}
 		}
 
-		if (pixel!=128 && pixel<136 && pixel>120)
+		if (pixel!=128 && IS_CODE_WORD_1(pixel))
 		{
 			pos=(unsigned short) ctx->rle_buf[pixel];
 			if (pixel>131) i+=4;

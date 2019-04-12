@@ -1,4 +1,8 @@
 #include "codec.h"
+#include "compression.h"
+
+#define MARK_TMP_153  153
+#define MARK_TMP_155  155
 
 void copy_uv_chunks(unsigned char *dst, const short *src, int n)
 {
@@ -81,11 +85,11 @@ void shuffle_quadpacks(unsigned char *s, const short *pr, int n, int step)
 
 
 
-void scan_run_code(image_buffer *im, encode_state *enc)
+void code_y_chunks(image_buffer *im, unsigned char *nhwbuf, encode_state *enc)
 {
 	int i, count;
 
-	unsigned char *s = im->im_nhw;
+	unsigned char *s = nhwbuf;
 	const short *pr = im->im_process;
 
 	int n = im->fmt.end;
@@ -96,23 +100,23 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 	// FIXME: Turn into state machine
 	for (i=0;i<n-4;i++)
 	{
-		if (s[i]!=128 && s[i+1]==128)
+		if (s[i]!=CODE_WORD_128 && s[i+1]==CODE_WORD_128)
 		{
-			if (s[i+2]==128)
+			if (s[i+2]==CODE_WORD_128)
 			{
-				if  (s[i+3]==128)
+				if  (s[i+3]==CODE_WORD_128)
 				{
 					unsigned char *p = &s[i];
 					unsigned char *q = &s[i+4];
 
-					if      (*p == 136 && *q == 136)
-						{*p = 132; *q = 201; i+=4;}
-					else if (*p == 136 && *q == 120)
-						{*p = 133; *q = 201; i+=4;}
-					else if (*p == 120 && *q == 136)
-						{*p = 134; *q = 201; i+=4;}
-					else if (*p == 120 && *q == 120)
-						{*p = 135; *q = 201; i+=4;}
+					if      (*p == CODE_WORD_136 && *q == CODE_WORD_136)
+						{*p = CODE_WORD_132; *q = 201; i+=4;}
+					else if (*p == CODE_WORD_136 && *q == CODE_WORD_120)
+						{*p = CODE_WORD_133; *q = 201; i+=4;}
+					else if (*p == CODE_WORD_120 && *q == CODE_WORD_136)
+						{*p = CODE_WORD_134; *q = 201; i+=4;}
+					else if (*p == CODE_WORD_120 && *q == CODE_WORD_120)
+						{*p = CODE_WORD_135; *q = 201; i+=4;}
 
 
 					
@@ -131,15 +135,15 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 		}
 	}
 
-	s[0]=128;s[1]=128;s[2]=128;s[3]=128;
-	s[(n)-4]=128;
-	s[(n)-3]=128;
-	s[(n)-2]=128;
-	s[(n)-1]=128;
+	s[0]=CODE_WORD_128;s[1]=CODE_WORD_128;s[2]=CODE_WORD_128;s[3]=CODE_WORD_128;
+	s[(n)-4]=CODE_WORD_128;
+	s[(n)-3]=CODE_WORD_128;
+	s[(n)-2]=CODE_WORD_128;
+	s[(n)-1]=CODE_WORD_128;
 
 	// Second pass:
 
-#define _M(x) ((x) == 128)
+#define _M(x) ((x) == CODE_WORD_128)
 
 #define FOUR_LEADING(p)  \
 	  _M((p)[-2]) && _M((p)[-3]) && _M((p)[-4])
@@ -149,15 +153,15 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 
 	for (i=4,enc->nhw_select1=0,enc->nhw_select2=0,count=0;i<(n-4);i++)
 	{
-		char z = (s[i+1]==120) ? 157 : ((s[i+1]==136) ? 159 : 0);
+		char z = (s[i+1]==CODE_WORD_120) ? 157 : ((s[i+1]==CODE_WORD_136) ? 159 : 0);
 
-		if (s[i-1]==128) {
-			if (s[i]==136) {
+		if (_M(s[i-1])) {
+			if (s[i]==CODE_WORD_136) {
 				if (FOUR_LEADING(&s[i])) {
-					if (s[i+1]==128) {
-						s[i]=153;enc->nhw_select1++;
+					if (_M(s[i+1])) {
+						s[i]=MARK_TMP_153;enc->nhw_select1++;
 					} else
-					if (z && s[i+2]==128) {
+					if (z && _M(s[i+2])) {
 						s[i+1]=z;
 						enc->nhw_select2++;
 					}
@@ -167,18 +171,18 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 						enc->nhw_select2++;
 					}
 					else if (FOUR_TRAILING(&s[i])) {
-						s[i]=153;enc->nhw_select1++;
+						s[i]=MARK_TMP_153;enc->nhw_select1++;
 					}
 
 				}
 			} else
-			if (s[i]==120) {
+			if (s[i]==CODE_WORD_120) {
 				if (FOUR_LEADING(&s[i])) {
-					if (z && s[i+2]==128) {
+					if (z && _M(s[i+2])) {
 						s[i+1]=z;
 						enc->nhw_select2++;
-					} else if (s[i+1]==128) {
-						s[i]=155;enc->nhw_select1++;
+					} else if (_M(s[i+1])) {
+						s[i]=MARK_TMP_155;enc->nhw_select1++;
 					}
 				} else {
 					if (z && FOUR_TRAILING(&s[i+1])) {
@@ -186,7 +190,7 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 						enc->nhw_select2++;
 					}
 					else if (FOUR_TRAILING(&s[i])) {
-						s[i]=155;enc->nhw_select1++;
+						s[i]=MARK_TMP_155;enc->nhw_select1++;
 					}
 				}
 			}
@@ -199,23 +203,23 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 
 	for (i=0,count=0;i<n;i++)
 	{
-		while (s[i]==128 && s[i+1]==128)   
+		while (_M(s[i]) && _M(s[i+1]))   
 		{
 			count++;
 
 			if (count>255)
 			{
-				if (s[i]==153) s[i]=124;
-				else if (s[i]==155) s[i]=123;
+				if (s[i]==MARK_TMP_153) s[i]=CODE_WORD_124;
+				else if (s[i]==MARK_TMP_155) s[i]=CODE_WORD_123;
 
-				if (s[i+1]==153) s[i+1]=124;
-				else if (s[i+1]==155) s[i+1]=123;
+				if (s[i+1]==MARK_TMP_153) s[i+1]=CODE_WORD_124;
+				else if (s[i+1]==MARK_TMP_155) s[i+1]=CODE_WORD_123;
 
-				if (s[i+2]==153) s[i+2]=124;
-				else if (s[i+2]==155) s[i+2]=123;
+				if (s[i+2]==MARK_TMP_153) s[i+2]=CODE_WORD_124;
+				else if (s[i+2]==MARK_TMP_155) s[i+2]=CODE_WORD_123;
 
-				if (s[i+3]==153) s[i+3]=124;
-				else if (s[i+3]==155) s[i+3]=123;
+				if (s[i+3]==MARK_TMP_153) s[i+3]=CODE_WORD_124;
+				else if (s[i+3]==MARK_TMP_155) s[i+3]=CODE_WORD_123;
 
 				i--;count=0;
 			}
@@ -223,8 +227,8 @@ void scan_run_code(image_buffer *im, encode_state *enc)
 		}
 		 
 		if (count>=252) {
-			if (s[i+1]==153) s[i+1]=124;
-			else if (s[i+1]==155) s[i+1]=123;
+			if (s[i+1]==MARK_TMP_153) s[i+1]=CODE_WORD_124;
+			else if (s[i+1]==MARK_TMP_155) s[i+1]=CODE_WORD_123;
 		}
 
 		count=0;

@@ -50,6 +50,7 @@
 
 #include "utils.h"
 #include "codec.h"
+#include "compression.h"
 #include "tree.h"
 
 // GLOBALS:
@@ -153,10 +154,10 @@ void offsetUV(image_buffer *im,encode_state *enc,int m2)
 
 		if (IS_CODE(a)) { 
 			switch (a) {
-				case OFFS_C_CODE_12400: {p[0]=124;break;} 
-				case OFFS_C_CODE_12600: {p[0]=126;break;} 
-				case OFFS_C_CODE_12900: {p[0]=122;break;}  
-				case OFFS_C_CODE_13000: {p[0]=130;break;}  
+				case OFFS_C_CODE_12400: {p[0]=CODE_WORD_124;break;} 
+				case OFFS_C_CODE_12600: {p[0]=CODE_WORD_126;break;} 
+				case OFFS_C_CODE_12900: {p[0]=CODE_WORD_122;break;}  
+				case OFFS_C_CODE_13000: {p[0]=CODE_WORD_130;break;}  
 				default:
 					assert(0);
 			}
@@ -407,13 +408,13 @@ inline int round_pixels_conditional(short *q, short a, short b, int m1)
 
 	switch (a) {
 
-		case MARK_128:  q[0] = 128; break;
-		case MARK_127:  q[0] = 127; break;
-		case MARK_129:  q[0] = 129; break;
-		case MARK_125:  q[0] = 125; break;
-		case MARK_126:  q[0] = 126; break;
-		case MARK_121:  q[0] = 121; break;
-		case MARK_122:  q[0] = 122; break;
+		case MARK_128:  q[0] = CODE_WORD_128; break;
+		case MARK_127:  q[0] = CODE_WORD_127; break;
+		case MARK_129:  q[0] = CODE_WORD_129; break;
+		case MARK_125:  q[0] = CODE_WORD_125; break;
+		case MARK_126:  q[0] = CODE_WORD_126; break;
+		case MARK_121:  q[0] = CODE_WORD_121; break;
+		case MARK_122:  q[0] = CODE_WORD_122; break;
 
 		default:
 		{
@@ -440,7 +441,7 @@ inline int round_pixels_conditional(short *q, short a, short b, int m1)
 				}
 
 				if (a < m1 && a > -m1)  {
-					q[0]=128;
+					q[0]=CODE_WORD_128;
 				} else {
 					a += 128;
 					q[0]= ROUND_8(a);

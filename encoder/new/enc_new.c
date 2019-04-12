@@ -589,7 +589,8 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 
-	scan_run_code(im, enc);
+	// This fills the im_nhw array with the shuffled value packs:
+	code_y_chunks(im, im->im_nhw, enc);
 
 	free(im->im_process);
 	
@@ -601,9 +602,11 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	im->im_jpeg=(short*)calloc(uv_size,sizeof(short)); // Work buffer {
 
 	encode_uv(im, enc, ratio, res_uv, 0);
+	copy_uv_chunks(&im->im_nhw[im->fmt.end], im->im_process, im->fmt.tile_size / 2);
 	free(im->im_bufferU); // Previously reserved buffer XXX
 
 	encode_uv(im, enc, ratio, res_uv, 1);
+	copy_uv_chunks(&im->im_nhw[im->fmt.end+1], im->im_process, im->fmt.tile_size / 2);
 	free(im->im_bufferV); // Previously reserved buffer XXX
 
 	free(im->im_jpeg); // Free Work buffer }
@@ -617,9 +620,11 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(enc->highres_comp);
 
 	// This creates new enc->tree structures
+#ifndef BYPASS
 	wavlts2packet(im,enc);
 
 	free(im->im_nhw);
+#endif
 }
 
 

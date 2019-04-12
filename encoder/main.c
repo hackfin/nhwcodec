@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <assert.h>
 
 int encode_tiles(image_buffer *im, const unsigned char *img, int width, int height,
 	const char *output_filename, int rate);
@@ -72,6 +73,8 @@ void init_decoder(decode_state *dec, encode_state *enc, int q)
 		case HIGH3:
 			dec->qsetting3_len = enc->qsetting3_len;
 		case HIGH2:
+			assert(enc->nhw_res6_len > 0);
+			assert(enc->nhw_res6_bit_len > 0);
 			dec->nhw_res6_len = enc->nhw_res6_len;
 			dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
 			dec->nhw_res6 = enc->nhw_res6;
@@ -112,7 +115,7 @@ void init_decoder(decode_state *dec, encode_state *enc, int q)
 	dec->packet1 = enc->encode;
 	dec->packet2 = &enc->encode[enc->size_data1];
 
-	// Need to copy some more, in case we're bypassing decompression:
+	// TODO Need to copy some more, in case we're bypassing decompression:
 }
 
 int record_stats(image_buffer *im, encode_state *enc)
@@ -166,12 +169,12 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			memset(&dec, 0, sizeof(decode_state)); // Set all to 0
 			memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 
-			// Turn on debug mode for specific tile
 
 			if (g_encconfig.verbose) {
 				printf("Process tile @(%d, %d)\n", x, y);
 			}
 
+			// Turn on debug mode for specific tile
 			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y == y) {
 				enc.debug = g_encconfig.debug;
 				if (enc.debug) printf("Dump tile\n");
@@ -190,7 +193,11 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			im->im_process=(short*)calloc(im->fmt.end,sizeof(short));
 
 			process_hrcomp(im, &dec);
-			decode_image(im, &dec, 0); // bypass compression
+#ifdef BYPASS
+			decode_image(im, &dec, 1); // bypass compression
+#else
+			decode_image(im, &dec, 0);
+#endif
 			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
 			yuv_to_rgb(im);
 

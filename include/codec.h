@@ -263,6 +263,7 @@ typedef struct{
 }decode_state;
 
 
+typedef unsigned long NhwIndex;
 
 /* ENCODER */
 
@@ -339,7 +340,7 @@ extern void retrieve_pixel_UV_comp(image_buffer *imd,decode_state *os,int p1,uns
 
 void imgbuf_init(image_buffer *im, int tile_power);
 void quant_ac_final(image_buffer *im, int ratio, const short *y_wl);
-void scan_run_code(image_buffer *im, encode_state *enc);
+void code_y_chunks(image_buffer *im, unsigned char *nhwbuf, encode_state *enc);
 void encode_uv(image_buffer *im, encode_state *enc, int ratio, int res_uv, int uv);
 void copy_thresholds(short *process, const short *resIII, int size, int step);
 int mark_res_q3(image_buffer *im);

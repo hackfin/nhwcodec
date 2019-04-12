@@ -1,5 +1,6 @@
 /* Frequently used code */
 
+#include <stdio.h>
 #include "utils.h"
 
 /*
@@ -101,4 +102,16 @@ void extract_bitplane(unsigned char *scan_run,
 	}
 }
 
-
+void dump_values_u16(unsigned short *u16, int n, const char *filename, const char *comment)
+{
+	int i;
+	FILE *f = fopen(filename, "w");
+	if (!f) {
+		printf("Could not open file %s\n", filename);
+	} else {
+		fprintf(f, "# %s\n", comment);
+		for (i = 0; i < n; i++) {
+			fprintf(f, "%d  %d\n", i, u16[i]);
+		}
+	}
+}

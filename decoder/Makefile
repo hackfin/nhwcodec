@@ -3,7 +3,7 @@ CSRCS = $(wildcard *.c)
 LIBPNG ?= /usr/local
 
 OBJS = $(CSRCS:%.c=%.o)
-OBJS += png_w.o filters.o
+OBJS += png_w.o filters.o wavelet_filterbank.o
 
 CFLAGS = -I../include -I$(LIBPNG)/include
 CFLAGS += -Wall -g
