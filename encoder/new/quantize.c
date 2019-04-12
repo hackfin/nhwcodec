@@ -31,6 +31,8 @@ extern const char quality_special7000[7];
 
 void reduce_lowres_LL_q7(image_buffer *im, const char *wvlt);
 void reduce_lowres_LL_q9(image_buffer *im, const char *wvlt);
+void reduce_HL_LH(short *p, int mode);
+void quant_zero(short tmp, short *p, char th2, char th3, int ratio);
 
 void reduce_lowres_LH(image_buffer *im,
 	const char *wvlt, int ratio)

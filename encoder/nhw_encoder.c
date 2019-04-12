@@ -85,6 +85,9 @@ void process_res5_q1(image_buffer *im,
 
 void process_res_hq(image_buffer *im, const short *res256);
 
+int reduce_offset_comp_LL(int val);
+void cond_modify0(short scan, int step, short *q);
+
 void encode_image(image_buffer *im,encode_state *enc, int ratio);
 
 void imgbuf_init(image_buffer *im, int tile_power)

@@ -4,6 +4,7 @@
 
 void reduce_HL_LH_q4(image_buffer *im);
 void reduce_generic_LH_HH(image_buffer *im, const short *resIII, int ratio, char *wvlt, int thr);
+void reduce(short *q, int s, char w0, char w1, char w2, int halfsize, int half_dim);
 
 
 #define REDUCE(x, w)    if (abs(x) < w)  x = 0

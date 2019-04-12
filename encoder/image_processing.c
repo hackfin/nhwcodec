@@ -56,6 +56,9 @@
 // GLOBALS:
 //
 
+int round_pixels_conditional(short *q, short a, short b, int m1);
+int check_3x3_neighbours(const short *q, int step, int thresh);
+
 // FIXME: Eliminate
 #define DEPRECATED_LOOP_CONDITION(i, step)  ( (i& (step-1) ) < (step-1) )
 
