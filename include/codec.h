@@ -322,6 +322,12 @@ int process_hrcomp(image_buffer *imd, decode_state *os);
 
 // extern void wavelet_synthesis(image_buffer *im,int norder,int last_stage,int Y);
 extern void wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int last_stage,int Y);
+
+void wl_synth_luma(image_buffer *im, int norder, int last_stage);
+void wl_synth_chroma(image_buffer *im, int norder, int last_stage);
+void wl_synth_upfilter_2d(image_buffer *im, int norder, int s);
+void wl_synth_upfilter_VI(image_buffer *im, int norder, int s);
+
 extern void upfilter53(short *x,int M,short *res);
 // extern void upfilter53I(short *x,int M,short *res);
 // extern void upfilter53III(short *x,int M,short *res);
@@ -352,6 +358,8 @@ int configure_wvlt(int quality, char *wvlt);
 void reduce_generic(image_buffer *im, short *resIII, char *wvlt,
 	encode_state *enc, int ratio);
 
+void reduce_HL(image_buffer *im, const short *resIII, int ratio, char *wvlt);
+void reduce_LH_HH_q56(image_buffer *im, int ratio, char *wvlt);
 
 void reduce_uv_q4(image_buffer *im, int ratio);
 void reduce_uv_q9(image_buffer *im);

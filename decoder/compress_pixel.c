@@ -239,7 +239,8 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 	unsigned short *ntree,*nhw_book,dec;
 	unsigned char *dec_select_word1,*dec_select_word2,*nhw_rle;
 
-	dec_select_word1=(unsigned char*)malloc((os->nhw_select1<<3)*sizeof(char));
+	// Lazy padding:
+	dec_select_word1=(unsigned char*)malloc(((os->nhw_select1<<3) + 8) *sizeof(char));
 
 	for (i=0,e=0;i<os->nhw_select1;i++)
 	{
@@ -255,7 +256,8 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 
 	free(os->nhw_select_word1);
 
-	dec_select_word2=(unsigned char*)malloc((os->nhw_select2<<3)*sizeof(char));
+	// Lazy padding:
+	dec_select_word2=(unsigned char*)malloc(((os->nhw_select2<<3) + 8) *sizeof(char));
 
 	for (i=0,e=0;i<os->nhw_select2;i++)
 	{

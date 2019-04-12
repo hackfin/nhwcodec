@@ -321,83 +321,76 @@ void decode_res6(image_buffer *im, decode_state *os)
 
 	NhwIndex *nhwresH3I;
 
-	nhwresH3I=(NhwIndex *)calloc((os->nhw_res6_bit_len * 8),
-			sizeof(NhwIndex)); // HACK: Pad extension, make consistent with encoder
-		stage=0;
+	int n = 2 * (os->nhw_res6_len);
 
-		if (os->nhw_res6[0]==127)
-		{
-			count=IM_DIM;
-		}
-		else 
-		{
-			nhwresH3I[stage++]=(os->nhw_res6[0]<<1);count=0;
-		}
+	nhwresH3I=(NhwIndex *)calloc(n, sizeof(NhwIndex)); // HACK: Pad extension, make consistent with encoder
+	stage=0;
 
-		for (i=1;i<os->nhw_res6_len;i++)
-		{
-			if (os->nhw_res6[i]>=128)
-			{
-				e=(os->nhw_res6[i]-128);e>>=4;
-				scan=os->nhw_res6[i]&15;
-				if (os->nhw_res6[i-1]!=127) j=(nhwresH3I[stage-1]&255)+(e<<1);
-				else {os->nhw_res6[i]=127;count+=(2*IM_DIM);continue;}
+	if (os->nhw_res6[0]==127) {
+		count=IM_DIM;
+	} else {
+		nhwresH3I[stage++]=(os->nhw_res6[0]<<1);count=0;
+	}
 
-				if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
-				else nhwresH3I[stage++]=(j)+count;
+	for (i=1;i<os->nhw_res6_len;i++) {
+		if (os->nhw_res6[i]>=128) {
+			e=(os->nhw_res6[i]-128);e>>=4;
+			scan=os->nhw_res6[i]&15;
+			if (os->nhw_res6[i-1]!=127) j=(nhwresH3I[stage-1]&255)+(e<<1);
+			else {os->nhw_res6[i]=127;count+=(2*IM_DIM);continue;}
 
-				j+=(scan<<1);
-				if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
-				else nhwresH3I[stage++]=(j)+count;
+			if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
+			else nhwresH3I[stage++]=(j)+count;
+
+			j+=(scan<<1);
+			if (j>=254) {count+=IM_DIM;os->nhw_res6[i]=127;}
+			else nhwresH3I[stage++]=(j)+count;
+		} else {
+			if (os->nhw_res6[i]==127) count+=IM_DIM;
+			else {
+				if (((os->nhw_res6[i]<<1)<(nhwresH3I[stage-1]&255)) && (os->nhw_res6[i-1]!=127)) count+=IM_DIM;
+
+				nhwresH3I[stage++]=(os->nhw_res6[i]<<1)+count;
 			}
+		}
+	}
+
+	for (i=0,count=0;i<os->nhw_res6_bit_len;i++)
+	{
+		inc_cond_bit(&nhwresH3I[count], os->nhw_res6_bit[i]);
+		count += 8;
+	}
+
+
+	os->end_ch_res=0;os->d_size_tree1=0;
+	for (i=0,count=0;i<os->nhw_res6_bit_len-1;i++)
+	{
+		unsigned char tmp = os->nhw_res6_word[i];
+		int k;
+		for (k = 0x80; k != 0; k >>= 1) {
+			if (!(tmp & k)) os->d_size_tree1++; else os->end_ch_res++;
+		}
+	}
+
+	os->nhwresH3=(unsigned int *)malloc(os->end_ch_res*sizeof(int));
+	os->nhwresH4=(unsigned int *)malloc(os->d_size_tree1*sizeof(int));
+
+	for (i=0,count=0,scan=0,res=0;i<os->nhw_res6_bit_len-1;i++)
+	{
+		unsigned char tmp = os->nhw_res6_word[i];
+		int k;
+		for (k = 0x80; k != 0; k >>= 1) {
+			if (!(tmp & k))
+				os->nhwresH4[scan++]=nhwresH3I[count++];
 			else
-			{
-				if (os->nhw_res6[i]==127) count+=IM_DIM;
-				else
-				{
-					if (((os->nhw_res6[i]<<1)<(nhwresH3I[stage-1]&255)) && (os->nhw_res6[i-1]!=127)) count+=IM_DIM;
-
-					nhwresH3I[stage++]=(os->nhw_res6[i]<<1)+count;
-				}
-			}
+				os->nhwresH3[res++]=nhwresH3I[count++];
 		}
+	}
 
-		for (i=0,count=0;i<os->nhw_res6_bit_len;i++)
-		{
-			inc_cond_bit(&nhwresH3I[count], os->nhw_res6_bit[i]);
-			count += 8;
-		}
+	free(nhwresH3I);
 
-
-		os->end_ch_res=0;os->d_size_tree1=0;
-		for (i=0,count=0;i<os->nhw_res6_bit_len-1;i++)
-		{
-			unsigned char tmp = os->nhw_res6_word[i];
-			int k;
-			for (k = 0x80; k != 0; k >>= 1) {
-				if (!(tmp & k)) os->d_size_tree1++; else os->end_ch_res++;
-			}
-		}
-
-		os->nhwresH3=(unsigned int *)malloc(os->end_ch_res*sizeof(int));
-		os->nhwresH4=(unsigned int *)malloc(os->d_size_tree1*sizeof(int));
-
-		for (i=0,count=0,scan=0,res=0;i<os->nhw_res6_bit_len-1;i++)
-		{
-			unsigned char tmp = os->nhw_res6_word[i];
-			int k;
-			for (k = 0x80; k != 0; k >>= 1) {
-				if (!(tmp & k))
-					os->nhwresH4[scan++]=nhwresH3I[count++];
-				else
-					os->nhwresH3[res++]=nhwresH3I[count++];
-			}
-		}
-
-		free(nhwresH3I);
-
-		os->nhw_res6_bit_len=os->end_ch_res;
-		os->nhw_res6_len=os->d_size_tree1;
+	os->nhw_res6_bit_len=os->end_ch_res;
+	os->nhw_res6_len=os->d_size_tree1;
 
 }
 

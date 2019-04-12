@@ -340,6 +340,22 @@ void quantize_process_simple(short *p, int t0, int t1, int t2, int t3, int step,
 			}
 		}
 
+#if 0
+			if ( e >  7 && MODULO8(e) < 2) {
+				if (f > 7 && f < 10000) f--;
+				//if (p[step]>8) p[step]--;
+			}
+			// When neighbouring coefs
+			else if (e == -7 && f == 8)  e = -8;
+			else if (e == 8  && f ==-7)  f = -8;
+
+			else if (e < -7  && (MODULO8(-e)) < 2) {
+				if (f < -14 && f < 10000) {
+					if (MODULO8(-f) == 7 || ((MODULO8(-f) < 2 && p2 <= 0)))
+						f++;
+				}
+			}
+#endif
 		p[0] = e; p[1] = f;
 
 	}
@@ -349,7 +365,7 @@ void quantize_process_simple(short *p, int t0, int t1, int t2, int t3, int step,
 
 void quant_ac_final(image_buffer *im, int ratio, const short *y_wl)
 {
-	int i, c;
+	int i;
 	short *pr = im->im_process;
 
 	int step = im->fmt.tile_size;

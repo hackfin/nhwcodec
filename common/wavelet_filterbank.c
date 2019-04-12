@@ -292,7 +292,6 @@ void wl_synth_luma(image_buffer *im, int norder, int last_stage)
 
 void wl_synth_chroma(image_buffer *im, int norder, int last_stage)
 {
-	int i;
 	int s = im->fmt.tile_size / 2; // half line size for 420 chroma buffer
 
 	wl_synth_upfilter_2d(im, norder, s);

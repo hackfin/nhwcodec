@@ -73,8 +73,6 @@ void init_decoder(decode_state *dec, encode_state *enc, int q)
 		case HIGH3:
 			dec->qsetting3_len = enc->qsetting3_len;
 		case HIGH2:
-			assert(enc->nhw_res6_len > 0);
-			assert(enc->nhw_res6_bit_len > 0);
 			dec->nhw_res6_len = enc->nhw_res6_len;
 			dec->nhw_res6_bit_len = enc->nhw_res6_bit_len;
 			dec->nhw_res6 = enc->nhw_res6;
@@ -218,7 +216,6 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 
 	FILE *png_out;
 	png_out = fopen(output_filename, "wb");
-	int s = im->fmt.tile_size;
 	if (png_out != NULL) {
 		write_png(png_out, out, width, height, 1, 1);
 		fclose(png_out);
@@ -226,10 +223,8 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 		perror("opening file for writing");
 	}
 
-	if (g_encconfig.verbose) {
-		printf("Effective payload size: %d, compression rate: 1:%0.1f\n",
-			compressed_length, (float) height * width * 3.0 / (float) compressed_length );
-	}
+	printf("Effective payload size: %d, compression rate: 1:%0.1f\n",
+		compressed_length, (float) height * width * 3.0 / (float) compressed_length );
 
 	return 0;
 }
@@ -335,6 +330,10 @@ int main(int argc, char **argv)
 				g_encconfig.verbose = 1; break;
 			case 's':
 				g_encconfig.tilepower = atoi(optarg);
+				if (g_encconfig.tilepower < 5 || g_encconfig.tilepower > 9) {
+					fprintf(stderr, "Bad tile power, must be in range [5 .. 9]\n");
+					return -1;
+				}
 				break;
 			default:
 				if (optarg) strncpy(input_filename, optarg, sizeof(input_filename) - 1);

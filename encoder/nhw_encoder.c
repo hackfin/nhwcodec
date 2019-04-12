@@ -72,9 +72,18 @@ void reduce_lowres_LL_q9(image_buffer *im, const char *wvlt);
 void reduce_lowres_LH(image_buffer *im, const char *wvlt, int ratio);
 int configure_wvlt(int quality, char *wvlt);
 void process_res_q8(image_buffer *im, short *res256, encode_state *enc);
+void preprocess_res_q8(image_buffer *im, short *res256, encode_state *enc);
 
 void compress_s2(int quality, short *resIII, short *pr, char *wvlt,
 	encode_state *enc, int ratio);
+void process_hires_q8(image_buffer *im,
+	ResIndex *highres, short *res256, encode_state *enc);
+void process_res3_q1(image_buffer *im,
+	ResIndex *highres, short *res256, encode_state *enc);
+void process_res5_q1(image_buffer *im,
+	ResIndex *highres, short *res256, encode_state *enc);
+
+void process_res_hq(image_buffer *im, const short *res256);
 
 void encode_image(image_buffer *im,encode_state *enc, int ratio);
 
@@ -244,7 +253,7 @@ void tag_thresh_ranges(image_buffer *im, short *result)
 	}
 }
 
-inline
+static inline
 void fixup_pixel_offset(short *p, short *q)
 {
 	if        (*p >= MARK_16000) {
@@ -1404,7 +1413,7 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 	}
 
 	highres=(unsigned char*) malloc((count+(2*im_dim))*sizeof(char));
-	nhw_res6I_word = (unsigned char*) calloc(count , sizeof(char));
+	nhw_res6I_word = (unsigned char*) calloc(count+(2*im_dim) , sizeof(char));
 
 	enc->nhw_char_res1=(unsigned short*)malloc(256*sizeof(short));
 
@@ -1543,7 +1552,6 @@ void wavelet_synthesis_high_quality_settings(image_buffer *im,encode_state *enc)
 void SWAPOUT_FUNCTION(encode_y)(image_buffer *im, encode_state *enc, int ratio)
 {
 	int quality = im->setup->quality_setting;
-	int res;
 	int end_transform;
 	short *res256, *resIII;
 	ResIndex *highres;
@@ -2075,7 +2083,6 @@ int write_compressed_file(image_buffer *im,encode_state *enc, const char *outfil
 int nhw_encode(image_buffer *im, const char *output_filename, int rate)
 {
 	encode_state enc;
-	decode_state dec;
 
 	memset(&enc, 0, sizeof(encode_state)); // Set all to 0
 

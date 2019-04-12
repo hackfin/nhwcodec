@@ -69,8 +69,14 @@ void decode_res3(decode_state *os, NhwIndex *nhwres3, NhwIndex *nhwres4, NhwInde
 void decode_res4(image_buffer *im, decode_state *os);
 void decode_res5(decode_state *os, NhwIndex *nhwresH1, NhwIndex *nhwresH2);
 void decode_res6(image_buffer *im, decode_state *os);
+void residual_compensation(image_buffer *im, decode_state *os,
+	NhwIndex *nhwresH1, NhwIndex *nhwresH2,
+	NhwIndex *nhwres1, NhwIndex *nhwres2,
+	NhwIndex *nhwres3, NhwIndex *nhwres4, NhwIndex *nhwres5, NhwIndex *nhwres6
+);
+int decode_exwY(image_buffer *im, decode_state *os);
 
-
+// Ready for API/header:
 void SWAPOUT_FUNCTION(imgbuf_init)(image_buffer *im, int tile_power)
 {
 	im->fmt.tile_power = tile_power;
@@ -1404,7 +1410,7 @@ void decode_v(image_buffer *im, decode_state *os, int bypass_compression, int ex
 
 void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 {
- 	int nhw,stage,end_transform,i,j,count,scan,exw1,res;
+ 	int nhw,stage,i,j,count,scan,exw1,res;
 	short *im_nhw,*pr;
 	unsigned char *nhw_scale;
 	NhwIndex *nhwresH1 = 0,*nhwresH2 = 0;
@@ -1541,7 +1547,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 		}
 	}
 
-	end_transform=0;
 	im->setup->wavelet_type=WVLTS_53;
 	// wavelet_order=im->setup->wvlts_order;
 	//for (stage=wavelet_order-1;stage>=0;stage--) dec_wavelet_synthesis(im,(2*IM_DIM)>>stage,end_transform++,1);
@@ -1691,7 +1696,6 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 {
 	FILE *compressed_file;
 	int ret;
-
 	int IM_DIM = imd->fmt.tile_size / 2;
 
 	compressed_file=fopen(argv[1],"rb");

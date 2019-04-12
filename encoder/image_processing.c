@@ -455,7 +455,6 @@ inline int round_pixels_conditional(short *q, short a, short b, int m1)
 
 void offsetY_process(image_buffer *im, int m1)
 {
-	int a, b;
 	int i;
 
 	int step = im->fmt.tile_size;

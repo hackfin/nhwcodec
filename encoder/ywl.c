@@ -87,7 +87,7 @@ void quantize_process(short *p, int t0, int t1, int t2, int t3, int step, int co
 
 void SWAPOUT_FUNCTION(quant_ac_final)(image_buffer *im, int ratio, const short *y_wl)
 {
-	int i, c;
+	int i;
 	short *pr = im->im_process;
 
 	int step = im->fmt.tile_size;
