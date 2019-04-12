@@ -1907,7 +1907,6 @@ int write_compressed_file(image_buffer *im,encode_state *enc, const char *outfil
 		return (-1);
 	}
 
-	im->setup->RES_HIGH+=im->setup->wavelet_type;
 
 	fwrite(&im->setup->RES_HIGH,1,1,compressed);
 	fwrite(&im->setup->quality_setting,1,1,compressed);
@@ -2084,6 +2083,8 @@ int nhw_encode(image_buffer *im, const char *output_filename, int rate)
 	downsample_YUV420(im, &enc, rate);
 
 	encode_image(im, &enc, rate);
+	// Important:
+	im->setup->RES_HIGH+=im->setup->wavelet_type;
 
 	write_compressed_file(im, &enc, output_filename);
 	free(enc.tree1);

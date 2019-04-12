@@ -224,7 +224,7 @@ void process_hires_q8(image_buffer *im,
 	count = enc->res1.word_len;
 	count = (count + 7) & ~7; // Round up to next multiple of 8 for padding
 
-	nhw_res1I_word = (unsigned char*) malloc(count * sizeof(char));
+	nhw_res1I_word = (unsigned char*) calloc(count + 8, sizeof(char));
 	
 	for (i=0,count=0,e=0;i<quad_size;i+=step)
 	{
@@ -259,7 +259,7 @@ void process_res3_q1(image_buffer *im,
 	e = enc->res3.word_len;
 	e = (e + 7) & ~7; // Round up to next multiple of 8 for padding
 
-	nhw_res3I_word = (unsigned char*) calloc(e, sizeof(char));
+	nhw_res3I_word = (unsigned char*) calloc(e + 8, sizeof(char));
 	enc->res3.word_len = e;
 
 	e = 0;

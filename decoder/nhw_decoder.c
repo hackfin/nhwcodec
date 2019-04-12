@@ -255,6 +255,7 @@ int SWAPOUT_FUNCTION(main)(int argc, char **argv)
 
 	im.im_process=(short*)calloc(im.fmt.end,sizeof(short));
 
+	memset(&dec, 0, sizeof(dec));
 	parse_file(&im, &dec,argv);
 	process_hrcomp(&im, &dec);
 
@@ -671,7 +672,7 @@ L7:	os->res_comp[(IM_SIZE>>2)]=os->res_ch[i++];
 void process_nhwcodes(image_buffer *im, short *im_nhw, int IM_SIZE, int IM_DIM)
 {
 	int scan;
-	int count;
+	int count = 0;
 	int i, j;
 
 	for (i=0;i<(2*IM_SIZE);i+=(2*IM_DIM))
@@ -1445,9 +1446,10 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 	}
 
 	if (os->res1.bit_len > 0) {
-		printf("DECODE_RES 1\n");
+		assert(os->end_ch_res >= os->res1.bit_len-1);
 		nhwres1=(NhwIndex *)malloc(os->end_ch_res*sizeof(NhwIndex));
-		nhwres2=(NhwIndex *)malloc(os->d_size_tree1*sizeof(NhwIndex));
+		// assert(os->d_size_tree1 >= os->res1.bit_len-1);
+		nhwres2=(NhwIndex *)malloc(os->res1.bit_len * 8 *sizeof(NhwIndex));
 
 		decode_res1(os, nhwres1, nhwres2);
 	}
@@ -1455,10 +1457,11 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 	if (os->res5.bit_len > 0) {
-		printf("DECODE_RES 5\n");
 		// FIXME: No malloc here
-		nhwresH1=(NhwIndex *)malloc(os->end_ch_res*sizeof(NhwIndex));
-		nhwresH2=(NhwIndex *)malloc(os->d_size_tree1*sizeof(NhwIndex));
+		// nhwresH1=(NhwIndex *)malloc(os->end_ch_res*sizeof(NhwIndex));
+		// nhwresH2=(NhwIndex *)malloc(os->d_size_tree1*sizeof(NhwIndex));
+		nhwresH1=(NhwIndex *)malloc(os->res5.bit_len * 8 *sizeof(NhwIndex));
+		nhwresH2=(NhwIndex *)malloc(os->res5.bit_len * 8 *sizeof(NhwIndex));
 		decode_res5(os, nhwresH1, nhwresH2);
 		// XXX
 		free(os->res5.res);
@@ -1469,7 +1472,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	if (os->nhw_res6_len > 0 && os->nhw_res6_bit_len > 0) {
-		printf("DECODE_RES 6\n");
 		decode_res6(im, os);
 
 		// XXX Not pretty
@@ -1482,7 +1484,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 
 	if (os->res3.bit_len > 0)
 	{
-		printf("DECODE_RES 3\n");
 		int n = os->res3.bit_len<<3;
 
 		nhwres3=(NhwIndex *)malloc(n*sizeof(NhwIndex));
@@ -1490,9 +1491,7 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 		nhwres5=(NhwIndex *)malloc(n*sizeof(NhwIndex));
 		nhwres6=(NhwIndex *)malloc(n*sizeof(NhwIndex));
 
-
 		decode_res3(os, nhwres3, nhwres4, nhwres5, nhwres6);
-
 	}
 
 	// PROCESS code values
@@ -1513,7 +1512,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 
 	if (os->nhw_res4_len>0)
 	{
-		printf("DECODE_RES 4\n");
 		decode_res4(im, os);
 		free(os->nhw_res4);
 	}
@@ -1700,7 +1698,7 @@ int parse_file(image_buffer *imd,decode_state *os,char** argv)
 
 	if (compressed_file==NULL)
 	{
-		printf("\nCould not open file");
+		printf("\nCould not open file %s", argv[1]);
 		exit(-1);
 	}
 

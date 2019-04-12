@@ -357,7 +357,6 @@ int rle_tree_bitplane_code(struct compression_context *ctx,
 	for (i=0;i<e;i+=2) *cur++ = enc->tree1[i];
 	for (i=1;i<e;i+=2) *cur++ = enc->tree1[i];
 
-	printf("Size enc->tree1: %d\n", e);
 //
 //	for (i=0;i<e;i++) printf("%d %d\n",i,codebook[i]);
 	b = code_occurence(codebook, e, 3, enc->tree1);

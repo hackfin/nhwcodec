@@ -224,7 +224,7 @@ int decode_codebook(unsigned short *book, unsigned char *tree, int len)
 	}
 
 #ifdef NHW_LIBRARY
-	dump_values_u16(book, e, "/tmp/dbook.dat", "Encoder codebook");
+	// dump_values_u16(book, e, "/tmp/dbook.dat", "Encoder codebook");
 #endif
 	free(decode1);
 	free(tree_out);
@@ -276,10 +276,6 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 
 	//RETRIEVE BOOKS
 	//
-	printf("Size tree1: %d\n"
-	       "zone num  : %d\n",
-	       os->d_size_tree1, zone_number);
-
 
 	os->book=(unsigned short*)calloc(os->d_size_tree1,sizeof(short));
 

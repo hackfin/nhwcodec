@@ -126,7 +126,8 @@ int record_stats(image_buffer *im, encode_state *enc)
 
 	n += enc->size_tree1;
 	n += enc->size_tree2;
-	// n += enc->size_data1; // unused
+	// size_data2 is inclusive, skip this:
+	// n += enc->size_data1 * 4;
 	n += enc->size_data2 * 4;
 	n += enc->tree_end;
 	n += enc->exw_Y_end;
@@ -187,6 +188,8 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			downsample_YUV420(im, &enc, rate);
 
 			encode_image(im, &enc, rate);
+			// Important:
+			im->setup->RES_HIGH+=im->setup->wavelet_type;
 
 			init_decoder(&dec, &enc, im->setup->quality_setting);
 			dec.res_comp=(ResIndex *)calloc((48*im->fmt.tile_size+1),sizeof(ResIndex));
@@ -348,7 +351,7 @@ int main(int argc, char **argv)
 
 
 	if ((image = fopen(input_filename, "rb")) == NULL ) {
-		fprintf(stderr, "\n Could not open file \n");
+		fprintf(stderr, "\nCould not open file %s\n", input_filename);
 		exit(-1);
 	}
 
