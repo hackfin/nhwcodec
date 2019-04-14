@@ -155,6 +155,7 @@ static unsigned char len[DEPTH]={
 	19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,
 	19,19,19,19,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20};
 
+void dump_values_u16(unsigned short *u16, int n, const char *filename, const char *comment);
 
 
 static
@@ -286,7 +287,7 @@ int rle_weights(struct compression_context *ctx,
 }
 
 static
-int code_occurence(unsigned char *codebook, int e, int cmp, unsigned char *tree)
+int code_occurence(const unsigned char *codebook, int e, int cmp, unsigned char *tree)
 {
 	int i;
 	int c = 0;
@@ -536,6 +537,7 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 	for (part = 0; part < 2; part++) {
 		sel = parms[part].sel;
 
+
 		memset(C.rle_buf,0,256*sizeof(int));
 		memset(C.rle_128,0,256*sizeof(int));
 		
@@ -578,8 +580,9 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 
 	#ifdef NHW_BOOKS
 		printf("\nsize= %d\n",k);printf("\nCodeBooks\n");
-		for(i=0;i< NUM_CODE_WORDS/2 ;i++) printf("%d %d %d %d\n",i,(unsigned char)C.rle_tree[i],C.rle_tree[i]>>8,weight[i]);
+			for(i=0;i< NUM_CODE_WORDS/2 ;i++) printf("%d %d %d %d\n",i,(unsigned char)C.rle_tree[i],C.rle_tree[i]>>8,weight[i]);
 	#endif
+
 
 		//////// LAST STAGE ///////
 
@@ -597,7 +600,11 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 			else           C.zone_entrance = 0;
 		} else {
 			b=0;
-			if ((part==0) && (k> NUM_CODE_WORDS/2)) exit(-1);
+			if ((part==0) && (k> NUM_CODE_WORDS/2)) assert(0);
+		}
+
+		if (enc->debug) {
+			printf("part: %d  sel: %d  b: %d\n", part, sel, b);
 		}
 
 		if ((part==1) && (sel!=4) && (k> NUM_CODE_WORDS/2)) exit(-1);
@@ -614,10 +621,18 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 		// Output parameters used next: c, j
 		
 		if (part==0) {
+
 			enc->size_data1= C.enc_ptr+1;
 			if (sel>4 || b==0) im->setup->wavelet_type=4;
 			else im->setup->wavelet_type=0;
 			b = rle_tree_bitplane_code(&C, k, codebook, enc);
+			if (enc->debug) {
+				char comment[64];
+				sprintf(comment, "Encoder RLE tree, effective size %d", k);
+				dump_values_u16((unsigned short *) C.rle_tree,
+					NUM_CODE_WORDS, "/tmp/rle_tree.dat", comment);
+			}
+
 			enc->size_tree1=b;
 			C.enc_ptr++; 
 			p1=im->fmt.end;
@@ -628,8 +643,11 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 		} else {
 			enc->size_data2= C.enc_ptr+1;
 			rle_tree2_code(&C, k, codebook, enc);
+
 		}
 	} // repeat for part == 1
+
+
 
 	free(C.nhw_s1);
 	free(C.nhw_s2);

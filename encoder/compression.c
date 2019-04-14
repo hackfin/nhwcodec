@@ -43,7 +43,6 @@ void copy_uv_chunks(unsigned char *dst, const short *src, int n)
 }
 
 
-static
 void shuffle_quadpacks(unsigned char *s, const short *pr, int n, int step)
 {
 	int i, j;

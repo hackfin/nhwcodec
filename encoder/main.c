@@ -57,7 +57,6 @@ void copy_from_tile(unsigned char *img, const image_buffer *im, int width)
 static
 void init_decoder(decode_state *dec, encode_state *enc, int q)
 {
-	memset(dec, 0, sizeof(decode_state));
 	dec->d_size_tree1 = enc->size_tree1;
 	dec->d_size_tree2 = enc->size_tree2;
 	dec->d_size_data1 = enc->size_data1;
@@ -175,8 +174,12 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 
 			// Turn on debug mode for specific tile
 			if (g_encconfig.debug_tile_x == x && g_encconfig.debug_tile_y == y) {
+				dec.debug = g_encconfig.debug;
 				enc.debug = g_encconfig.debug;
 				if (enc.debug) printf("Dump tile\n");
+			} else {
+				dec.debug = 0;
+				enc.debug = 0;
 			}
 
 			int offset = 3 * (j + i * width);

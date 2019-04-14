@@ -192,7 +192,24 @@ static char extra_table[ZONE1-1] = {
 -11,0,0,0,-12,0,-13,0,-14,0,0,0,-15,0,-16,0,-17,0,0,0,-18,0,-19
 };
 
-int decode_codebook(unsigned short *book, unsigned char *tree, int len)
+#define INV_QUANT1 125
+#define INV_QUANT2 131
+
+int reverse_offset_correction_coding(short v)
+{
+	if (extra_table[v] > 0) {
+		return WVLT_ENERGY_NHW + (extra_table[v] << 3);
+	} else if (extra_table[v] < 0) {
+		return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
+	} else {
+		if (v > 128) { v = v - INV_QUANT1; }
+		else if (v < 128) { v = v - INV_QUANT2; }
+		else v = 0;
+		return v;
+	}
+}
+
+int decode_codebook(unsigned short *book, unsigned char *tree, int len, int debug)
 {
 	int i, j, e;
 
@@ -211,8 +228,7 @@ int decode_codebook(unsigned short *book, unsigned char *tree, int len)
 
 	tree_out =(unsigned char*)calloc(DEPTH1<<1,sizeof(char));
 
-	// Re-shuffle RLE decoded tree into 'left' and 'right':
-	// TODO Neat would be a tree struct array..
+	// Re-shuffle RLE decoded tree (even/odd):
 	for (i=0,j=0;i<e;i+=2) tree_out[i]=decode1[j++];
 	for (i=1;i<e;i+=2)     tree_out[i]=decode1[j++];
 
@@ -223,9 +239,6 @@ int decode_codebook(unsigned short *book, unsigned char *tree, int len)
 		else {book[j++]=(256|(tree_out[i]&0xff));}
 	}
 
-#ifdef NHW_LIBRARY
-	// dump_values_u16(book, e, "/tmp/dbook.dat", "Encoder codebook");
-#endif
 	free(decode1);
 	free(tree_out);
 
@@ -235,12 +248,12 @@ int decode_codebook(unsigned short *book, unsigned char *tree, int len)
 
 void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int *d1,short *im3)
 {
-	int i,j,tr,size,path,temp1,e,word,zone,INV_QUANT1,INV_QUANT2,zone_number,mem,mem2,nhw_ac1,run_over,t,t2;
+	int i,j,tr,size,path,temp1,e,word,zone,zone_number,mem,mem2,nhw_ac1,run_over,t,t2;
 	unsigned short *ntree,*nhw_book,dec;
 	unsigned char *dec_select_word1,*dec_select_word2,*nhw_rle;
 
 	// Lazy padding:
-	dec_select_word1=(unsigned char*)malloc(((os->nhw_select1<<3) + 8) *sizeof(char));
+	dec_select_word1=(unsigned char*)calloc(((os->nhw_select1<<3) + 8),sizeof(char));
 
 	for (i=0,e=0;i<os->nhw_select1;i++)
 	{
@@ -257,7 +270,7 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 	free(os->nhw_select_word1);
 
 	// Lazy padding:
-	dec_select_word2=(unsigned char*)malloc(((os->nhw_select2<<3) + 8) *sizeof(char));
+	dec_select_word2=(unsigned char*)calloc(((os->nhw_select2<<3) + 8), sizeof(char));
 
 	for (i=0,e=0;i<os->nhw_select2;i++)
 	{
@@ -279,20 +292,24 @@ void retrieve_pixel_Y_comp(image_buffer *im,decode_state *os,int p1,unsigned int
 	//RETRIEVE BOOKS
 	//
 
-	os->book=(unsigned short*)calloc(os->d_size_tree1,sizeof(short));
+	unsigned short *codebook=(unsigned short*)calloc(os->d_size_tree1,sizeof(short));
 
-	j = decode_codebook(os->book, os->d_tree1, os->d_size_tree1);
+	j = decode_codebook(codebook, os->d_tree1, os->d_size_tree1, os->debug);
+
+	if (os->debug) {
+		char comment[64];
+		sprintf(comment, "Decoder, effective book size %d", j);
+		dump_values_u16(codebook, os->d_size_tree1, "/tmp/codebook.dat", comment);
+	}
 
 	free(os->d_tree1); // no longer needed
 
 	nhw_rle=(unsigned char*)malloc(j*sizeof(char));
 
-	for (i=0;i<j;i++) nhw_rle[i]=(os->book[i]>>8);
+	for (i=0;i<j;i++) nhw_rle[i]=(codebook[i]>>8);
 
-	nhw_book=(unsigned short*) os->book;
 
-	INV_QUANT1=125;
-	INV_QUANT2=131;
+	nhw_book=(unsigned short*) codebook;
 
 	// Decode packets over bitstream
 	zone=zone_number;path=0;e=0;tr=0;size=0;ntree=s_nhw_table1;mem=0;mem2=0;nhw_ac1=0;run_over=-257;t=0;t2=0;
@@ -602,7 +619,7 @@ L_TREE:		tr <<=1;
 	}
 
 
-L4:	free(os->book);
+L4:	free(codebook);
 	free(dec_select_word1);
 	free(dec_select_word2);
 	free(nhw_rle);
@@ -610,7 +627,7 @@ L4:	free(os->book);
 
 void retrieve_pixel_UV_comp(image_buffer *im,decode_state *os,int p1,unsigned int *d1,short *im3)
 {
-	int i,j,tr,size,path,temp1,e,word,INV_QUANT1,INV_QUANT2;
+	int i,j,tr,size,path,temp1,e,word;
 	unsigned short *ntree,dec;
 	unsigned char *decode1;
 
@@ -634,19 +651,16 @@ void retrieve_pixel_UV_comp(image_buffer *im,decode_state *os,int p1,unsigned in
 	for (i=0,j=0;i<e;i+=2) os->d_tree2[i]=decode1[j++];
 	for (i=1;i<e;i+=2) os->d_tree2[i]=decode1[j++];
 
-	os->book=(unsigned short*)calloc(e,sizeof(short));
+	unsigned short *codebook =(unsigned short*)calloc(e,sizeof(short));
 
 	for (i=0,j=0;i<e;i++)
 	{
-		if (!(os->d_tree2[i]&0x1)) {os->book[j++]=((os->d_tree2[i+1]<<8)|(os->d_tree2[i]));i++;}
-		else {os->book[j++]=(256|(os->d_tree2[i]&0xfe));}
+		if (!(os->d_tree2[i]&0x1)) {codebook[j++]=((os->d_tree2[i+1]<<8)|(os->d_tree2[i]));i++;}
+		else {codebook[j++]=(256|(os->d_tree2[i]&0xfe));}
 	}
 
 	free(os->d_tree2);
 	free(decode1);
-
-	INV_QUANT1=125;
-	INV_QUANT2=131;
 
 	// Decode packets over bitstream
 	path=0;e=0;tr=0;size=0;ntree=s_nhw_table1;
@@ -756,11 +770,11 @@ void retrieve_pixel_UV_comp(image_buffer *im,decode_state *os,int p1,unsigned in
 
 			if (dec!=0 && size==dec>>9) 
 			{
-L_STREAMUV: 	word=(unsigned char)os->book[(dec&MSW)];
+L_STREAMUV: 	word=(unsigned char)codebook[(dec&MSW)];
 
 				if (word==0x80 ) 
 				{
-					e += os->book[(dec&MSW)]>>8;
+					e += codebook[(dec&MSW)]>>8;
 				}
 				else
 				{
@@ -801,6 +815,6 @@ L_TREEUV:		tr <<=1;
 		}
 	}
 
-L4UV:	free(os->book);
+L4UV:	free(codebook);
 
 }

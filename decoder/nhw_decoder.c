@@ -62,6 +62,7 @@
 #define PACK_COORDINATES(x, y)  ( (y)<<1) | (x)
 #define UNPACK_COORDINATES(p)  p
 
+int reverse_offset_correction_coding(short v);
 
 void decode_res1(decode_state *os, NhwIndex *nhwres1, NhwIndex *nhwres2);
 void decode_res3(decode_state *os, NhwIndex *nhwres3, NhwIndex *nhwres4, NhwIndex *nhwres5,
@@ -804,7 +805,7 @@ void process_nhwcodes(image_buffer *im, short *im_nhw, int IM_SIZE, int IM_DIM)
 }
 
 
-int decode_u(image_buffer *im, decode_state *os, int bypass_compression, int exw1)
+int decode_u(image_buffer *im, decode_state *os, int exw1)
 {
 	int res, stage;
 	unsigned char *nhw_scale;
@@ -816,10 +817,6 @@ int decode_u(image_buffer *im, decode_state *os, int bypass_compression, int exw
 	int IM_SIZE = im->fmt.end / 4;
 	int IM_DIM = im->fmt.tile_size / 2;
 
-	im->im_nhw3=(short*)calloc(2*IM_SIZE,sizeof(short));
-	if (!bypass_compression) {
-		retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
-	}
 
 	im->im_jpeg=(short*)malloc(IM_SIZE*sizeof(short));
 	im_nhw=(short*)im->im_jpeg;
@@ -1193,7 +1190,7 @@ void process_nhw_offset_codes(short *pr, short *im_nhw, int IM_DIM, int IM_SIZE)
 	}
 }
 
-void decode_v(image_buffer *im, decode_state *os, int bypass_compression, int exw1)
+void decode_v(image_buffer *im, decode_state *os, int exw1)
 {
 	int res, stage;
 	unsigned char *nhw_scale;
@@ -1238,7 +1235,6 @@ void decode_v(image_buffer *im, decode_state *os, int bypass_compression, int ex
 		j-=((IM_SIZE)-8);
 	}
 
-	free(im->im_nhw3);
 
 	/*for (i=0;i<(IM_SIZE>>1);i+=(IM_DIM))
 	{
@@ -1424,9 +1420,16 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 	im_nhw=(short*)im->im_jpeg;
 	pr=(short*)im->im_process;
 
-	if (!bypass_compression) {
+	if (bypass_compression) {
+		unsigned char *nhwp = im->im_nhw;
+		for (i = 0; i < im->fmt.end; i++) {
+			*pr++ = reverse_offset_correction_coding(*nhwp++);
+		}
+		pr=(short*)im->im_process;
+	} else {
 		retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,pr);
 	}
+
 
 	// Y
 	for (j=0,count=0;j<im->fmt.tile_size;)
@@ -1683,10 +1686,22 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 
 	free(im->im_process);
 
-	exw1 = decode_u(im, os, bypass_compression, exw1);
-	decode_v(im, os, bypass_compression, exw1);
+	im->im_nhw3=(short*)calloc(2*IM_SIZE,sizeof(short));
 
+	if (bypass_compression) {
+//		unsigned char *nhwp = &im->im_nhw[im->fmt.end];
+//		pr= im->im_nhw3;
+//		for (i = 0; i < im->fmt.end / 2; i++) {
+//			*pr++ = *nhwp++;
+//		}
+	} else {
+		retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
+	}
 
+	exw1 = decode_u(im, os, exw1);
+	decode_v(im, os, exw1);
+
+	free(im->im_nhw3);
 }
 
 // Should finally head towards a endian safe and flexible file format

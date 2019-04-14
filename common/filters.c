@@ -52,6 +52,10 @@
 #include "codec.h"
 #include "wavelets.h"
 
+#define _CALC1_(x)  \
+	6 * x[2] + 2 * (x[1] + x[3]) - (x[0] + x[4])
+
+
 __inline void downfilter53(const short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
@@ -85,18 +89,16 @@ W_SL:	_X=start_line;
 	}
 	else
 	{
-		//_RES[e++]=(short)(W531*_X[0]-W535*(_X[1])-W532*(_X[2])+0.5f);
 		r=(_X[0]*6+_X[1]*4-_X[2]*2);
 		if (r>=0) _RES[e++]=(r+8)>>4;
 		else _RES[e++]=-((-r+8)>>4);
 
 		for (;_X<end_line-4;_X+=2)
 		{
-			//_RES[e++]=(short)(W531*_X[2]+W532*(_X[1]+_X[3])+W533*(_X[0]+_X[4])+0.5f);
-			r=_X[2]*6+(_X[1]+_X[3])*2-(_X[0]+_X[4]);
+			r = _CALC1_(_X);
+// 			r=_X[2]*6+(_X[1]+_X[3])*2-(_X[0]+_X[4]);
 
 			if (r>=0) _RES[e++]=(r+8)>>4;
-			//else _RES[e++]=r>>4;
 			else _RES[e++]=-((-r+8)>>4);
 		}
 
@@ -286,6 +288,7 @@ W_SLII:	_X=start_line;
 
 }
 
+#if 0
 __inline void downfilter53II1(short *_X,int N,int decalage,short *_RES)
 {
 	int r,e=0,m=0,a,w_end;
@@ -343,46 +346,33 @@ W_SLII:	_X=start_line;
 
 }
 
-__inline void downfilter53IV(const short *_X,int N,int decalage,short *_RES)
+#endif
+
+__inline void downfilter53IV(const short *x,int N,int decalage,short *r)
 {
-	int e=0,w_end;
-	const short *start_line=_X,*end_line=_X+N-2;
+	const short *end_line=x+N-4;
 
-	w_end=(N>>1)-1;
-
-	if (decalage)
+	if (decalage) // Odd values
 	{
-		for (;;_X+=4)
-		{
-			_RES[e++]=(_X[1]<<1)-(_X[0]+_X[2]);
-
-			if (e==w_end) goto W_SL3;
-
-			_RES[e++]=(_X[3]<<1)-(_X[2]+_X[4]);
+		while (x < end_line) {
+			*r++ =(x[1] << 1)-(x[0] + x[2]); x += 2;
 		}
+		*r++ = (x[1] << 1) - (x[0] + x[2]);
+		*r++ = (x[3]-x[2]) << 1;
+	} else {
 
-W_SL3:	_X=start_line;
-		_RES[e++]=(short)((_X[N-1]-_X[N-2])<<1);
-	}
-	else
-	{
-		//_RES[e++]=(short)(W531*_X[0]-W535*(_X[1])-W532*(_X[2])+0.375f);
-		_RES[e++]=(_X[0]*6+_X[1]*4-_X[2]*2);
+		// FIXME: Boundaries to prev tile
+		*r++ =(x[0] * 6 + x[1] * 4 - x[2] * 2);
 
-		for (;_X<end_line-4;_X+=2)
-		{
-			//_RES[e++]=(short)(W531*_X[2]+W532*(_X[1]+_X[3])+W533*(_X[0]+_X[4])+0.375f);
-			_RES[e++]=_X[2]*6+(_X[1]+_X[3])*2-(_X[0]+_X[4]);
+		while (x < end_line) {
+			*r++ = _CALC1_(x); x += 2;
 		}
-
-		_X=start_line;
-
-		_RES[e++]=6*_X[N-4]+2*(_X[N-5]+_X[N-3])-(_X[N-6]+_X[N-2]);
-
-		_RES[e++]=6*_X[N-2]+2*(_X[N-3]+_X[N-1])-(_X[N-4]+_X[N-2]);
+		// FIXME: Boundaries to next tile
+		*r++ = 6 * x[2] + 2 * (x[1] + x[3]) - (x[0] + x[2]);
 	}
-
 }
+
+#if 0 // Currently unused
 
 void downfilter97(short *_X,int N,int decalage,short *_RES)
 {
@@ -439,6 +429,8 @@ void downfilter97(short *_X,int N,int decalage,short *_RES)
 								+W975*(__FIR[0]+__FIR[8])+0.5f);	
 	}
 }
+
+#endif
 
 __inline void upfilter53(short *_X,int M,short *_RES)
 {	
@@ -653,3 +645,4 @@ void upfilter97(const short *_X,int M,int E,short *_RES)
 		_RES[e++]+=floor(W971*_X[M-1]+W973*(_X[M-2]+_X[0])+W975*(_X[M-3]+_X[1])+0.5f);
 	}
 }
+

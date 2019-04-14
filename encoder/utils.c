@@ -111,7 +111,7 @@ void dump_values_u16(unsigned short *u16, int n, const char *filename, const cha
 	} else {
 		fprintf(f, "# %s\n", comment);
 		for (i = 0; i < n; i++) {
-			fprintf(f, "%d  %d\n", i, u16[i]);
+			fprintf(f, "%d  0x%04x\n", i, u16[i]);
 		}
 	}
 }

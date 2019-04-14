@@ -19,7 +19,7 @@ SWAP = y
 DEBUG = y
 
 CFLAGS += -DNHW_LIBRARY
-CFLAGS += -DUSE_OPCODES # -DBYPASS
+CFLAGS += -DUSE_OPCODES -DBYPASS
 # When defined, swap out some legacy routines
 ifdef SWAP
 CFLAGS += -DSWAPOUT
@@ -27,7 +27,7 @@ endif
 
 LDFLAGS += -lm -lpng -L$(LIBPNG)/lib -lz
 ifdef DEBUG
-	CFLAGS  += -g
+	CFLAGS  += -g -O3
 else
 	CFLAGS  += -O3
 endif

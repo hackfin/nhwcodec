@@ -212,7 +212,7 @@ typedef struct{
 	unsigned char *res_ch;
 	unsigned int *high_res;
 	int debug;
-}encode_state;
+} encode_state;
 
 typedef struct{
 	unsigned int *packet1;
@@ -253,14 +253,14 @@ typedef struct{
 	unsigned short highres_comp_len;
 	unsigned char *highres_comp;
 	unsigned short tree_end;
-	unsigned short *book;
 	unsigned int *resolution;
 	unsigned char *exw_Y;
 	unsigned char *res_U_64;
 	unsigned char *res_V_64;
 	unsigned char *res_ch;
 	ResIndex *res_comp;
-}decode_state;
+	int debug;
+} decode_state;
 
 
 typedef unsigned long NhwIndex;
