@@ -206,14 +206,21 @@ static char extra_table[256] = {
 
 short reverse_offset_correction_coding(unsigned char v)
 {
-	if (extra_table[v] > 0) {
+	short s;
+											
+	if (v==127) return (1008);
+	else if (v==129) return (1009);
+	else if (v==125) return (1006);
+	else if (v==126) return (1007);
+	else if (v==121) return (1010);
+	else if (v==122) return (1011);
+	else if (extra_table[v] > 0) {
 		return WVLT_ENERGY_NHW + (extra_table[v] << 3);
 	} else if (extra_table[v] < 0) {
 		return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
 	} else {
-		short s = v;
-		if      (s > 128) { s = s - INV_QUANT1; }
-		else if (s < 128) { s = s - INV_QUANT2; }
+		if      (v > 128) { s = v - INV_QUANT1; }
+		else if (v < 128) { s = v - INV_QUANT2; }
 		else s = 0;
 		return s;
 	}
