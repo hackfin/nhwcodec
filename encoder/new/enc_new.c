@@ -590,7 +590,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 
 	// This fills the im_nhw array with the shuffled value packs:
-#ifdef BYPASS1
+#ifdef BYPASS
 	shuffle_quadpacks(im->im_nhw, im->im_process, im->fmt.end, im->fmt.tile_size);
 #else
 	code_y_chunks(im, im->im_nhw, enc);
