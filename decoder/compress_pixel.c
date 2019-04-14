@@ -184,28 +184,38 @@ static unsigned short s_nhw_table2[512] = {
 5704, 0, 0, 0, 0, 0, 0, 0, 
 5705, 0, 0, 0, 0, 0, 0, 0};
 
-
-static char extra_table[ZONE1-1] = {
+static char extra_table[256] = {
 0,0,0,0,0,0,0,0,0,0,1,0,2,0,3,0,0,0,4,0,5,0,6,0,0,0,7,0,8,0,9,0,0,0,10,0, 
 11,0,12,0,0,0,13,0,14,0,15,0,0,0,16,0,17,0,18,0,0,0,19,0, 
 -1,0,-2,0,0,0,-3,0,-4,0,-5,0,0,0,-6,0,-7,0,-8,0,0,0,-9,0,-10,0, 
--11,0,0,0,-12,0,-13,0,-14,0,0,0,-15,0,-16,0,-17,0,0,0,-18,0,-19
+-11,0,0,0,-12,0,-13,0,-14,0,0,0,-15,0,-16,0,-17,0,0,0,-18,0,-19,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0, 0
 };
 
 #define INV_QUANT1 125
 #define INV_QUANT2 131
 
-int reverse_offset_correction_coding(short v)
+short reverse_offset_correction_coding(unsigned char v)
 {
 	if (extra_table[v] > 0) {
 		return WVLT_ENERGY_NHW + (extra_table[v] << 3);
 	} else if (extra_table[v] < 0) {
 		return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
 	} else {
-		if (v > 128) { v = v - INV_QUANT1; }
-		else if (v < 128) { v = v - INV_QUANT2; }
-		else v = 0;
-		return v;
+		short s = v;
+		if      (s > 128) { s = s - INV_QUANT1; }
+		else if (s < 128) { s = s - INV_QUANT2; }
+		else s = 0;
+		return s;
 	}
 }
 
