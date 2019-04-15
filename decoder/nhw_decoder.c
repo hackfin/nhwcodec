@@ -1692,7 +1692,7 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 		unsigned char *nhwp = &im->im_nhw[im->fmt.end];
 		pr= im->im_nhw3;
 		for (i = 0; i < im->fmt.end / 2; i++) {
-			*pr++ = 0;//reverse_offset_correction_coding(*nhwp++);
+			*pr++ = reverse_offset_correction_coding_UV(*nhwp++);
 		}
 	} else {
 		retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
