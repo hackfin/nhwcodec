@@ -1431,7 +1431,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 		retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,pr);
 	}
 
-
 	// Y
 	for (j=0,count=0;j<im->fmt.tile_size;)
 	{

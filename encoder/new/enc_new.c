@@ -625,7 +625,7 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 
 	// This creates new enc->tree structures
 	wavlts2packet(im,enc);
-
+	
 	if (g_encconfig.bypass_compression == 0) {
 		free(im->im_nhw);
 	}
