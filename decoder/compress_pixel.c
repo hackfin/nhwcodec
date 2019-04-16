@@ -207,22 +207,26 @@ static char extra_table[256] = {
 short reverse_offset_correction_coding(unsigned char v)
 {
 	short s;
-											
-	if (v==127) return (1008);
-	else if (v==129) return (1009);
-	else if (v==125) return (1006);
-	else if (v==126) return (1007);
-	else if (v==121) return (1010);
-	else if (v==122) return (1011);
-	else if (extra_table[v] > 0) {
-		return WVLT_ENERGY_NHW + (extra_table[v] << 3);
-	} else if (extra_table[v] < 0) {
-		return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
-	} else {
-		if      (v > 128) { s = v - INV_QUANT1; }
-		else if (v < 128) { s = v - INV_QUANT2; }
-		else s = 0;
-		return s;
+
+	switch (v) {
+
+	case CODE_WORD_127: return CODE_NHW_NB_1;
+	case CODE_WORD_129: return CODE_NHW_NB_2;
+	case CODE_WORD_125: return CODE_NHW_NB_5;
+	case CODE_WORD_126: return CODE_NHW_NB_6;
+	case CODE_WORD_121: return CODE_NHW_NB_3;
+	case CODE_WORD_122: return CODE_NHW_NB_4;
+	default:
+		if (extra_table[v] > 0) {
+			return WVLT_ENERGY_NHW + (extra_table[v] << 3);
+		} else if (extra_table[v] < 0) {
+			return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
+		} else {
+			if      (v > 128) { s = v - INV_QUANT1; }
+			else if (v < 128) { s = v - INV_QUANT2; }
+			else s = 0;
+			return s;
+		}
 	}
 }
 
@@ -230,20 +234,23 @@ short reverse_offset_correction_coding_UV(unsigned char v)
 {
 	short s;
 											
-	if (v==124) return (5005);
-	else if (v==126) return (5006);
-	else if (v==122) return (5003);
-	else if (v==130) return (5004);
-	else if (extra_table[v] > 0) {
-		return WVLT_ENERGY_NHW + (extra_table[v] << 3);
-	} else if (extra_table[v] < 0) {
-		return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
-	} else {
-		if      (v > 128) { s = v - INV_QUANT1; }
-		else if (v < 128) { s = v - INV_QUANT2; }
-		else s = 0;
-		return s;
-	}
+	switch (v) {
+		case CODE_WORD_124: s = 5005; break;
+		case CODE_WORD_126: s = 5006; break;
+		case CODE_WORD_122: s = 5003; break;
+		case CODE_WORD_130: s = 5004; break;
+		default:
+			if (extra_table[v] > 0) {
+				return WVLT_ENERGY_NHW + (extra_table[v] << 3);
+			} else if (extra_table[v] < 0) {
+				return (extra_table[v] << 3) - WVLT_ENERGY_NHW;
+			} else {
+				if      (v > 128) { s = v - INV_QUANT1; }
+				else if (v < 128) { s = v - INV_QUANT2; }
+				else s = 0;
+			}
+		}
+	return s;
 }
 
 int decode_codebook(unsigned short *book, unsigned char *tree, int len, int debug)

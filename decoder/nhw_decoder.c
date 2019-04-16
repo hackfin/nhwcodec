@@ -62,7 +62,8 @@
 #define PACK_COORDINATES(x, y)  ( (y)<<1) | (x)
 #define UNPACK_COORDINATES(p)  p
 
-int reverse_offset_correction_coding(short v);
+short reverse_offset_correction_coding(short v);
+short reverse_offset_correction_coding_UV(unsigned char v);
 
 void decode_res1(decode_state *os, NhwIndex *nhwres1, NhwIndex *nhwres2);
 void decode_res3(decode_state *os, NhwIndex *nhwres3, NhwIndex *nhwres4, NhwIndex *nhwres5,

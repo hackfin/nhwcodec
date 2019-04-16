@@ -61,6 +61,7 @@ struct config {
 	char loopback;
 	char verbose;
 	char testmode;
+	char bypass_compression;
 	int debug;
 	int debug_tile_x;
 	int debug_tile_y;

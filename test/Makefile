@@ -18,7 +18,11 @@ ALL_SETTINGS = h3 h2 h1 norm l1 l3 l5 l6 l7 l9 l8 l12  l16
 WORK_ROOT ?= $(HOME)/work
 
 TESTDIR = $(WORK_ROOT)/nhw/src
+ifdef TEST
+WORKDIR = $(WORK_ROOT)/nhw/out-test
+else
 WORKDIR = $(WORK_ROOT)/nhw/out
+endif
 REFDIR =  $(WORK_ROOT)/nhw/ref
 
 IMAGE_FILES = $(wildcard $(TESTDIR)/*.png)
@@ -146,10 +150,15 @@ allhex:
 
 $(WORKDIR)/%_t$(POWER)_$(SETTING).png: $(TESTDIR)/%.png
 	@echo ============= Quality '$(SETTING)' ===============
-	$(NHW_ENCODE) -L -s$(POWER)
+	$(NHW_ENCODE) -LB -s$(POWER)
 	@echo ===============  DONE  ==================
 
 TILE_IMAGES = $(IMAGES:%=$(WORKDIR)/%_t$(POWER)_$(SETTING).png)
+
+$(WORKDIR):
+	mkdir $@
+
+$(TILE_IMAGES): | $(WORKDIR)
 
 tile: $(TILE_IMAGES)
 
