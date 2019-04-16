@@ -161,15 +161,63 @@ void dump_values_u16(unsigned short *u16, int n, const char *filename, const cha
 static
 void rle_histo(struct compression_context *ctx, int p1, int p2)
 {
-	int i, e;
+	int i, e,c,d;
 	const unsigned char *nhw_comp = ctx->nhw_comp;
 	int *rle_buf = ctx->rle_buf;
 	int *rle_128 = ctx->rle_128;
 
 	i = p1;
 	int n = 0; // XXX DEBUG
+	e=0;c=0;d=0;
 	PRINTF("-------\n 0: ");
-	while (i < p2-1) {
+	
+	for (i=p1;i<p2-1;i++)   
+	{
+L_RUN1:	if (nhw_comp[i]==128)   
+		{
+			while (i<(p2-1) && nhw_comp[i+1]==128)
+			{
+				e++;c=1;
+				if (e==255)
+				{
+					if (nhw_comp[i+2]!=128) 
+					{
+						rle_buf[128]+=2;
+						e=254;rle_128[254]++;i--;e=0;c=0;
+						goto L_RUN1;
+					}
+					else if (nhw_comp[i+2]==128 && nhw_comp[i+3]!=128) 
+					{
+						rle_buf[128]+=3;
+						e=254;rle_128[254]++;i--;e=0;c=0;
+						goto L_RUN1;
+					}
+					i++;
+				}
+				else if (e>255) 
+				{
+					
+					e=254;rle_128[254]++;i--;e=0;c=0;
+					goto L_RUN1;
+				}
+				else i++;
+			}
+		}
+
+		if (c) 
+		{
+			rle_128[e+1]++;
+		}
+		else 
+		{
+			rle_buf[nhw_comp[i]]++;
+		}
+		e=0;c=0;
+	}
+	
+	//printf("rle_buf[128] = %d\n",rle_buf[128]);
+			
+	/*while (i < p2-1) {
 		if (nhw_comp[i]==128) { // (1)
 			e=0;
 			while (i<(p2-1) && nhw_comp[i+1]==128) {
@@ -178,7 +226,7 @@ void rle_histo(struct compression_context *ctx, int p1, int p2)
 				// decrement i and resume. This is not effective,
 				// as the condition (1) is THEN always true.
 				// FIXME: State machine / unwrap loop
-				if (e > 255) { i-=2; e = 253; break; }
+				if (e > 255) { i--; e = 254; break; }
 				else i++;
 			}
 
@@ -192,7 +240,7 @@ void rle_histo(struct compression_context *ctx, int p1, int p2)
 			n++; if (n == 4) { PRINTF("\n %d: ", i); n = 0; } // XXX DEBUG
 		}
 		i++;
-	}
+	}*/
 	PRINTF("\n---------------------------------------------------\n");
 	
 
@@ -235,11 +283,10 @@ int rle_weights(struct compression_context *ctx,
 			}
 		}
 
-	for (j=2;j<sel;j++) rle_128[j]=0;
+	for (j=2;j<sel;j++) {rle_128[j]=0;}
 
 	for(j=sel;j<256;j++) {
 		if (rle_128[j]>0) weight2[128]-=j*rle_128[j];
-		//else rle_buf[128][j]=0;
 	}
 
 	rle_buf[128]=weight2[128];
@@ -408,7 +455,7 @@ void rle_pixelcount(struct compression_context *ctx,
 	// unsigned char *nhw_s2 = ctx->nhw_s1;
 
 	int a = ctx->enc_ptr;
-
+	
 	e=1; match=0; pack=0; tag=0; c=0, j=0;
 	for (i=p1;i<p2-1;i++)   
 	{
@@ -578,10 +625,10 @@ int wavlts2packet(image_buffer *im,encode_state *enc)
 			}
 		}
 
-	#ifdef NHW_BOOKS
+#ifdef NHW_BOOKS
 		printf("\nsize= %d\n",k);printf("\nCodeBooks\n");
 			for(i=0;i< NUM_CODE_WORDS/2 ;i++) printf("%d %d %d %d\n",i,(unsigned char)C.rle_tree[i],C.rle_tree[i]>>8,weight[i]);
-	#endif
+#endif
 
 
 		//////// LAST STAGE ///////
