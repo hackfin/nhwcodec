@@ -214,8 +214,6 @@ L_RUN1:	if (nhw_comp[i]==128)
 		}
 		e=0;c=0;
 	}
-	
-	//printf("rle_buf[128] = %d\n",rle_buf[128]);
 			
 	/*while (i < p2-1) {
 		if (nhw_comp[i]==128) { // (1)

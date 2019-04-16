@@ -1430,8 +1430,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 	} else {
 		retrieve_pixel_Y_comp(im,os,4*IM_SIZE,os->packet1,pr);
 	}
-	
-	//for (i=0;i<1024;i+=4) printf("%d %d %d %d %d\n",i,pr[i],pr[i+1],pr[i+2],pr[i+3]);
 
 	// Y
 	for (j=0,count=0;j<im->fmt.tile_size;)
@@ -1699,8 +1697,6 @@ void decode_image(image_buffer *im,decode_state *os, int bypass_compression)
 	} else {
 		retrieve_pixel_UV_comp(im,os,(2*IM_SIZE-1),os->packet2,im->im_nhw3);
 	}
-	
-	//for (i=0;i<512;i+=4) printf("%d %d %d %d %d\n",i,im->im_nhw3[i],im->im_nhw3[i+1],im->im_nhw3[i+2],im->im_nhw3[i+3]);
 
 	exw1 = decode_u(im, os, exw1);
 	decode_v(im, os, exw1);
