@@ -623,6 +623,9 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(enc->tree1);
 	free(enc->highres_comp);
 	
+	//for (i=0;i<1024;i+=4) printf("%d %d %d %d %d\n",i,im->im_nhw[i],im->im_nhw[i+1],im->im_nhw[i+2],im->im_nhw[i+3]);
+	//for (i=1024;i<1536;i+=4) printf("%d %d %d %d %d\n",(i-1024),im->im_nhw[i],im->im_nhw[i+1],im->im_nhw[i+2],im->im_nhw[i+3]);
+	
 	// This creates new enc->tree structures
 	wavlts2packet(im,enc);
 	
