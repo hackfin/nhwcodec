@@ -590,11 +590,11 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	im->im_nhw=(unsigned char*)calloc(im->fmt.end * 3 / 2,sizeof(char));
 
 	// This fills the im_nhw array with the shuffled value packs:
-#ifdef BYPASS
-	shuffle_quadpacks(im->im_nhw, im->im_process, im->fmt.end, im->fmt.tile_size);
-#else
-	code_y_chunks(im, im->im_nhw, enc);
-#endif
+	if (g_encconfig.bypass_compression) {
+		shuffle_quadpacks(im->im_nhw, im->im_process, im->fmt.end, im->fmt.tile_size);
+	} else {
+		code_y_chunks(im, im->im_nhw, enc);
+	}
 
 	free(im->im_process);
 	
@@ -624,11 +624,11 @@ void encode_image(image_buffer *im,encode_state *enc, int ratio)
 	free(enc->highres_comp);
 
 	// This creates new enc->tree structures
-#ifndef BYPASS
 	wavlts2packet(im,enc);
 
-	free(im->im_nhw);
-#endif
+	if (g_encconfig.bypass_compression == 0) {
+		free(im->im_nhw);
+	}
 }
 
 

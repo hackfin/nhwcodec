@@ -19,7 +19,7 @@ SWAP = y
 DEBUG = y
 
 CFLAGS += -DNHW_LIBRARY
-CFLAGS += -DUSE_OPCODES -DBYPASS
+CFLAGS += -DUSE_OPCODES
 # When defined, swap out some legacy routines
 ifdef SWAP
 CFLAGS += -DSWAPOUT

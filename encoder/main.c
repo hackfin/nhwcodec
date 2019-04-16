@@ -23,6 +23,7 @@ static struct option long_options[] = {
 
 struct config g_encconfig = {
 	.tilepower = 9,
+	.bypass_compression = 0,
 	.testmode = 0,
 	.debug = 0,
 	.debug_tile_x = 0,
@@ -197,11 +198,8 @@ int encode_tiles(image_buffer *im, const unsigned char *img, int width, int heig
 			im->im_process=(short*)calloc(im->fmt.end,sizeof(short));
 
 			process_hrcomp(im, &dec);
-#ifdef BYPASS
-			decode_image(im, &dec, 1); // bypass compression
-#else
-			decode_image(im, &dec, 0);
-#endif
+
+			decode_image(im, &dec, g_encconfig.bypass_compression); // bypass compression
 			im->im_buffer4 = (unsigned char*) malloc(3*im->fmt.end*sizeof(char));
 			yuv_to_rgb(im);
 
@@ -300,7 +298,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int c;
 		int option_index;
-		c = getopt_long(argc, argv, "-q:s:LTvdno:t:", long_options, &option_index);
+		c = getopt_long(argc, argv, "-q:s:BLTvdno:t:", long_options, &option_index);
 
 		if (c == EOF) break;
 		switch (c) {
@@ -325,6 +323,8 @@ int main(int argc, char **argv)
 				break;
 			case 'd':
 				g_encconfig.debug = 1; break;
+			case 'B':
+				g_encconfig.bypass_compression = 1; break;
 			case 'T':
 				g_encconfig.testmode = 1; break;
 			case 'L':
