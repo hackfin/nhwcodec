@@ -150,7 +150,7 @@ allhex:
 
 $(WORKDIR)/%_t$(POWER)_$(SETTING).png: $(TESTDIR)/%.png
 	@echo ============= Quality '$(SETTING)' ===============
-	$(NHW_ENCODE) -LB -s$(POWER)
+	$(NHW_ENCODE) -L -s$(POWER)
 	@echo ===============  DONE  ==================
 
 TILE_IMAGES = $(IMAGES:%=$(WORKDIR)/%_t$(POWER)_$(SETTING).png)

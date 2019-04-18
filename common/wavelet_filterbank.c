@@ -353,8 +353,7 @@ void dec_wavelet_synthesis2(image_buffer *im,decode_state *os,int norder,int las
 
 	data=(short*)im->im_process;
 
-	if (im->setup->quality_setting>HIGH1)
-	{
+	if (os->nhw_res6_len > 0 && os->nhw_res6_bit_len > 0) {
 		for (i=0;i<os->nhw_res6_bit_len;i++) 
 		{
 			data[os->nhwresH3[i]]-=32;
