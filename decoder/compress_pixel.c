@@ -653,7 +653,7 @@ L_INVQ:					if (word>0x80) im3[e++]=(word-INV_QUANT1);
 					}
 				}
 
-L_SCAN_END:	  		if (e>=(p1-1)) goto L4;
+L_SCAN_END:	  		if (e>=(p1-3)) goto L4;
 				tr=0;size=0;if (path) {path=0;ntree=s_nhw_table1;} zone=zone_number;
 			}
 
@@ -851,7 +851,7 @@ L_INVQUV:				if (word>0x80)
 						}
 					}
 				}
-L_END_UV:		if (e>=(p1-2)) goto L4UV;
+L_END_UV:		if (e>=(p1-3)) goto L4UV;
 				tr=0;size=0;path=0;ntree=s_nhw_table1;
 			}
 

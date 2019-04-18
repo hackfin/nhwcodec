@@ -97,7 +97,7 @@ void code_y_chunks(image_buffer *im, unsigned char *nhwbuf, encode_state *enc)
 	shuffle_quadpacks(s, pr, n, step);
 
 	// FIXME: Turn into state machine
-	for (i=0;i<n-4;i++)
+	for (i=0;i<n-8;i++)
 	{
 		if (s[i]!=CODE_WORD_128 && s[i+1]==CODE_WORD_128)
 		{
