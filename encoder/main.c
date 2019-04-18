@@ -366,11 +366,15 @@ int main(int argc, char **argv)
 	fclose(image);
 
 	switch (ret) {
-		case 0: break; // No error
-		case -1:
+		case ERR_NONE: break; // No error
+		case ERR_PNG_SIZE:
 			str = "Bad size"; break;
-		case -2:
+		case ERR_PNG_READ_HEADER:
 			str = "Bad header"; break;
+		case ERR_PNG_NORGB:
+			str = "Image format error"; break;
+		case ERR_PNG_MALLOC:
+			str = "Malloc error"; break;
 		default:
 			str = "Unknown error";
 	}
