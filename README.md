@@ -17,17 +17,17 @@ showing artefacts.
 
 Currently, tiling is only active when using the loopback test mode '-LT':
 
-The '-s' parameter defines the tile power, usable values: 5..8
+The '-s' parameter defines the tile power, usable values: 5..9
 
 Usage example:
 
 * Recode image with 32x32 tiles in LOW12 quality:
 
-> ./nhwenc -LT -o /tmp/output.png -l12 -s5 /tmp/beach.png
+> ./nhwenc -LT -o /tmp/output.png -ql12 -s5 /tmp/beach.png
 
 * Recode image with 128x128 tiles in HIGH3 quality:
 
-> ./nhwenc -LT -o /tmp/output.png -h3 -s7 /tmp/valley.png
+> ./nhwenc -LT -o /tmp/output.png -qh3 -s7 /tmp/valley.png
 
 How to compile?
 ===============
